@@ -1,0 +1,15 @@
+export const MONTH_OPTIONS = [
+  { value: 0, label: 'Ano todo', shortLabel: 'Ano' },
+  { value: 1, label: 'Janeiro', shortLabel: 'Jan' },
+  { value: 2, label: 'Fevereiro', shortLabel: 'Fev' },
+  { value: 3, label: 'Março', shortLabel: 'Mar' },
+  { value: 4, label: 'Abril', shortLabel: 'Abr' },
+  { value: 5, label: 'Maio', shortLabel: 'Mai' },
+  { value: 6, label: 'Junho', shortLabel: 'Jun' },
+  { value: 7, label: 'Julho', shortLabel: 'Jul' },
+  { value: 8, label: 'Agosto', shortLabel: 'Ago' },
+  { value: 9, label: 'Setembro', shortLabel: 'Set' },
+  { value: 10, label: 'Outubro', shortLabel: 'Out' },
+  { value: 11, label: 'Novembro', shortLabel: 'Nov' },
+  { value: 12, label: 'Dezembro', shortLabel: 'Dez' },
+] as const;

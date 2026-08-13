@@ -1,0 +1,38 @@
+{
+  "name": "henrique-transportes-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc -b && vite build --config vite.config.ts",
+    "preview": "vite preview --config vite.config.ts",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write .",
+    "dev:backend": "node scripts/start-backend.mjs",
+    "dev:frontend": "vite --config vite.config.ts --host localhost --port 5173 --strictPort"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "axios": "^1.18.1",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "^7.18.1",
+    "styled-components": "latest"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@types/styled-components": "latest",
+    "eslint": "latest",
+    "eslint-plugin-react-hooks": "latest",
+    "eslint-plugin-react-refresh": "latest",
+    "globals": "latest",
+    "prettier": "latest",
+    "typescript": "latest",
+    "typescript-eslint": "latest",
+    "vite": "latest"
+  }
+}
