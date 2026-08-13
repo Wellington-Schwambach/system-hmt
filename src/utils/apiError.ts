@@ -124,6 +124,13 @@ const FIELD_LABELS: Record<string, string> = {
   toll_amount: 'pedágio',
   icms_amount: 'ICMS',
   bonus_amount: 'bonificação',
+  'ctes.cte_type': 'tipo do CT-e',
+  'ctes.cte_number': 'número do CT-e',
+  'ctes.cte_series': 'série do CT-e',
+  'ctes.net_freight': 'frete líquido do CT-e',
+  'ctes.insurance_amount': 'seguro do CT-e',
+  'ctes.toll_amount': 'pedágio do CT-e',
+  'ctes.icms_amount': 'ICMS do CT-e',
 };
 
 const FILE_FIELDS = new Set([

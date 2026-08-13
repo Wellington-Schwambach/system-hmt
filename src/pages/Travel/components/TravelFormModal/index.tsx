@@ -331,6 +331,22 @@ export function TravelFormModal({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError('');
+
+    if (!formData.date) {
+      setFormError('Informe a data da viagem.');
+      return;
+    }
+
+    if (!formData.shipperId) {
+      setFormError('Selecione o embarcador.');
+      return;
+    }
+
+    if (!formData.origin.trim() || !formData.destination.trim()) {
+      setFormError('Informe a origem e o destino da viagem.');
+      return;
+    }
 
     if (formData.ctes.length === 0) {
       setFormError('Adicione pelo menos um CT-e à viagem.');
@@ -338,16 +354,55 @@ export function TravelFormModal({
     }
 
     const invalidCte = formData.ctes.find(
-      (cte) => !cte.cteNumber.trim() || !cte.cteSeries.trim(),
+      (cte) =>
+        !cte.cteNumber.trim() ||
+        !cte.cteSeries.trim() ||
+        !cte.netFreight.trim() ||
+        !Number.isFinite(parseDecimalInput(cte.netFreight)),
     );
     if (invalidCte) {
-      setFormError('Informe o número e a série de todos os CT-es adicionados.');
+      setFormError('Informe o número, a série e o frete líquido de todos os CT-es adicionados.');
       return;
     }
 
-    if (isThirdParty && calculations.thirdPartyPayout < 0) {
-      setFormError('O valor de repasse ao terceiro não pode ser negativo.');
-      return;
+    if (isThirdParty) {
+      const normalizedPlate = formData.thirdPartyPlate.trim().toLocaleUpperCase('pt-BR');
+      const plateIsValid = /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(normalizedPlate);
+
+      if (!formData.thirdPartyName.trim()) {
+        setFormError('Informe o nome ou a razão social do terceiro contratado.');
+        return;
+      }
+
+      if (!plateIsValid) {
+        setFormError('Informe uma placa válida para o terceiro, como ABC1D23 ou ABC1234.');
+        return;
+      }
+
+      if (!formData.thirdPartyPayoutAmount.trim()) {
+        setFormError('Informe o valor de repasse ao terceiro.');
+        return;
+      }
+
+      if (calculations.thirdPartyPayout < 0) {
+        setFormError('O valor de repasse ao terceiro não pode ser negativo.');
+        return;
+      }
+    } else {
+      if (!formData.vehicleId) {
+        setFormError('Selecione o cavalo utilizado na viagem.');
+        return;
+      }
+
+      if (!formData.driverOneId) {
+        setFormError('Selecione pelo menos um motorista para a viagem da frota.');
+        return;
+      }
+
+      if (formData.driverTwoId && formData.driverTwoId === formData.driverOneId) {
+        setFormError('O segundo motorista deve ser diferente do primeiro.');
+        return;
+      }
     }
 
     const result = await onSubmit(formData);

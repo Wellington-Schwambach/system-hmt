@@ -11,6 +11,13 @@ class Travel extends Model
 {
     use HasFactory;
 
+    /**
+     * `travel` é uma palavra incontável para o pluralizador do Laravel.
+     * Sem esta definição explícita, o Eloquent tenta consultar a tabela
+     * `travel`, enquanto a migration cria corretamente `travels`.
+     */
+    protected $table = 'travels';
+
     protected $fillable = [
         'cte_type',
         'travel_date',

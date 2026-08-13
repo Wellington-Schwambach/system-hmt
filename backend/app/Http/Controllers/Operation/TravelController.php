@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
@@ -236,22 +237,24 @@ class TravelController extends Controller
             ], 503);
         }
 
-        $travel = DB::transaction(function () use ($request): Travel {
-            $cteRows = $this->cteAttributes($request);
+        try {
+            $travel = DB::transaction(function () use ($request): Travel {
+                $cteRows = $this->cteAttributes($request);
 
-            $travel = Travel::query()->create([
-                ...$this->attributes($request),
-                ...$this->legacyCteTotals($cteRows),
-                'created_by' => $request->user()?->id,
-                'updated_by' => $request->user()?->id,
-            ]);
+                $travel = Travel::query()->create([
+                    ...$this->attributes($request),
+                    ...$this->legacyCteTotals($cteRows),
+                    'created_by' => $request->user()?->id,
+                    'updated_by' => $request->user()?->id,
+                ]);
 
-            if (Schema::hasTable('travel_ctes')) {
                 $travel->ctes()->createMany($cteRows);
-            }
 
-            return $travel->fresh()->loadMissing('ctes');
-        });
+                return $travel->fresh()->loadMissing('ctes');
+            });
+        } catch (QueryException $exception) {
+            return $this->travelDatabaseError($exception);
+        }
 
         return response()->json([
             'message' => 'Viagem cadastrada com sucesso.',
@@ -268,22 +271,24 @@ class TravelController extends Controller
             ], 503);
         }
 
-        $travel = DB::transaction(function () use ($request, $travel): Travel {
-            $cteRows = $this->cteAttributes($request);
+        try {
+            $travel = DB::transaction(function () use ($request, $travel): Travel {
+                $cteRows = $this->cteAttributes($request);
 
-            $travel->fill([
-                ...$this->attributes($request),
-                ...$this->legacyCteTotals($cteRows),
-                'updated_by' => $request->user()?->id,
-            ])->save();
+                $travel->fill([
+                    ...$this->attributes($request),
+                    ...$this->legacyCteTotals($cteRows),
+                    'updated_by' => $request->user()?->id,
+                ])->save();
 
-            if (Schema::hasTable('travel_ctes')) {
                 $travel->ctes()->delete();
                 $travel->ctes()->createMany($cteRows);
-            }
 
-            return $travel->fresh()->loadMissing('ctes');
-        });
+                return $travel->fresh()->loadMissing('ctes');
+            });
+        } catch (QueryException $exception) {
+            return $this->travelDatabaseError($exception);
+        }
 
         return response()->json([
             'message' => 'Viagem atualizada com sucesso.',
@@ -297,6 +302,36 @@ class TravelController extends Controller
         return response()->noContent();
     }
 
+    private function travelDatabaseError(QueryException $exception): JsonResponse
+    {
+        report($exception);
+
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+
+        return match ($sqlState) {
+            '23505' => response()->json([
+                'message' => 'Já existe uma viagem com um dos números e séries de CT-e informados.',
+                'code' => 'TRAVEL_CTE_DUPLICATE',
+            ], 409),
+            '23503' => response()->json([
+                'message' => 'Um dos cadastros selecionados foi removido ou alterado. Atualize as opções e tente novamente.',
+                'code' => 'TRAVEL_RELATED_RECORD_CHANGED',
+            ], 409),
+            '22001' => response()->json([
+                'message' => 'Um dos textos informados ultrapassa o tamanho permitido. Revise embarcador, origem, destino e terceiro.',
+                'code' => 'TRAVEL_VALUE_TOO_LONG',
+            ], 422),
+            '23502', '42703', '42P01' => response()->json([
+                'message' => 'A estrutura do banco de viagens precisa ser atualizada. Execute as migrations do backend e tente novamente.',
+                'code' => 'TRAVEL_SCHEMA_INCOMPATIBLE',
+            ], 503),
+            default => response()->json([
+                'message' => 'Não foi possível gravar a viagem no banco de dados. Tente novamente ou consulte o administrador.',
+                'code' => 'TRAVEL_DATABASE_WRITE_FAILED',
+            ], 500),
+        };
+    }
+
     /** @return array<string, mixed> */
     private function attributes(StoreTravelRequest $request): array
     {
@@ -304,18 +339,31 @@ class TravelController extends Controller
         $operationType = $validated['operation_type'];
 
         $shipper = Shipper::query()->findOrFail((int) $validated['shipper_id']);
-        $vehicle = $operationType === 'FLEET'
-            ? Vehicle::query()->findOrFail((int) $validated['vehicle_id'])
-            : null;
-        $driverOne = $operationType === 'FLEET' && ! empty($validated['driver_one_id'])
-            ? Employee::query()->findOrFail((int) $validated['driver_one_id'])
-            : null;
-        $driverTwo = $operationType === 'FLEET' && ! empty($validated['driver_two_id'])
-            ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
-            : null;
+        $vehicle = null;
+        $driverOne = null;
+        $driverTwo = null;
+
+        if ($operationType === 'FLEET') {
+            $vehicle = Vehicle::query()->findOrFail((int) $validated['vehicle_id']);
+            $driverOne = Employee::query()->findOrFail((int) $validated['driver_one_id']);
+            $driverTwo = ! empty($validated['driver_two_id'])
+                ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
+                : null;
+        }
+
         $trailer = ! empty($validated['detached_trailer_id'])
             ? Vehicle::query()->findOrFail((int) $validated['detached_trailer_id'])
             : null;
+
+        $thirdPartyName = $operationType === 'THIRD_PARTY'
+            ? trim((string) ($validated['third_party_name'] ?? ''))
+            : null;
+        $thirdPartyPlate = $operationType === 'THIRD_PARTY'
+            ? strtoupper((string) ($validated['third_party_plate'] ?? ''))
+            : null;
+        $plateSnapshot = $operationType === 'FLEET'
+            ? (string) $vehicle?->plate
+            : (string) $thirdPartyPlate;
 
         return [
             'travel_date' => $validated['travel_date'],
@@ -326,13 +374,13 @@ class TravelController extends Controller
             'shipper' => $shipper->name,
             'operation_type' => $operationType,
             'vehicle_id' => $vehicle?->id,
-            'plate_snapshot' => $vehicle?->plate ?? $validated['third_party_plate'],
+            'plate_snapshot' => $plateSnapshot,
             'driver_one_id' => $driverOne?->id,
             'driver_one_name' => $driverOne?->full_name,
             'driver_two_id' => $driverTwo?->id,
             'driver_two_name' => $driverTwo?->full_name,
-            'third_party_name' => $operationType === 'THIRD_PARTY' ? $validated['third_party_name'] : null,
-            'third_party_plate' => $operationType === 'THIRD_PARTY' ? $validated['third_party_plate'] : null,
+            'third_party_name' => $thirdPartyName,
+            'third_party_plate' => $thirdPartyPlate,
             'third_party_payout_amount' => $operationType === 'THIRD_PARTY'
                 ? round((float) ($validated['third_party_payout_amount'] ?? 0), 2)
                 : 0,
