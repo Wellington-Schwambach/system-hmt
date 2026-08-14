@@ -15,8 +15,14 @@ export function DashboardLayout() {
   const notifications = useNotifications();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const { isSidebarOpen, isSidebarCollapsed, openSidebar, closeSidebar, toggleSidebarCollapsed } =
-    useDashboardSidebar();
+  const {
+    isSidebarOpen,
+    isSidebarCollapsed,
+    openSidebar,
+    closeSidebar,
+    expandSidebar,
+    collapseSidebar,
+  } = useDashboardSidebar();
 
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) {
@@ -59,7 +65,8 @@ export function DashboardLayout() {
           isOpen={isSidebarOpen}
           isCollapsed={isSidebarCollapsed}
           onClose={closeSidebar}
-          onCollapseToggle={toggleSidebarCollapsed}
+          onExpand={expandSidebar}
+          onCollapse={collapseSidebar}
         />
       </SidebarSlot>
 

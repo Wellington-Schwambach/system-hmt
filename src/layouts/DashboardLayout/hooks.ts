@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { breakpoints } from '../../styles/breakpoints';
+const DESKTOP_QUERY = '(min-width: 56.251rem)';
 
-const NOTEBOOK_QUERY = `(min-width: 56.251rem) and (max-width: ${breakpoints.desktop})`;
+function isDesktopViewport(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia(DESKTOP_QUERY).matches;
+}
 
 function getInitialSidebarCollapsed() {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-
-  return window.matchMedia(NOTEBOOK_QUERY).matches;
+  if (typeof window === 'undefined') return true;
+  return isDesktopViewport();
 }
 
 export function useDashboardSidebar() {
@@ -17,16 +16,16 @@ export function useDashboardSidebar() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getInitialSidebarCollapsed);
 
   useEffect(() => {
-    const notebookMediaQuery = window.matchMedia(NOTEBOOK_QUERY);
+    const desktopMediaQuery = window.matchMedia(DESKTOP_QUERY);
 
-    function handleNotebookChange(event: MediaQueryListEvent) {
+    function handleViewportChange(event: MediaQueryListEvent) {
       setIsSidebarCollapsed(event.matches);
     }
 
-    notebookMediaQuery.addEventListener('change', handleNotebookChange);
+    desktopMediaQuery.addEventListener('change', handleViewportChange);
 
     return () => {
-      notebookMediaQuery.removeEventListener('change', handleNotebookChange);
+      desktopMediaQuery.removeEventListener('change', handleViewportChange);
     };
   }, []);
 
@@ -38,8 +37,12 @@ export function useDashboardSidebar() {
     setIsSidebarOpen(false);
   }, []);
 
-  const toggleSidebarCollapsed = useCallback(() => {
-    setIsSidebarCollapsed((currentValue) => !currentValue);
+  const expandSidebar = useCallback(() => {
+    if (isDesktopViewport()) setIsSidebarCollapsed(false);
+  }, []);
+
+  const collapseSidebar = useCallback(() => {
+    if (isDesktopViewport()) setIsSidebarCollapsed(true);
   }, []);
 
   return {
@@ -47,6 +50,7 @@ export function useDashboardSidebar() {
     isSidebarCollapsed,
     openSidebar,
     closeSidebar,
-    toggleSidebarCollapsed,
+    expandSidebar,
+    collapseSidebar,
   };
 }

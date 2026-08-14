@@ -40,6 +40,8 @@ export function useTravelRecords() {
   const [shipperFilter, setShipperFilter] = useState<TravelShipperFilter>('ALL');
   const [plateFilter, setPlateFilter] = useState('ALL');
   const [cteTypeFilter, setCteTypeFilter] = useState<TravelCteTypeFilter>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -124,6 +126,8 @@ export function useTravelRecords() {
       const matchesCteType =
         cteTypeFilter === 'ALL' ||
         record.ctes.some((cte) => cte.cteType === cteTypeFilter);
+      const matchesPeriod =
+        (!dateFrom || record.date >= dateFrom) && (!dateTo || record.date <= dateTo);
       const matchesSearch =
         normalizedSearch.length === 0 ||
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
@@ -135,11 +139,11 @@ export function useTravelRecords() {
         record.shipper.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.detachedTrailerPlate.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
 
-      return matchesShipper && matchesPlate && matchesCteType && matchesSearch;
+      return matchesShipper && matchesPlate && matchesCteType && matchesPeriod && matchesSearch;
     });
-  }, [cteTypeFilter, enrichedRecords, plateFilter, searchTerm, shipperFilter]);
+  }, [cteTypeFilter, dateFrom, dateTo, enrichedRecords, plateFilter, searchTerm, shipperFilter]);
 
-  const summary = useMemo(() => getTravelSummary(enrichedRecords), [enrichedRecords]);
+  const summary = useMemo(() => getTravelSummary(records, cteTypeFilter), [cteTypeFilter, records]);
 
   const createShipper = useCallback(
     async (name: string): Promise<TravelOptionShipper | null> => {
@@ -246,6 +250,8 @@ export function useTravelRecords() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    dateFrom,
+    dateTo,
     plateOptions,
     searchTerm,
     loading,
@@ -257,6 +263,8 @@ export function useTravelRecords() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setDateFrom,
+    setDateTo,
     setSearchTerm,
     refreshOptions,
     createShipper,

@@ -24,6 +24,11 @@ export function employeeRecordToFormData(record: EmployeeRecord): EmployeeFormDa
     phone: record.phone,
     email: record.email,
     fullAddress: record.fullAddress,
+    addressStreet: record.addressStreet,
+    addressNumber: record.addressNumber,
+    addressNeighborhood: record.addressNeighborhood,
+    stateId: record.stateId ? String(record.stateId) : '',
+    cityId: record.cityId ? String(record.cityId) : '',
     jobTitle: record.jobTitle,
     admissionDate: record.admissionDate,
     terminationDate: record.terminationDate,
@@ -64,18 +69,27 @@ export function formatDate(value: string): string {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
-export function formatCpf(value: string): string {
+export function formatCpfInput(value: string): string {
   const digits = onlyDigits(value, 11);
-  return digits.length === 11
-    ? digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-    : value || 'Não informado';
+  if (digits.length === 0) return '';
+  if (digits.length !== 11) return digits;
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+export function formatPhoneInput(value: string): string {
+  const digits = onlyDigits(value, 11);
+  if (digits.length === 0) return '';
+  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+  return digits;
+}
+
+export function formatCpf(value: string): string {
+  return formatCpfInput(value) || 'Não informado';
 }
 
 export function formatPhone(value: string): string {
-  const digits = onlyDigits(value, 11);
-  if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
-  if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-  return value || 'Não informado';
+  return formatPhoneInput(value) || 'Não informado';
 }
 
 export function calculateTenure(
@@ -267,7 +281,7 @@ function createZip(entries: ZipEntry[]): Uint8Array {
 export function exportEmployeesToExcel(records: EmployeeRecord[]): void {
   const headers = [
     'Matrícula', 'Nome', 'CPF', 'RG', 'Data de nascimento', 'Telefone', 'E-mail',
-    'Endereço completo', 'Cargo / Função', 'Data admissão', 'Data rescisão',
+    'Rua', 'Número', 'Bairro', 'Cidade', 'Estado', 'UF', 'Cargo / Função', 'Data admissão', 'Data rescisão',
     'Contato familiar', 'Fim da experiência', 'Status', 'Tempo de empresa',
     'CNH', 'Categoria CNH', 'Emissão CNH', 'Primeira habilitação', 'Vencimento CNH',
     'UF CNH', 'Código de segurança CNH', 'Vencimento ASO', 'Vencimento Opentech',
@@ -278,12 +292,17 @@ export function exportEmployeesToExcel(records: EmployeeRecord[]): void {
   const rows: Array<Array<string | number>> = records.map((record) => [
     record.employeeCode,
     record.fullName,
-    record.cpf,
+    formatCpf(record.cpf),
     record.rg,
     formatDate(record.birthDate),
-    record.phone,
+    formatPhone(record.phone),
     record.email,
-    record.fullAddress,
+    record.addressStreet,
+    record.addressNumber,
+    record.addressNeighborhood,
+    record.cityName,
+    record.stateName,
+    record.stateAbbreviation,
     record.jobTitle,
     formatDate(record.admissionDate),
     formatDate(record.terminationDate),

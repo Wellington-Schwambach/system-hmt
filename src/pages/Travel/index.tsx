@@ -25,6 +25,8 @@ export function Travel() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    dateFrom,
+    dateTo,
     plateOptions,
     searchTerm,
     loading,
@@ -36,6 +38,8 @@ export function Travel() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setDateFrom,
+    setDateTo,
     setSearchTerm,
     refreshOptions,
     createShipper,
@@ -117,10 +121,14 @@ export function Travel() {
         plateFilter={plateFilter}
         plateOptions={plateOptions}
         cteTypeFilter={cteTypeFilter}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
         searchTerm={searchTerm}
         onShipperFilterChange={setShipperFilter}
         onPlateFilterChange={setPlateFilter}
         onCteTypeFilterChange={setCteTypeFilter}
+        onDateFromChange={setDateFrom}
+        onDateToChange={setDateTo}
         onSearchChange={setSearchTerm}
       />
 

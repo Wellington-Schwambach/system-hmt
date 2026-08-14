@@ -114,7 +114,23 @@ export const TableWrapper = styled.div`
 export const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
-  min-width: 84rem;
+  min-width: 94rem;
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    min-width: 15rem;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    min-width: 6.8rem;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4) {
+    min-width: 9.5rem;
+    white-space: nowrap;
+  }
 `;
 
 export const Th = styled.th`
@@ -145,6 +161,8 @@ export const EmployeeMain = styled.div`
 export const EmployeeName = styled.strong`
   display: block;
   font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
 `;
 
 export const EmployeeDetail = styled.span`

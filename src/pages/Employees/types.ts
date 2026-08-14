@@ -19,6 +19,18 @@ export interface EmployeeDocuments {
   registrationForm: EmployeeDocument | null;
 }
 
+export interface BrazilStateOption {
+  id: number;
+  abbreviation: string;
+  name: string;
+}
+
+export interface BrazilCityOption {
+  id: number;
+  stateId: number;
+  name: string;
+}
+
 export interface EmployeeRecord {
   id: number;
   employeeCode: string;
@@ -29,6 +41,14 @@ export interface EmployeeRecord {
   phone: string;
   email: string;
   fullAddress: string;
+  addressStreet: string;
+  addressNumber: string;
+  addressNeighborhood: string;
+  stateId: number | null;
+  stateName: string;
+  stateAbbreviation: string;
+  cityId: number | null;
+  cityName: string;
   jobTitle: string;
   admissionDate: string;
   terminationDate: string;
@@ -62,6 +82,11 @@ export interface EmployeeFormData {
   phone: string;
   email: string;
   fullAddress: string;
+  addressStreet: string;
+  addressNumber: string;
+  addressNeighborhood: string;
+  stateId: string;
+  cityId: string;
   jobTitle: string;
   admissionDate: string;
   terminationDate: string;
