@@ -48,12 +48,23 @@ export const Helper = styled.span`
   font-size: 0.76rem;
 `;
 
+export const ValueBreakdownRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(7.8rem, 1.08fr);
+  align-items: start;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+
+  > ${Value} {
+    margin-top: 0;
+  }
+`;
+
 export const Breakdown = styled.div`
   display: grid;
-  gap: 0.32rem;
-  margin-top: 0.7rem;
-  padding-top: 0.65rem;
-  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  gap: 0.28rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
 `;
 
 export const BreakdownItem = styled.div`

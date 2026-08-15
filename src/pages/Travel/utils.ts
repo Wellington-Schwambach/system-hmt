@@ -1,4 +1,4 @@
-import type { TravelRecord, TravelRecordWithMetrics, TravelSummary } from './types';
+import type { TravelCteTypeFilter, TravelRecord, TravelRecordWithMetrics, TravelSummary } from './types';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -55,17 +55,43 @@ export function enrichTravelRecords(records: TravelRecord[]): TravelRecordWithMe
     }));
 }
 
-export function getTravelSummary(records: TravelRecordWithMetrics[]): TravelSummary {
+export function getTravelSummary(
+  records: TravelRecordWithMetrics[],
+  cteTypeFilter: TravelCteTypeFilter = 'ALL',
+): TravelSummary {
   return records.reduce<TravelSummary>(
-    (summary, record) => ({
-      totalTrips: summary.totalTrips + 1,
-      totalGrossFreight: summary.totalGrossFreight + record.grossFreight,
-      totalNetFreight: summary.totalNetFreight + record.netFreight,
-      totalDifference: summary.totalDifference + record.freightDifference,
-      totalInsurance: summary.totalInsurance + record.insuranceAmount,
-      totalToll: summary.totalToll + record.tollAmount,
-      totalIcms: summary.totalIcms + record.icmsAmount,
-    }),
+    (summary, record) => {
+      const ctes = cteTypeFilter === 'ALL'
+        ? record.ctes
+        : record.ctes.filter((cte) => cte.cteType === cteTypeFilter);
+
+      const useRecordTotals = cteTypeFilter === 'ALL' || ctes.length === 0;
+      const netFreight = useRecordTotals
+        ? record.netFreight
+        : ctes.reduce((total, cte) => total + cte.netFreight, 0);
+      const grossFreight = useRecordTotals
+        ? record.grossFreight
+        : ctes.reduce((total, cte) => total + cte.grossFreight, 0);
+      const insurance = useRecordTotals
+        ? record.insuranceAmount
+        : ctes.reduce((total, cte) => total + cte.insuranceAmount, 0);
+      const toll = useRecordTotals
+        ? record.tollAmount
+        : ctes.reduce((total, cte) => total + cte.tollAmount, 0);
+      const icms = useRecordTotals
+        ? record.icmsAmount
+        : ctes.reduce((total, cte) => total + cte.icmsAmount, 0);
+
+      return {
+        totalTrips: summary.totalTrips + 1,
+        totalGrossFreight: summary.totalGrossFreight + grossFreight,
+        totalNetFreight: summary.totalNetFreight + netFreight,
+        totalDifference: summary.totalDifference + Math.max(grossFreight - netFreight, 0),
+        totalInsurance: summary.totalInsurance + insurance,
+        totalToll: summary.totalToll + toll,
+        totalIcms: summary.totalIcms + icms,
+      };
+    },
     {
       totalTrips: 0,
       totalGrossFreight: 0,

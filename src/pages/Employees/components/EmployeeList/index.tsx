@@ -14,7 +14,6 @@ import {
   calculateTenure,
   formatCpf,
   formatDate,
-  getEmployeeStatusLabel,
 } from '../../utils';
 import { EmployeeStatusBadge } from '../EmployeeStatusBadge';
 import type { EmployeeListProps } from './types';
@@ -142,6 +141,7 @@ export function EmployeeList({
                 <tr>
                   <Th>Matrícula</Th>
                   <Th>Nome</Th>
+                  <Th>Status</Th>
                   <Th>CPF</Th>
                   <Th>Data de nascimento</Th>
                   <Th>Vencimento ASO</Th>
@@ -160,11 +160,9 @@ export function EmployeeList({
                     <Td>
                       <EmployeeMain>
                         <EmployeeName>{record.fullName}</EmployeeName>
-                        <EmployeeDetail>
-                          {record.jobTitle} · {getEmployeeStatusLabel(record.status)}
-                        </EmployeeDetail>
                       </EmployeeMain>
                     </Td>
+                    <Td><EmployeeStatusBadge status={record.status} /></Td>
                     <Td>{formatCpf(record.cpf)}</Td>
                     <Td>{formatDate(record.birthDate)}</Td>
                     <Td>{formatDate(record.asoExpiryDate)}</Td>

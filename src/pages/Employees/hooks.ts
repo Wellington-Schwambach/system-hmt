@@ -13,6 +13,13 @@ import type {
 } from './types';
 import { onlyDigits } from './utils';
 
+
+function sortEmployeesByName(records: EmployeeRecord[]): EmployeeRecord[] {
+  return [...records].sort((left, right) =>
+    left.fullName.localeCompare(right.fullName, 'pt-BR', { sensitivity: 'base' }),
+  );
+}
+
 function persistEmployeeCache(records: EmployeeRecord[]): void {
   try {
     window.localStorage.setItem(EMPLOYEES_STORAGE_KEY, JSON.stringify(records));
@@ -37,8 +44,9 @@ export function useEmployeeRecords() {
       .list()
       .then((records) => {
         if (active) {
-          setAllRecords(records);
-          persistEmployeeCache(records);
+          const sortedRecords = sortEmployeesByName(records);
+          setAllRecords(sortedRecords);
+          persistEmployeeCache(sortedRecords);
         }
       })
       .catch((error: unknown) => {
@@ -84,9 +92,11 @@ export function useEmployeeRecords() {
           : await employeeService.create(formData);
 
         setAllRecords((currentRecords) => {
-          const updatedRecords = editingId
-            ? currentRecords.map((record) => (record.id === editingId ? result.employee : record))
-            : [result.employee, ...currentRecords];
+          const updatedRecords = sortEmployeesByName(
+            editingId
+              ? currentRecords.map((record) => (record.id === editingId ? result.employee : record))
+              : [result.employee, ...currentRecords],
+          );
           persistEmployeeCache(updatedRecords);
           return updatedRecords;
         });

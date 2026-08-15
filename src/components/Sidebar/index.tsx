@@ -1,4 +1,4 @@
-import { ChevronDown, PanelLeftClose, PanelLeftOpen, Truck, X } from 'lucide-react';
+import { ChevronDown, Truck, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -11,8 +11,6 @@ import {
   BrandCompact,
   BrandImage,
   CloseButton,
-  CollapseButton,
-  CollapseLabel,
   GroupChevron,
   MenuButton,
   MenuIcon,
@@ -20,7 +18,6 @@ import {
   MenuList,
   SidebarBackdrop,
   SidebarContainer,
-  SidebarFooter,
   SidebarHeader,
   SubmenuButton,
   SubmenuIcon,
@@ -37,7 +34,7 @@ function isNavigationItemActive(item: NavigationItem, pathname: string): boolean
   return item.children?.some((child) => child.path === pathname) ?? false;
 }
 
-export function Sidebar({ isOpen, isCollapsed, onClose, onCollapseToggle }: SidebarProps) {
+export function Sidebar({ isOpen, isCollapsed, onClose, onExpand, onCollapse }: SidebarProps) {
   const location = useLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -83,9 +80,7 @@ export function Sidebar({ isOpen, isCollapsed, onClose, onCollapseToggle }: Side
   }
 
   function handleGroupToggle(groupId: string) {
-    if (isCollapsed) {
-      onCollapseToggle();
-    }
+    if (isCollapsed) onExpand();
 
     setOpenGroupIds((currentIds) =>
       currentIds.includes(groupId)
@@ -108,6 +103,12 @@ export function Sidebar({ isOpen, isCollapsed, onClose, onCollapseToggle }: Side
         $isOpen={isOpen}
         $isCollapsed={isCollapsed}
         aria-label="Navegação principal"
+        onMouseEnter={onExpand}
+        onMouseLeave={onCollapse}
+        onFocusCapture={onExpand}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onCollapse();
+        }}
       >
         <SidebarHeader $isCollapsed={isCollapsed}>
           <Brand
@@ -199,23 +200,6 @@ export function Sidebar({ isOpen, isCollapsed, onClose, onCollapseToggle }: Side
           })}
         </MenuList>
 
-        <SidebarFooter $isCollapsed={isCollapsed}>
-          <CollapseButton
-            type="button"
-            $isCollapsed={isCollapsed}
-            onClick={onCollapseToggle}
-            aria-label={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-            title={isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
-          >
-            {isCollapsed ? (
-              <PanelLeftOpen size={19} aria-hidden="true" />
-            ) : (
-              <PanelLeftClose size={19} aria-hidden="true" />
-            )}
-
-            <CollapseLabel $isCollapsed={isCollapsed}>Recolher menu</CollapseLabel>
-          </CollapseButton>
-        </SidebarFooter>
       </SidebarContainer>
     </>
   );

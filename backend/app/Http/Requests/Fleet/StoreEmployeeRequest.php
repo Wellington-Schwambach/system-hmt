@@ -23,6 +23,8 @@ class StoreEmployeeRequest extends FormRequest
             'cnh_category' => $this->nullableUppercase('cnh_category'),
             'cnh_state' => $this->nullableUppercase('cnh_state'),
             'email' => $this->nullableLowercase('email'),
+            'state_id' => $this->nullableInteger('state_id'),
+            'city_id' => $this->nullableInteger('city_id'),
             'remove_cnh_file' => $this->boolean('remove_cnh_file'),
             'remove_aso_file' => $this->boolean('remove_aso_file'),
             'remove_toxicological_file' => $this->boolean('remove_toxicological_file'),
@@ -51,6 +53,11 @@ class StoreEmployeeRequest extends FormRequest
             'phone' => ['nullable', 'string', 'between:10,11', 'regex:/^\d+$/'],
             'email' => ['nullable', 'email:rfc', 'max:150'],
             'full_address' => ['nullable', 'string', 'max:1000'],
+            'address_street' => ['nullable', 'string', 'max:180'],
+            'address_number' => ['nullable', 'string', 'max:30'],
+            'address_neighborhood' => ['nullable', 'string', 'max:100'],
+            'state_id' => ['nullable', 'integer', 'exists:brazil_states,id', 'required_with:city_id'],
+            'city_id' => ['nullable', 'integer', 'exists:brazil_cities,id', 'required_with:state_id'],
             'job_title' => ['required', 'string', 'max:80'],
             'admission_date' => ['required', 'date_format:Y-m-d'],
             'termination_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:admission_date'],
@@ -100,6 +107,10 @@ class StoreEmployeeRequest extends FormRequest
             'probation_end_date.after_or_equal' => 'O fim da experiência não pode ser anterior à admissão.',
             'cnh_number.unique' => 'Esta CNH já está cadastrada.',
             'cnh_state.size' => 'A UF da CNH deve possuir 2 letras.',
+            'state_id.required_with' => 'Selecione o estado do endereço.',
+            'state_id.exists' => 'O estado selecionado não está disponível.',
+            'city_id.required_with' => 'Selecione a cidade do endereço.',
+            'city_id.exists' => 'A cidade selecionada não está disponível.',
 
             'cnh_file.uploaded' => 'Não foi possível enviar o anexo da CNH. Use PDF, JPG ou PNG de até 10 MB e tente novamente.',
             'cnh_file.file' => 'O anexo da CNH não foi reconhecido como um arquivo válido.',
@@ -130,6 +141,20 @@ class StoreEmployeeRequest extends FormRequest
                 $issuedAt = $this->input('cnh_issued_at');
                 $expiry = $this->input('cnh_expiry_date');
 
+                $stateId = $this->input('state_id');
+                $cityId = $this->input('city_id');
+
+                if ($stateId && $cityId) {
+                    $cityBelongsToState = \App\Models\BrazilCity::query()
+                        ->whereKey($cityId)
+                        ->where('state_id', $stateId)
+                        ->exists();
+
+                    if (! $cityBelongsToState) {
+                        $validator->errors()->add('city_id', 'A cidade selecionada não pertence ao estado informado.');
+                    }
+                }
+
                 if ($issuedAt && $expiry && $expiry < $issuedAt) {
                     $validator->errors()->add(
                         'cnh_expiry_date',
@@ -150,6 +175,13 @@ class StoreEmployeeRequest extends FormRequest
         $value = $this->digits($field);
 
         return $value === '' ? null : $value;
+    }
+
+    private function nullableInteger(string $field): ?int
+    {
+        $value = trim((string) $this->input($field));
+
+        return $value === '' ? null : (int) $value;
     }
 
     private function nullableUppercase(string $field): ?string

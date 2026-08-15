@@ -42,7 +42,7 @@ export const SidebarBackdrop = styled.button<{ $isOpen: boolean }>`
 `;
 
 export const SidebarContainer = styled.nav<SidebarStateProps>`
-  width: 100%;
+  width: ${({ $isCollapsed }) => ($isCollapsed ? '100%' : '17.5rem')};
   height: calc(100vh - 2rem);
   height: calc(100dvh - 2rem);
   position: sticky;
@@ -56,6 +56,7 @@ export const SidebarContainer = styled.nav<SidebarStateProps>`
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
   overflow: hidden;
   transition:
+    width 220ms ease,
     padding 220ms ease,
     border-radius 220ms ease;
 

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Fleet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Fleet\StoreEmployeeRequest;
 use App\Http\Requests\Fleet\UpdateEmployeeRequest;
+use App\Models\BrazilCity;
+use App\Models\BrazilState;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +34,7 @@ class EmployeeController extends Controller
         $status = strtoupper(trim((string) $request->query('status', '')));
 
         $employees = Employee::query()
-            ->with('documents')
+            ->with(['documents', 'state', 'city'])
             ->when($search !== '', function ($query) use ($search): void {
                 $like = '%'.mb_strtolower($search).'%';
                 $digits = preg_replace('/\D/', '', $search);
@@ -88,7 +90,7 @@ class EmployeeController extends Controller
                     ]);
                 }
 
-                return $employee->load('documents');
+                return $employee->load(['documents', 'state', 'city']);
             });
         } catch (Throwable $exception) {
             foreach ($storedPaths as $path) {
@@ -163,7 +165,7 @@ class EmployeeController extends Controller
 
         return response()->json([
             'message' => 'Colaborador atualizado com sucesso.',
-            'employee' => $this->payload($employee->fresh()->load('documents')),
+            'employee' => $this->payload($employee->fresh()->load(['documents', 'state', 'city'])),
         ]);
     }
 
@@ -209,7 +211,8 @@ class EmployeeController extends Controller
         ];
         $validated = $request->safe()->except($excluded);
         $nullable = [
-            'rg', 'phone', 'email', 'full_address', 'termination_date', 'family_contact',
+            'rg', 'phone', 'email', 'full_address', 'address_street', 'address_number',
+            'address_neighborhood', 'state_id', 'city_id', 'termination_date', 'family_contact',
             'probation_end_date', 'cnh_number', 'cnh_category', 'cnh_issued_at',
             'cnh_first_license_date', 'cnh_expiry_date', 'cnh_state', 'cnh_security_code',
             'aso_expiry_date', 'opentech_expiry_date', 'angellira_expiry_date',
@@ -222,7 +225,28 @@ class EmployeeController extends Controller
                 : null;
         }
 
+        $validated['full_address'] = $this->composeFullAddress($validated);
+
         return $validated;
+    }
+
+    /** @param array<string, mixed> $attributes */
+    private function composeFullAddress(array $attributes): ?string
+    {
+        $street = trim((string) ($attributes['address_street'] ?? ''));
+        $number = trim((string) ($attributes['address_number'] ?? ''));
+        $neighborhood = trim((string) ($attributes['address_neighborhood'] ?? ''));
+        $city = isset($attributes['city_id']) ? BrazilCity::query()->find($attributes['city_id']) : null;
+        $state = isset($attributes['state_id']) ? BrazilState::query()->find($attributes['state_id']) : null;
+
+        $parts = array_values(array_filter([
+            $street === '' ? null : $street.($number === '' ? '' : ', '.$number),
+            $neighborhood === '' ? null : $neighborhood,
+            $city?->name,
+            $state?->abbreviation,
+        ], static fn ($value): bool => $value !== null && $value !== ''));
+
+        return $parts === [] ? null : implode(' - ', $parts);
     }
 
     /** @return array{path: string, original_name: string, mime_type: ?string, size: ?int} */
@@ -281,6 +305,20 @@ class EmployeeController extends Controller
             'phone' => $employee->phone,
             'email' => $employee->email,
             'full_address' => $employee->full_address,
+            'address_street' => $employee->address_street,
+            'address_number' => $employee->address_number,
+            'address_neighborhood' => $employee->address_neighborhood,
+            'state_id' => $employee->state_id,
+            'state' => $employee->state === null ? null : [
+                'id' => $employee->state->id,
+                'abbreviation' => $employee->state->abbreviation,
+                'name' => $employee->state->name,
+            ],
+            'city_id' => $employee->city_id,
+            'city' => $employee->city === null ? null : [
+                'id' => $employee->city->id,
+                'name' => $employee->city->name,
+            ],
             'job_title' => $employee->job_title,
             'admission_date' => $employee->admission_date?->format('Y-m-d'),
             'termination_date' => $employee->termination_date?->format('Y-m-d'),

@@ -11,14 +11,12 @@ export const Layout = styled.div<LayoutProps>`
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: ${({ $isSidebarCollapsed }) =>
-    $isSidebarCollapsed ? '5.75rem' : '17.5rem'} minmax(0, 1fr);
+  grid-template-columns: 5.75rem minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
   background:
     radial-gradient(circle at 92% 8%, rgba(0, 166, 81, 0.12), transparent 24rem),
     ${({ theme }) => theme.colors.dashboardBackground};
-  transition: grid-template-columns 220ms ease;
 
   @media (max-width: ${breakpoints.tablet}) {
     grid-template-columns: minmax(0, 1fr);
@@ -34,7 +32,7 @@ export const Layout = styled.div<LayoutProps>`
 export const SidebarSlot = styled.aside`
   min-width: 0;
   position: relative;
-  z-index: 30;
+  z-index: 1100;
 
   @media (max-width: ${breakpoints.tablet}) {
     position: static;

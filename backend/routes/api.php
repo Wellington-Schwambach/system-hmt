@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\SecurityController;
 use App\Http\Controllers\Fleet\EmployeeController;
+use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
 use App\Http\Controllers\Operation\TravelController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,13 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
                 ->name('vehicles.crlv.download');
         });
 
+
+    Route::prefix('locations')
+        ->middleware('permission:registrations.employees')
+        ->group(function (): void {
+            Route::get('/states', [LocationController::class, 'states']);
+            Route::get('/states/{state}/cities', [LocationController::class, 'cities']);
+        });
 
     Route::prefix('employees')
         ->middleware('permission:registrations.employees')
