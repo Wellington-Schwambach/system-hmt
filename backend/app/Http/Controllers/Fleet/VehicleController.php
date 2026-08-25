@@ -176,6 +176,7 @@ class VehicleController extends Controller
             'opentech_expiry_date' => $validated['opentech_expiry_date'] ?: null,
             'angellira_expiry_date' => $validated['angellira_expiry_date'] ?: null,
             'licensing_expiry_date' => $validated['licensing_expiry_date'] ?: null,
+            'tachograph_expiry_date' => $validated['tachograph_expiry_date'] ?: null,
             'crlv_valid_until' => $validated['crlv_valid_until'] ?: null,
         ];
     }
@@ -237,6 +238,7 @@ class VehicleController extends Controller
             'opentech_expiry_date' => $vehicle->opentech_expiry_date?->format('Y-m-d'),
             'angellira_expiry_date' => $vehicle->angellira_expiry_date?->format('Y-m-d'),
             'licensing_expiry_date' => $vehicle->licensing_expiry_date?->format('Y-m-d'),
+            'tachograph_expiry_date' => $vehicle->tachograph_expiry_date?->format('Y-m-d'),
             'notes' => $vehicle->notes,
             'crlv' => $vehicle->crlv_path === null ? null : [
                 'name' => $vehicle->crlv_original_name,

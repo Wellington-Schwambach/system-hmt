@@ -1,10 +1,12 @@
 export type VehicleTab = 'FORM' | 'LIST';
 
-export type VehicleType = 'TRACTOR' | 'TRAILER';
+export type VehicleType = 'TRACTOR' | 'TRAILER' | 'OTHER';
 
 export type VehicleFuelType = 'DIESEL' | 'FLEX' | 'GASOLINE' | 'ELECTRIC' | 'OTHER';
 
 export type VehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE';
+
+export type VehiclePlateEndFilter = 'ALL' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
 
 export interface VehicleCrlv {
   name: string;
@@ -33,6 +35,7 @@ export interface VehicleRecord {
   opentechExpiryDate: string;
   angelliraExpiryDate: string;
   licensingExpiryDate: string;
+  tachographExpiryDate: string;
   notes: string;
   crlv: VehicleCrlv | null;
   createdAt: string;
@@ -58,6 +61,7 @@ export interface VehicleFormData {
   opentechExpiryDate: string;
   angelliraExpiryDate: string;
   licensingExpiryDate: string;
+  tachographExpiryDate: string;
   notes: string;
   crlvFile: File | null;
   crlvValidUntil: string;

@@ -1,4 +1,8 @@
+import { useMemo, useState } from 'react';
+
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   Edit3,
   FileSpreadsheet,
@@ -45,6 +49,12 @@ import {
   MobileList,
   MobileName,
   MobileValue,
+  PageButton,
+  PageInfo,
+  PageSizeSelect,
+  Pagination,
+  PaginationActions,
+  PaginationSummary,
   SearchIcon,
   SearchInput,
   SearchShell,
@@ -77,6 +87,20 @@ export function EmployeeList({
   onDownloadDocument,
   onExport,
 }: EmployeeListProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
+  const visiblePage = Math.min(currentPage, totalPages);
+
+  const paginatedRecords = useMemo(() => {
+    const start = (visiblePage - 1) * pageSize;
+    return records.slice(start, start + pageSize);
+  }, [pageSize, records, visiblePage]);
+
+  const firstVisibleRecord = records.length === 0 ? 0 : (visiblePage - 1) * pageSize + 1;
+  const lastVisibleRecord = Math.min(visiblePage * pageSize, records.length);
+
   return (
     <ListCard>
       <ListToolbar>
@@ -86,7 +110,10 @@ export function EmployeeList({
             <SearchInput
               type="search"
               value={searchTerm}
-              onChange={(event) => onSearchChange(event.target.value)}
+              onChange={(event) => {
+                setCurrentPage(1);
+                onSearchChange(event.target.value);
+              }}
               placeholder="Buscar por nome, CPF, matrícula, cargo, e-mail ou CNH..."
               aria-label="Buscar colaboradores"
             />
@@ -94,15 +121,22 @@ export function EmployeeList({
 
           <FilterSelect
             value={statusFilter}
-            onChange={(event) =>
-              onStatusFilterChange(event.target.value as EmployeeListProps['statusFilter'])
-            }
+            onChange={(event) => {
+              setCurrentPage(1);
+              onStatusFilterChange(event.target.value as EmployeeListProps['statusFilter']);
+            }}
             aria-label="Filtrar colaboradores por situação"
           >
-            <option value="ALL">Todas as situações</option>
             {EMPLOYEE_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
+              <option key={option.value} value={option.value}>
+                {option.value === 'ACTIVE'
+                  ? 'Ativos'
+                  : option.value === 'INACTIVE'
+                    ? 'Inativos'
+                    : 'Afastados'}
+              </option>
             ))}
+            <option value="ALL">Todos os colaboradores</option>
           </FilterSelect>
         </Filters>
 
@@ -117,7 +151,11 @@ export function EmployeeList({
       </ListToolbar>
 
       <ListMeta>
-        <span>{records.length} colaborador(es) no filtro atual</span>
+        <span>
+          {records.length === 0
+            ? 'Nenhum colaborador no filtro atual'
+            : `${firstVisibleRecord}-${lastVisibleRecord} de ${records.length} colaborador(es) no filtro atual`}
+        </span>
         <span>{totalRecords} cadastrado(s) no total</span>
       </ListMeta>
 
@@ -154,7 +192,7 @@ export function EmployeeList({
                 </tr>
               </thead>
               <tbody>
-                {records.map((record) => (
+                {paginatedRecords.map((record) => (
                   <tr key={record.id}>
                     <Td>{record.employeeCode}</Td>
                     <Td>
@@ -216,7 +254,7 @@ export function EmployeeList({
           </TableWrapper>
 
           <MobileList>
-            {records.map((record) => (
+            {paginatedRecords.map((record) => (
               <MobileCard key={record.id}>
                 <MobileCardHeader>
                   <div>
@@ -262,6 +300,48 @@ export function EmployeeList({
               </MobileCard>
             ))}
           </MobileList>
+
+          <Pagination aria-label="Paginação de colaboradores">
+            <PaginationSummary>
+              <span>Itens por página</span>
+              <PageSizeSelect
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+                aria-label="Quantidade de colaboradores por página"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </PageSizeSelect>
+            </PaginationSummary>
+
+            <PaginationActions>
+              <PageButton
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={visiblePage === 1}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={16} />
+              </PageButton>
+
+              <PageInfo>
+                Página <strong>{visiblePage}</strong> de <strong>{totalPages}</strong>
+              </PageInfo>
+
+              <PageButton
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={visiblePage === totalPages}
+                aria-label="Próxima página"
+              >
+                <ChevronRight size={16} />
+              </PageButton>
+            </PaginationActions>
+          </Pagination>
         </>
       )}
     </ListCard>

@@ -15,6 +15,21 @@ import type {
 } from './types';
 import { enrichTravelRecords, getTravelSummary } from './utils';
 
+function getCurrentMonthRange(): { from: string; to: string } {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const monthNumber = String(month + 1).padStart(2, '0');
+  const lastDay = String(new Date(year, month + 1, 0).getDate()).padStart(2, '0');
+
+  return {
+    from: `${year}-${monthNumber}-01`,
+    to: `${year}-${monthNumber}-${lastDay}`,
+  };
+}
+
+const CURRENT_MONTH_RANGE = getCurrentMonthRange();
+
 const EMPTY_OPTIONS: TravelOptions = {
   tractors: [],
   trailers: [],
@@ -40,8 +55,8 @@ export function useTravelRecords() {
   const [shipperFilter, setShipperFilter] = useState<TravelShipperFilter>('ALL');
   const [plateFilter, setPlateFilter] = useState('ALL');
   const [cteTypeFilter, setCteTypeFilter] = useState<TravelCteTypeFilter>('ALL');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(CURRENT_MONTH_RANGE.from);
+  const [dateTo, setDateTo] = useState(CURRENT_MONTH_RANGE.to);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -132,6 +147,9 @@ export function useTravelRecords() {
         normalizedSearch.length === 0 ||
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.driverDisplay.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+        record.driver.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+        record.driverOne.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+        record.driverTwo.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.origin.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.destination.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.cteNumber.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||

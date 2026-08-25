@@ -54,6 +54,8 @@ export interface EmployeeRecord {
   terminationDate: string;
   familyContact: string;
   probationEndDate: string;
+  probationExtensionEndDate: string;
+  vacationDate: string;
   status: EmployeeStatus;
   cnhNumber: string;
   cnhCategory: CnhCategory | '';
@@ -92,6 +94,8 @@ export interface EmployeeFormData {
   terminationDate: string;
   familyContact: string;
   probationEndDate: string;
+  probationExtensionEndDate: string;
+  vacationDate: string;
   status: EmployeeStatus;
   cnhNumber: string;
   cnhCategory: CnhCategory | '';

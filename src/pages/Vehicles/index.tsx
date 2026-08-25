@@ -19,11 +19,13 @@ export function Vehicles() {
     totalRecords,
     searchTerm,
     statusFilter,
+    plateEndFilter,
     loading,
     saving,
     deletingId,
     setSearchTerm,
     setStatusFilter,
+    setPlateEndFilter,
     clearFeedback,
     saveRecord,
     deleteRecord,
@@ -107,10 +109,12 @@ export function Vehicles() {
           totalRecords={totalRecords}
           searchTerm={searchTerm}
           statusFilter={statusFilter}
+          plateEndFilter={plateEndFilter}
           loading={loading}
           deletingId={deletingId}
           onSearchChange={setSearchTerm}
           onStatusFilterChange={setStatusFilter}
+          onPlateEndFilterChange={setPlateEndFilter}
           onCreate={handleCreate}
           onEdit={handleEdit}
           onDelete={handleDelete}

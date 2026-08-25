@@ -42,7 +42,7 @@ export function TravelMobileList({
         <Card key={record.id}>
           <CardHeader>
             <div>
-              <ShipperBadge shipper={record.shipper} />
+              <ShipperBadge shipper={record.shipper} color={record.shipperColor} />
               <Cte>
                 <FileText size={14} aria-hidden="true" />
                 CT-e {record.cteNumber} · Série {record.cteSeries}

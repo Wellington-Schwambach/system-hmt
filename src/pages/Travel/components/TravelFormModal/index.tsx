@@ -5,7 +5,6 @@ import {
   CircleDollarSign,
   FilePlus2,
   FileText,
-  MapPin,
   Plus,
   Save,
   Trash2,
@@ -15,8 +14,11 @@ import {
 } from 'lucide-react';
 
 import { DateInput } from '../../../../components/DateInput';
+import { SearchableSelect } from '../../../../components/SearchableSelect';
 import { CTE_TYPE_OPTIONS, INITIAL_TRAVEL_FORM, createEmptyCte } from '../../constants';
+import { travelService } from '../../services';
 import type {
+  TravelCityOption,
   TravelCteFormData,
   TravelFormData,
   TravelRecordWithMetrics,
@@ -90,6 +92,7 @@ function getInitialFormData(editingRecord?: TravelRecordWithMetrics | null): Tra
           cteType: cte.cteType,
           cteNumber: cte.cteNumber,
           cteSeries: cte.cteSeries,
+          complementedCteNumber: cte.complementedCteNumber,
           netFreight: moneyValue(cte.netFreight),
           insuranceAmount: moneyValue(cte.insuranceAmount),
           tollAmount: moneyValue(cte.tollAmount),
@@ -110,6 +113,7 @@ function getInitialFormData(editingRecord?: TravelRecordWithMetrics | null): Tra
     thirdPartyName: editingRecord.thirdPartyName,
     thirdPartyPlate: editingRecord.thirdPartyPlate,
     thirdPartyPayoutAmount: moneyValue(editingRecord.thirdPartyPayoutAmount),
+    thirdPartyPayoutDate: editingRecord.thirdPartyPayoutDate,
     detachedTrailerId: editingRecord.detachedTrailerId
       ? String(editingRecord.detachedTrailerId)
       : '',
@@ -146,6 +150,9 @@ export function TravelFormModal({
   const [formData, setFormData] = useState<TravelFormData>(() => getInitialFormData(editingRecord));
   const [formError, setFormError] = useState('');
   const [isShipperModalOpen, setIsShipperModalOpen] = useState(false);
+
+  const [cityOptions, setCityOptions] = useState<TravelCityOption[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
 
   const tractors = useMemo(() => {
     if (
@@ -216,10 +223,67 @@ export function TravelFormModal({
         id: editingRecord.shipperId,
         name: editingRecord.shipper,
         status: 'ACTIVE',
+        color: editingRecord.shipperColor || '#009E60',
       });
     }
     return current.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [editingRecord, options.shippers]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    let active = true;
+    travelService
+      .cities()
+      .then((cities) => {
+        if (active) setCityOptions(cities);
+      })
+      .catch(() => {
+        if (active) setCityOptions([]);
+      })
+      .finally(() => {
+        if (active) setCitiesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
+
+  const locationSelectOptions = useMemo(
+    () =>
+      cityOptions.map((city) => ({
+        value: `${city.name} / ${city.stateAbbreviation}`,
+        label: `${city.name} / ${city.stateAbbreviation}`,
+        searchText: `${city.name} ${city.stateAbbreviation}`,
+      })),
+    [cityOptions],
+  );
+
+  const originSelectOptions = useMemo(() => {
+    if (!formData.origin || locationSelectOptions.some((option) => option.value === formData.origin)) {
+      return locationSelectOptions;
+    }
+
+    return [
+      { value: formData.origin, label: formData.origin, searchText: formData.origin },
+      ...locationSelectOptions,
+    ];
+  }, [formData.origin, locationSelectOptions]);
+
+  const destinationSelectOptions = useMemo(() => {
+    if (
+      !formData.destination ||
+      locationSelectOptions.some((option) => option.value === formData.destination)
+    ) {
+      return locationSelectOptions;
+    }
+
+    return [
+      { value: formData.destination, label: formData.destination, searchText: formData.destination },
+      ...locationSelectOptions,
+    ];
+  }, [formData.destination, locationSelectOptions]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -270,6 +334,8 @@ export function TravelFormModal({
 
   const isEditing = Boolean(editingRecord);
   const isThirdParty = formData.operationType === 'THIRD_PARTY';
+  const complementOnly =
+    formData.ctes.length > 0 && formData.ctes.every((cte) => cte.cteType === 'FREIGHT_COMPLEMENT');
 
   function handleChange(field: Exclude<keyof TravelFormData, 'ctes'>, value: string) {
     setFormError('');
@@ -284,6 +350,7 @@ export function TravelFormModal({
           thirdPartyName: value === 'THIRD_PARTY' ? current.thirdPartyName : '',
           thirdPartyPlate: value === 'THIRD_PARTY' ? current.thirdPartyPlate : '',
           thirdPartyPayoutAmount: value === 'THIRD_PARTY' ? current.thirdPartyPayoutAmount : '',
+          thirdPartyPayoutDate: value === 'THIRD_PARTY' ? current.thirdPartyPayoutDate : '',
         };
       }
 
@@ -297,17 +364,31 @@ export function TravelFormModal({
     value: string,
   ) {
     setFormError('');
-    setFormData((current) => ({
-      ...current,
-      ctes: current.ctes.map((cte) =>
-        cte.key === key
-          ? {
-              ...cte,
-              [field]: field === 'cteType' ? (value as TravelCteFormData['cteType']) : value,
-            }
-          : cte,
-      ),
-    }));
+    setFormData((current) => {
+      const nextCtes = current.ctes.map((cte) => {
+        if (cte.key !== key) return cte;
+
+        const nextCte = {
+          ...cte,
+          [field]: field === 'cteType' ? (value as TravelCteFormData['cteType']) : value,
+        };
+
+        if (field === 'cteType' && value !== 'FREIGHT_COMPLEMENT') {
+          nextCte.complementedCteNumber = '';
+        }
+
+        return nextCte;
+      });
+      const nextIsComplementOnly =
+        nextCtes.length > 0 && nextCtes.every((cte) => cte.cteType === 'FREIGHT_COMPLEMENT');
+
+      return {
+        ...current,
+        ctes: nextCtes,
+        driverOneId: nextIsComplementOnly ? '' : current.driverOneId,
+        driverTwoId: nextIsComplementOnly ? '' : current.driverTwoId,
+      };
+    });
   }
 
   function addCte() {
@@ -357,11 +438,14 @@ export function TravelFormModal({
       (cte) =>
         !cte.cteNumber.trim() ||
         !cte.cteSeries.trim() ||
+        (cte.cteType === 'FREIGHT_COMPLEMENT' && !cte.complementedCteNumber.trim()) ||
         !cte.netFreight.trim() ||
         !Number.isFinite(parseDecimalInput(cte.netFreight)),
     );
     if (invalidCte) {
-      setFormError('Informe o número, a série e o frete líquido de todos os CT-es adicionados.');
+      setFormError(
+        'Informe número, série e frete líquido de todos os CT-es. Para Complemento, informe também o CT-e que está sendo complementado.',
+      );
       return;
     }
 
@@ -394,12 +478,12 @@ export function TravelFormModal({
         return;
       }
 
-      if (!formData.driverOneId) {
+      if (!complementOnly && !formData.driverOneId) {
         setFormError('Selecione pelo menos um motorista para a viagem da frota.');
         return;
       }
 
-      if (formData.driverTwoId && formData.driverTwoId === formData.driverOneId) {
+      if (!complementOnly && formData.driverTwoId && formData.driverTwoId === formData.driverOneId) {
         setFormError('O segundo motorista deve ser diferente do primeiro.');
         return;
       }
@@ -582,6 +666,24 @@ export function TravelFormModal({
                         />
                       </Field>
 
+                      {cte.cteType === 'FREIGHT_COMPLEMENT' ? (
+                        <Field>
+                          <Label htmlFor={`travel-complemented-cte-${cte.key}`}>CT-e complementado</Label>
+                          <FieldIcon aria-hidden="true"><FileText size={18} /></FieldIcon>
+                          <Input
+                            id={`travel-complemented-cte-${cte.key}`}
+                            type="text"
+                            inputMode="numeric"
+                            value={cte.complementedCteNumber}
+                            onChange={(event) =>
+                              handleCteChange(cte.key, 'complementedCteNumber', event.target.value)
+                            }
+                            placeholder="Nº do CT-e original"
+                            required
+                          />
+                        </Field>
+                      ) : null}
+
                       <Field>
                         <Label htmlFor={`travel-net-freight-${cte.key}`}>Frete líquido</Label>
                         <FieldIcon aria-hidden="true"><CircleDollarSign size={18} /></FieldIcon>
@@ -688,26 +790,32 @@ export function TravelFormModal({
             <FieldGrid>
               <Field>
                 <Label htmlFor="travel-origin">Origem</Label>
-                <FieldIcon aria-hidden="true"><MapPin size={18} /></FieldIcon>
-                <Input
+                <SearchableSelect
                   id="travel-origin"
-                  type="text"
                   value={formData.origin}
-                  onChange={(event) => handleChange('origin', event.target.value)}
-                  placeholder="Ex.: Chapecó/SC"
-                  required
+                  options={originSelectOptions}
+                  onChange={(value) => handleChange('origin', value)}
+                  placeholder="Selecione a cidade de origem"
+                  searchPlaceholder="Digite a cidade ou UF..."
+                  emptyMessage="Nenhuma cidade encontrada."
+                  loading={citiesLoading}
+                  clearable={false}
+                  ariaLabel="Cidade de origem"
                 />
               </Field>
               <Field>
                 <Label htmlFor="travel-destination">Destino</Label>
-                <FieldIcon aria-hidden="true"><MapPin size={18} /></FieldIcon>
-                <Input
+                <SearchableSelect
                   id="travel-destination"
-                  type="text"
                   value={formData.destination}
-                  onChange={(event) => handleChange('destination', event.target.value)}
-                  placeholder="Ex.: Curitiba/PR"
-                  required
+                  options={destinationSelectOptions}
+                  onChange={(value) => handleChange('destination', value)}
+                  placeholder="Selecione a cidade de destino"
+                  searchPlaceholder="Digite a cidade ou UF..."
+                  emptyMessage="Nenhuma cidade encontrada."
+                  loading={citiesLoading}
+                  clearable={false}
+                  ariaLabel="Cidade de destino"
                 />
               </Field>
             </FieldGrid>
@@ -778,7 +886,7 @@ export function TravelFormModal({
                 </Field>
               )}
 
-              {!isThirdParty ? (
+              {!isThirdParty && !complementOnly ? (
                 <>
                   <Field>
                     <Label htmlFor="travel-driver-one">Motorista</Label>
@@ -816,7 +924,7 @@ export function TravelFormModal({
                     </Select>
                   </Field>
                 </>
-              ) : (
+              ) : isThirdParty ? (
                 <>
                   <Field>
                     <Label htmlFor="travel-third-party-plate">Placa do terceiro</Label>
@@ -849,8 +957,22 @@ export function TravelFormModal({
                       required
                     />
                   </Field>
+                  <Field>
+                    <Label htmlFor="travel-third-party-payout-date">Data de repasse (opcional)</Label>
+                    <DateInput
+                      id="travel-third-party-payout-date"
+                      value={formData.thirdPartyPayoutDate}
+                      onValueChange={(value) => handleChange('thirdPartyPayoutDate', value)}
+                    />
+                  </Field>
                 </>
-              )}
+              ) : null}
+
+              {!isThirdParty && complementOnly ? (
+                <InlineInfo>
+                  CT-e de Complemento: motorista não é obrigatório. O cavalo continua vinculado à viagem.
+                </InlineInfo>
+              ) : null}
 
               <Field $fullWidth>
                 <Label htmlFor="travel-trailer">Carreta do desengate (opcional)</Label>

@@ -9,6 +9,7 @@ use App\Models\BrazilCity;
 use App\Models\BrazilState;
 use App\Models\Employee;
 use App\Models\EmployeeDocument;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -213,7 +214,7 @@ class EmployeeController extends Controller
         $nullable = [
             'rg', 'phone', 'email', 'full_address', 'address_street', 'address_number',
             'address_neighborhood', 'state_id', 'city_id', 'termination_date', 'family_contact',
-            'probation_end_date', 'cnh_number', 'cnh_category', 'cnh_issued_at',
+            'cnh_number', 'cnh_category', 'cnh_issued_at',
             'cnh_first_license_date', 'cnh_expiry_date', 'cnh_state', 'cnh_security_code',
             'aso_expiry_date', 'opentech_expiry_date', 'angellira_expiry_date',
             'toxicological_expiry_date', 'trainings', 'notes',
@@ -224,6 +225,11 @@ class EmployeeController extends Controller
                 ? $validated[$field]
                 : null;
         }
+
+        $admissionDate = CarbonImmutable::parse((string) $validated['admission_date'])->startOfDay();
+        $validated['probation_end_date'] = $admissionDate->addDays(45)->toDateString();
+        $validated['probation_extension_end_date'] = $admissionDate->addDays(90)->toDateString();
+        $validated['vacation_date'] = $admissionDate->addMonthsNoOverflow(22)->toDateString();
 
         $validated['full_address'] = $this->composeFullAddress($validated);
 
@@ -324,6 +330,8 @@ class EmployeeController extends Controller
             'termination_date' => $employee->termination_date?->format('Y-m-d'),
             'family_contact' => $employee->family_contact,
             'probation_end_date' => $employee->probation_end_date?->format('Y-m-d'),
+            'probation_extension_end_date' => $employee->probation_extension_end_date?->format('Y-m-d'),
+            'vacation_date' => $employee->vacation_date?->format('Y-m-d'),
             'status' => $employee->status,
             'cnh_number' => $employee->cnh_number,
             'cnh_category' => $employee->cnh_category,

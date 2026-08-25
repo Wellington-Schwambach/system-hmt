@@ -62,7 +62,6 @@ class StoreEmployeeRequest extends FormRequest
             'admission_date' => ['required', 'date_format:Y-m-d'],
             'termination_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:admission_date'],
             'family_contact' => ['nullable', 'string', 'max:200'],
-            'probation_end_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:admission_date'],
             'status' => ['required', 'string', Rule::in(['ACTIVE', 'LEAVE', 'INACTIVE'])],
 
             'cnh_number' => [
@@ -104,7 +103,6 @@ class StoreEmployeeRequest extends FormRequest
             'cpf.unique' => 'Este CPF já está cadastrado.',
             'birth_date.before_or_equal' => 'A data de nascimento não pode estar no futuro.',
             'termination_date.after_or_equal' => 'A rescisão não pode ser anterior à admissão.',
-            'probation_end_date.after_or_equal' => 'O fim da experiência não pode ser anterior à admissão.',
             'cnh_number.unique' => 'Esta CNH já está cadastrada.',
             'cnh_state.size' => 'A UF da CNH deve possuir 2 letras.',
             'state_id.required_with' => 'Selecione o estado do endereço.',
