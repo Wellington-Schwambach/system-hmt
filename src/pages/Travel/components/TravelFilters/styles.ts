@@ -4,7 +4,12 @@ import { breakpoints } from '../../../../styles/breakpoints';
 
 export const FiltersBar = styled.section`
   display: grid;
-  grid-template-columns: minmax(9rem, 0.18fr) minmax(11rem, 0.23fr) minmax(12rem, 0.24fr) minmax(18rem, 0.35fr);
+  grid-template-columns:
+    minmax(8.5rem, 0.14fr)
+    minmax(10.5rem, 0.18fr)
+    minmax(10rem, 0.17fr)
+    minmax(17rem, 0.26fr)
+    minmax(16rem, 0.25fr);
   align-items: end;
   gap: 1rem;
   padding: 0.85rem;
@@ -92,4 +97,38 @@ export const SearchInput = styled.input`
     border-color: ${({ theme }) => theme.colors.brandGreen};
     box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
   }
+`;
+
+export const DateRange = styled.div`
+  min-height: 2.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+`;
+
+export const DateInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.85rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+  color-scheme: ${({ theme }) => (theme.mode === 'dark' ? 'dark' : 'light')};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+`;
+
+export const DateSeparator = styled.span`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  font-weight: 700;
 `;

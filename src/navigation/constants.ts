@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Truck,
   Users,
+  Building2,
   Wrench,
 } from 'lucide-react';
 
@@ -47,6 +48,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
         icon: Users,
         path: '/cadastros/colaboradores',
         permission: 'registrations.employees',
+      },
+      {
+        id: 'shippers',
+        label: 'Embarcadores',
+        icon: Building2,
+        path: '/cadastros/embarcadores',
+        permission: 'registrations.shippers',
       },
     ],
   },

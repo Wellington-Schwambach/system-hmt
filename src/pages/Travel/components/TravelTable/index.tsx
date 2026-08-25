@@ -46,6 +46,7 @@ export function TravelTable({
               <TH>Destino</TH>
               <TH>Frete líquido</TH>
               <TH>Frete bruto</TH>
+              <TH>Nº CT-e</TH>
               <TH>Motorista</TH>
               <TH>Embarcador</TH>
               <TH>Data recebimento</TH>
@@ -62,9 +63,10 @@ export function TravelTable({
                 <TD title={record.destination}>{record.destination}</TD>
                 <NumericCell>{formatCurrency(record.netFreight)}</NumericCell>
                 <NumericCell>{formatCurrency(record.grossFreight)}</NumericCell>
-                <TD title={record.driverDisplay}>{record.driverDisplay}</TD>
+                <TD title={`Série: ${record.cteSeries}`}>{record.cteNumber}</TD>
+                <TD title={record.driver || record.driverDisplay}>{record.driverDisplay}</TD>
                 <TD>
-                  <ShipperBadge shipper={record.shipper} />
+                  <ShipperBadge shipper={record.shipper} color={record.shipperColor} />
                 </TD>
                 <TD>{record.receivedDate ? formatDate(record.receivedDate) : 'Pendente'}</TD>
                 <ActionsCell>

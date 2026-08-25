@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BriefcaseBusiness,
   FileBadge,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import { DateInput } from '../../../../components/DateInput';
+import { SearchableSelect } from '../../../../components/SearchableSelect';
 import {
   ACCEPTED_EMPLOYEE_DOCUMENT_EXTENSIONS,
   ACCEPTED_EMPLOYEE_DOCUMENT_TYPES,
@@ -23,11 +24,15 @@ import {
   INITIAL_EMPLOYEE_FORM,
   MAX_EMPLOYEE_DOCUMENT_SIZE_BYTES,
 } from '../../constants';
-import type { EmployeeDocumentType, EmployeeFormData } from '../../types';
+import { locationService } from '../../services';
+import type { BrazilCityOption, BrazilStateOption, EmployeeDocumentType, EmployeeFormData } from '../../types';
 import {
+  calculateEmploymentDates,
   calculateTenure,
   employeeRecordToFormData,
+  formatCpfInput,
   formatFileSize,
+  formatPhoneInput,
   normalizeUppercase,
   onlyDigits,
 } from '../../utils';
@@ -100,15 +105,84 @@ export function EmployeeForm({
     editingRecord ? employeeRecordToFormData(editingRecord) : { ...INITIAL_EMPLOYEE_FORM },
   );
   const [formError, setFormError] = useState('');
+  const [states, setStates] = useState<BrazilStateOption[]>([]);
+  const [cities, setCities] = useState<BrazilCityOption[]>([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+  const [citiesLoading, setCitiesLoading] = useState(Boolean(editingRecord?.stateId));
+  const [locationError, setLocationError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    locationService
+      .states()
+      .then((records) => {
+        if (active) setStates(records);
+      })
+      .catch(() => {
+        if (active) setLocationError('Não foi possível carregar os estados. Atualize a página e tente novamente.');
+      })
+      .finally(() => {
+        if (active) setLocationsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const stateId = Number(formData.stateId);
+
+    if (!stateId) return undefined;
+
+    let active = true;
+
+    locationService
+      .cities(stateId)
+      .then((records) => {
+        if (active) setCities(records);
+      })
+      .catch(() => {
+        if (active) {
+          setCities([]);
+          setLocationError('Não foi possível carregar as cidades deste estado.');
+        }
+      })
+      .finally(() => {
+        if (active) setCitiesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [formData.stateId]);
 
   const tenure = useMemo(
     () => calculateTenure(formData.admissionDate, formData.terminationDate),
     [formData.admissionDate, formData.terminationDate],
   );
 
+  const employmentDates = useMemo(
+    () => calculateEmploymentDates(formData.admissionDate),
+    [formData.admissionDate],
+  );
+
   function handleChange(field: keyof EmployeeFormData, value: string) {
     setFormError('');
     setFormData((currentData) => ({ ...currentData, [field]: value }));
+  }
+
+  function handleStateChange(value: string) {
+    setFormError('');
+    setLocationError('');
+    setCities([]);
+    setCitiesLoading(Boolean(value));
+    setFormData((currentData) => ({
+      ...currentData,
+      stateId: value,
+      cityId: '',
+    }));
   }
 
   function handleDocumentChange(
@@ -165,11 +239,6 @@ export function EmployeeForm({
       return;
     }
 
-    if (formData.probationEndDate && formData.probationEndDate < formData.admissionDate) {
-      setFormError('O fim da experiência não pode ser anterior à admissão.');
-      return;
-    }
-
     if (
       formData.cnhIssuedAt &&
       formData.cnhExpiryDate &&
@@ -179,7 +248,15 @@ export function EmployeeForm({
       return;
     }
 
-    const result = await onSubmit(formData, editingRecord?.id);
+    const result = await onSubmit(
+      {
+        ...formData,
+        probationEndDate: employmentDates.probationEndDate,
+        probationExtensionEndDate: employmentDates.probationExtensionEndDate,
+        vacationDate: employmentDates.vacationDate,
+      },
+      editingRecord?.id,
+    );
 
     if (!result.success) return;
   }
@@ -239,7 +316,10 @@ export function EmployeeForm({
                 inputMode="numeric"
                 value={formData.cpf}
                 onChange={(event) => handleChange('cpf', onlyDigits(event.target.value, 11))}
-                placeholder="Somente números"
+                onFocus={() => handleChange('cpf', onlyDigits(formData.cpf, 11))}
+                onBlur={() => handleChange('cpf', formatCpfInput(formData.cpf))}
+                placeholder="000.000.000-00"
+                maxLength={14}
                 required
               />
             </Field>
@@ -276,7 +356,10 @@ export function EmployeeForm({
                   inputMode="tel"
                   value={formData.phone}
                   onChange={(event) => handleChange('phone', onlyDigits(event.target.value, 11))}
-                  placeholder="DDD + número"
+                  onFocus={() => handleChange('phone', onlyDigits(formData.phone, 11))}
+                  onBlur={() => handleChange('phone', formatPhoneInput(formData.phone))}
+                  placeholder="(00) 00000-0000"
+                  maxLength={15}
                 />
               </InputShell>
             </Field>
@@ -296,19 +379,86 @@ export function EmployeeForm({
               </InputShell>
             </Field>
 
-            <Field $fullWidth>
-              <Label htmlFor="employee-address">Endereço completo</Label>
+            <Field $spanTwo>
+              <Label htmlFor="employee-address-street">Rua</Label>
               <InputShell>
                 <FieldIcon aria-hidden="true"><MapPin size={17} /></FieldIcon>
                 <Input
                   $withIcon
-                  id="employee-address"
-                  value={formData.fullAddress}
-                  onChange={(event) => handleChange('fullAddress', event.target.value)}
-                  placeholder="Rua, número, complemento, bairro, cidade, UF e CEP"
+                  id="employee-address-street"
+                  value={formData.addressStreet}
+                  onChange={(event) => handleChange('addressStreet', event.target.value)}
+                  placeholder="Nome da rua ou avenida"
+                  maxLength={180}
                 />
               </InputShell>
             </Field>
+
+            <Field>
+              <Label htmlFor="employee-address-number">Número</Label>
+              <Input
+                id="employee-address-number"
+                value={formData.addressNumber}
+                onChange={(event) => handleChange('addressNumber', event.target.value)}
+                placeholder="Ex.: 125 ou S/N"
+                maxLength={30}
+              />
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-address-neighborhood">Bairro</Label>
+              <Input
+                id="employee-address-neighborhood"
+                value={formData.addressNeighborhood}
+                onChange={(event) => handleChange('addressNeighborhood', event.target.value)}
+                placeholder="Bairro"
+                maxLength={100}
+              />
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-address-state">Estado</Label>
+              <SearchableSelect
+                id="employee-address-state"
+                value={formData.stateId}
+                options={states.map((state) => ({
+                  value: String(state.id),
+                  label: `${state.name} (${state.abbreviation})`,
+                  searchText: `${state.abbreviation} ${state.name}`,
+                }))}
+                onChange={handleStateChange}
+                placeholder="Selecione o estado"
+                searchPlaceholder="Pesquisar por estado ou UF..."
+                emptyMessage="Nenhum estado encontrado para esta busca."
+                disabled={locationsLoading}
+                loading={locationsLoading}
+                ariaLabel="Estado"
+              />
+              <HelperText>Digite o nome do estado ou a sigla, por exemplo: Santa Catarina ou SC.</HelperText>
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-address-city">Cidade</Label>
+              <SearchableSelect
+                id="employee-address-city"
+                value={formData.cityId}
+                options={cities.map((city) => ({
+                  value: String(city.id),
+                  label: city.name,
+                  searchText: city.name,
+                }))}
+                onChange={(value) => handleChange('cityId', value)}
+                placeholder={formData.stateId ? 'Selecione a cidade' : 'Selecione primeiro o estado'}
+                searchPlaceholder="Pesquisar cidade..."
+                emptyMessage="Nenhuma cidade encontrada para esta busca."
+                disabled={!formData.stateId || locationsLoading}
+                loading={citiesLoading}
+                ariaLabel="Cidade"
+              />
+              <HelperText>As cidades são filtradas automaticamente pelo estado selecionado.</HelperText>
+            </Field>
+
+            {locationError ? <Field $fullWidth><ErrorMessage>{locationError}</ErrorMessage></Field> : null}
           </Grid>
         </Section>
 
@@ -349,12 +499,38 @@ export function EmployeeForm({
             </Field>
 
             <Field>
-              <Label htmlFor="employee-probation-end">Fim da experiência</Label>
+              <Label htmlFor="employee-probation-end">Fim da experiência 45 dias</Label>
               <DateInput
                 id="employee-probation-end"
-                value={formData.probationEndDate}
-                onValueChange={(value) => handleChange('probationEndDate', value)}
+                value={employmentDates.probationEndDate}
+                onValueChange={() => undefined}
+                disabled
               />
+              <HelperText>Calculado automaticamente: admissão + 45 dias.</HelperText>
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-probation-extension-end">
+                Fim da experiência + 45 dias
+              </Label>
+              <DateInput
+                id="employee-probation-extension-end"
+                value={employmentDates.probationExtensionEndDate}
+                onValueChange={() => undefined}
+                disabled
+              />
+              <HelperText>Calculado automaticamente: admissão + 90 dias.</HelperText>
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-vacation-date">Férias</Label>
+              <DateInput
+                id="employee-vacation-date"
+                value={employmentDates.vacationDate}
+                onValueChange={() => undefined}
+                disabled
+              />
+              <HelperText>Calculado automaticamente: admissão + 1 ano e 10 meses.</HelperText>
             </Field>
 
             <Field>

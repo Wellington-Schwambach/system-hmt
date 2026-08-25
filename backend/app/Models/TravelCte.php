@@ -15,6 +15,7 @@ class TravelCte extends Model
         'cte_type',
         'cte_number',
         'cte_series',
+        'complemented_cte_number',
         'net_freight',
         'insurance_amount',
         'toll_amount',

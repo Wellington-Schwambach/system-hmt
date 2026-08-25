@@ -43,6 +43,7 @@ export function vehicleRecordToFormData(record: VehicleRecord): VehicleFormData 
     opentechExpiryDate: record.opentechExpiryDate,
     angelliraExpiryDate: record.angelliraExpiryDate,
     licensingExpiryDate: record.licensingExpiryDate,
+    tachographExpiryDate: record.tachographExpiryDate,
     notes: record.notes,
     crlvFile: null,
     crlvValidUntil: record.crlv?.validUntil ?? '',

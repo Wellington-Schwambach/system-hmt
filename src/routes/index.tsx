@@ -36,6 +36,9 @@ const Vehicles = lazy(() =>
 const Employees = lazy(() =>
   import('../pages/Employees').then((module) => ({ default: module.Employees })),
 );
+const Shippers = lazy(() =>
+  import('../pages/Shippers').then((module) => ({ default: module.Shippers })),
+);
 const Security = lazy(() =>
   import('../pages/Security').then((module) => ({ default: module.Security })),
 );
@@ -85,6 +88,9 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="registrations.employees" />}>
                 <Route path="/cadastros/colaboradores" element={<Employees />} />
+              </Route>
+              <Route element={<PermissionRoute permission="registrations.shippers" />}>
+                <Route path="/cadastros/embarcadores" element={<Shippers />} />
               </Route>
 
               <Route element={<AdministratorRoute />}>

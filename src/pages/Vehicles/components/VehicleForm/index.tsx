@@ -440,6 +440,16 @@ export function VehicleForm({
                 onValueChange={(value) => handleChange('angelliraExpiryDate', value)}
               />
             </Field>
+
+            <Field>
+              <Label htmlFor="vehicle-tachograph-expiry">Vencimento tacógrafo</Label>
+              <DateInput
+                id="vehicle-tachograph-expiry"
+                value={formData.tachographExpiryDate}
+                onValueChange={(value) => handleChange('tachographExpiryDate', value)}
+              />
+              <HelperText>Data de vencimento da aferição do tacógrafo.</HelperText>
+            </Field>
           </Grid>
 
           <NotesDocumentGrid>

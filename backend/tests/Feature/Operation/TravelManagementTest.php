@@ -33,13 +33,15 @@ class TravelManagementTest extends TestCase
             'third_party_name' => 'Transportadora Terceira Ltda.',
             'third_party_plate' => 'ABC1D23',
             'third_party_payout_amount' => 4500.50,
+            'third_party_payout_date' => '2026-08-15',
         ]);
 
         $response->assertCreated()
             ->assertJsonPath('travel.operation_type', 'THIRD_PARTY')
             ->assertJsonPath('travel.plate', 'ABC1D23')
             ->assertJsonPath('travel.vehicle_id', null)
-            ->assertJsonPath('travel.driver_one_id', null);
+            ->assertJsonPath('travel.driver_one_id', null)
+            ->assertJsonPath('travel.third_party_payout_date', '2026-08-15');
 
         $travelId = (int) $response->json('travel.id');
         $this->assertDatabaseHas('travels', [
@@ -48,6 +50,7 @@ class TravelManagementTest extends TestCase
             'vehicle_id' => null,
             'driver_one_id' => null,
             'third_party_plate' => 'ABC1D23',
+            'third_party_payout_date' => '2026-08-15',
         ]);
 
         $this->actingAs($user)->putJson("/api/travels/{$travelId}", [
@@ -56,8 +59,10 @@ class TravelManagementTest extends TestCase
             'third_party_name' => 'Transportadora Atualizada Ltda.',
             'third_party_plate' => 'DEF4G56',
             'third_party_payout_amount' => 4700,
+            'third_party_payout_date' => '2026-08-20',
         ])->assertOk()
-            ->assertJsonPath('travel.third_party_plate', 'DEF4G56');
+            ->assertJsonPath('travel.third_party_plate', 'DEF4G56')
+            ->assertJsonPath('travel.third_party_payout_date', '2026-08-20');
     }
 
     public function test_user_can_create_and_update_fleet_travel_without_third_party_data(): void
@@ -75,6 +80,7 @@ class TravelManagementTest extends TestCase
             'third_party_name' => 'Dado antigo que deve ser ignorado',
             'third_party_plate' => 'ZZZ9Z99',
             'third_party_payout_amount' => 9999,
+            'third_party_payout_date' => '2026-08-18',
         ]);
 
         $response->assertCreated()
@@ -92,6 +98,7 @@ class TravelManagementTest extends TestCase
             'third_party_name' => null,
             'third_party_plate' => null,
             'third_party_payout_amount' => 0,
+            'third_party_payout_date' => null,
         ]);
 
         $this->actingAs($user)->putJson("/api/travels/{$travelId}", [
@@ -100,6 +107,60 @@ class TravelManagementTest extends TestCase
             'vehicle_id' => $tractor->id,
             'driver_one_id' => $driver->id,
         ])->assertOk();
+    }
+
+    public function test_fleet_complement_only_does_not_require_driver_and_stores_original_cte_reference(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['travel']]);
+        $shipper = $this->shipper();
+        $tractor = $this->vehicle('CMP1A23', 'TRACTOR');
+
+        $payload = $this->basePayload($shipper->id, '910001');
+        $payload['operation_type'] = 'FLEET';
+        $payload['vehicle_id'] = $tractor->id;
+        $payload['ctes'][0]['cte_type'] = 'FREIGHT_COMPLEMENT';
+        $payload['ctes'][0]['complemented_cte_number'] = '800001';
+
+        $response = $this->actingAs($user)->postJson('/api/travels', $payload);
+
+        $response->assertCreated()
+            ->assertJsonPath('travel.driver_one_id', null)
+            ->assertJsonPath('travel.ctes.0.cte_type', 'FREIGHT_COMPLEMENT')
+            ->assertJsonPath('travel.ctes.0.complemented_cte_number', '800001');
+    }
+
+    public function test_complement_requires_original_cte_number(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['travel']]);
+        $shipper = $this->shipper();
+        $tractor = $this->vehicle('CMP2B34', 'TRACTOR');
+
+        $payload = $this->basePayload($shipper->id, '910002');
+        $payload['operation_type'] = 'FLEET';
+        $payload['vehicle_id'] = $tractor->id;
+        $payload['ctes'][0]['cte_type'] = 'FREIGHT_COMPLEMENT';
+
+        $this->actingAs($user)->postJson('/api/travels', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ctes.0.complemented_cte_number']);
+    }
+
+    public function test_daily_cte_is_accepted_and_requires_driver_for_fleet(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['travel']]);
+        $shipper = $this->shipper();
+        $tractor = $this->vehicle('DAY1C45', 'TRACTOR');
+        $driver = $this->driver();
+
+        $payload = $this->basePayload($shipper->id, '910003');
+        $payload['operation_type'] = 'FLEET';
+        $payload['vehicle_id'] = $tractor->id;
+        $payload['driver_one_id'] = $driver->id;
+        $payload['ctes'][0]['cte_type'] = 'DAILY';
+
+        $this->actingAs($user)->postJson('/api/travels', $payload)
+            ->assertCreated()
+            ->assertJsonPath('travel.ctes.0.cte_type', 'DAILY');
     }
 
     public function test_mode_specific_fields_have_friendly_validation_messages(): void

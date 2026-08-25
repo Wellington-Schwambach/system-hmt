@@ -302,3 +302,7 @@ A tela de Viagens utiliza os cadastros reais de veículos e colaboradores. Caval
 Os embarcadores possuem tabela própria (`shippers`) e podem ser cadastrados diretamente no formulário de viagem pelo botão `+`. O novo embarcador é selecionado automaticamente após o cadastro.
 
 Os filtros de placa e embarcador também são alimentados pelo PostgreSQL. Consulte `COMO_APLICAR_EMBARCADORES_E_VINCULOS_VIAGENS.md` para os detalhes da atualização.
+
+## Atualização do cadastro de motoristas
+
+A atualização de endereço estruturado, máscaras, status no grid e tabelas brasileiras de estados/cidades está documentada em `documents/COMO_APLICAR_MELHORIAS_CADASTRO_MOTORISTAS.md`.

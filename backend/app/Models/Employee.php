@@ -20,11 +20,18 @@ class Employee extends Model
         'phone',
         'email',
         'full_address',
+        'address_street',
+        'address_number',
+        'address_neighborhood',
+        'state_id',
+        'city_id',
         'job_title',
         'admission_date',
         'termination_date',
         'family_contact',
         'probation_end_date',
+        'probation_extension_end_date',
+        'vacation_date',
         'status',
         'cnh_number',
         'cnh_category',
@@ -50,6 +57,8 @@ class Employee extends Model
             'admission_date' => 'date:Y-m-d',
             'termination_date' => 'date:Y-m-d',
             'probation_end_date' => 'date:Y-m-d',
+            'probation_extension_end_date' => 'date:Y-m-d',
+            'vacation_date' => 'date:Y-m-d',
             'cnh_issued_at' => 'date:Y-m-d',
             'cnh_first_license_date' => 'date:Y-m-d',
             'cnh_expiry_date' => 'date:Y-m-d',
@@ -57,7 +66,20 @@ class Employee extends Model
             'opentech_expiry_date' => 'date:Y-m-d',
             'angellira_expiry_date' => 'date:Y-m-d',
             'toxicological_expiry_date' => 'date:Y-m-d',
+            'state_id' => 'integer',
+            'city_id' => 'integer',
         ];
+    }
+
+
+    public function state(): BelongsTo
+    {
+        return $this->belongsTo(BrazilState::class, 'state_id');
+    }
+
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(BrazilCity::class, 'city_id');
     }
 
     public function documents(): HasMany

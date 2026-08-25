@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\Admin\SecurityController;
 use App\Http\Controllers\Fleet\EmployeeController;
+use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
 use App\Http\Controllers\Operation\TravelController;
+use App\Http\Controllers\Registration\ShipperController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->group(function (): void {
@@ -35,6 +37,13 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         });
 
 
+    Route::prefix('locations')
+        ->middleware('permission:registrations.employees')
+        ->group(function (): void {
+            Route::get('/states', [LocationController::class, 'states']);
+            Route::get('/states/{state}/cities', [LocationController::class, 'cities']);
+        });
+
     Route::prefix('employees')
         ->middleware('permission:registrations.employees')
         ->group(function (): void {
@@ -47,10 +56,21 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
                 ->name('employees.documents.download');
         });
 
+
+    Route::prefix('shippers')
+        ->middleware('permission:registrations.shippers')
+        ->group(function (): void {
+            Route::get('/', [ShipperController::class, 'index']);
+            Route::post('/', [ShipperController::class, 'store']);
+            Route::put('/{shipper}', [ShipperController::class, 'update']);
+            Route::delete('/{shipper}', [ShipperController::class, 'destroy']);
+        });
+
     Route::prefix('travels')
         ->middleware('permission:travel')
         ->group(function (): void {
             Route::get('/options', [TravelController::class, 'options']);
+            Route::get('/cities', [TravelController::class, 'cities']);
             Route::post('/shippers', [TravelController::class, 'storeShipper']);
             Route::get('/', [TravelController::class, 'index']);
             Route::post('/', [TravelController::class, 'store']);

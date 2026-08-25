@@ -3,6 +3,7 @@ import type { CteType, TravelCteFormData, TravelFormData, TravelRecord } from '.
 export const CTE_TYPE_OPTIONS: Array<{ value: CteType; label: string }> = [
   { value: 'NORMAL', label: 'Normal' },
   { value: 'FREIGHT_COMPLEMENT', label: 'Complemento de frete' },
+  { value: 'DAILY', label: 'Diária' },
 ];
 
 export function createEmptyCte(): TravelCteFormData {
@@ -11,6 +12,7 @@ export function createEmptyCte(): TravelCteFormData {
     cteType: 'NORMAL',
     cteNumber: '',
     cteSeries: '1',
+    complementedCteNumber: '',
     netFreight: '',
     insuranceAmount: '',
     tollAmount: '',
@@ -31,6 +33,7 @@ export const INITIAL_TRAVEL_FORM: TravelFormData = {
   thirdPartyName: '',
   thirdPartyPlate: '',
   thirdPartyPayoutAmount: '',
+  thirdPartyPayoutDate: '',
   detachedTrailerId: '',
   ctes: [createEmptyCte()],
 };

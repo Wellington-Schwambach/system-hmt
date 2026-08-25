@@ -1,5 +1,6 @@
 import { api } from '../../services/api';
 import type {
+  TravelCityOption,
   TravelCteRecord,
   TravelFormData,
   TravelOptionShipper,
@@ -13,6 +14,7 @@ interface ApiTravelCte {
   cte_type: string;
   cte_number: string;
   cte_series: string;
+  complemented_cte_number: string | null;
   net_freight: number;
   insurance_amount: number;
   toll_amount: number;
@@ -32,6 +34,7 @@ interface ApiTravel {
   ctes?: ApiTravelCte[];
   shipper_id: number | null;
   shipper: string;
+  shipper_color: string;
   operation_type: TravelRecord['operationType'];
   vehicle_id: number | null;
   plate: string;
@@ -42,6 +45,7 @@ interface ApiTravel {
   third_party_name: string | null;
   third_party_plate: string | null;
   third_party_payout_amount: number;
+  third_party_payout_date: string | null;
   detached_trailer_id: number | null;
   detached_trailer_plate: string | null;
   net_freight: number;
@@ -57,6 +61,13 @@ interface ApiShipper {
   id: number;
   name: string;
   status: string;
+  color: string;
+}
+
+interface ApiTravelCity {
+  id: number;
+  name: string;
+  state_abbreviation: string;
 }
 
 interface ApiOptions {
@@ -70,11 +81,13 @@ interface ApiOptions {
 }
 
 function normalizeCteType(value: string): TravelCteRecord['cteType'] {
-  return value === 'FREIGHT_COMPLEMENT' ? 'FREIGHT_COMPLEMENT' : 'NORMAL';
+  if (value === 'FREIGHT_COMPLEMENT') return 'FREIGHT_COMPLEMENT';
+  if (value === 'DAILY') return 'DAILY';
+  return 'NORMAL';
 }
 
 function mapShipper(shipper: ApiShipper): TravelOptionShipper {
-  return { id: shipper.id, name: shipper.name, status: shipper.status };
+  return { id: shipper.id, name: shipper.name, status: shipper.status, color: shipper.color };
 }
 
 function mapCte(cte: ApiTravelCte): TravelCteRecord {
@@ -83,6 +96,7 @@ function mapCte(cte: ApiTravelCte): TravelCteRecord {
     cteType: normalizeCteType(cte.cte_type),
     cteNumber: cte.cte_number,
     cteSeries: cte.cte_series,
+    complementedCteNumber: cte.complemented_cte_number ?? '',
     netFreight: Number(cte.net_freight),
     insuranceAmount: Number(cte.insurance_amount),
     tollAmount: Number(cte.toll_amount),
@@ -101,6 +115,7 @@ function mapTravel(travel: ApiTravel): TravelRecord {
             cteType: normalizeCteType(travel.cte_type),
             cteNumber: travel.cte_number,
             cteSeries: travel.cte_series,
+            complementedCteNumber: '',
             netFreight: Number(travel.net_freight),
             insuranceAmount: Number(travel.insurance_amount),
             tollAmount: Number(travel.toll_amount),
@@ -121,6 +136,7 @@ function mapTravel(travel: ApiTravel): TravelRecord {
     ctes,
     shipperId: travel.shipper_id,
     shipper: travel.shipper,
+    shipperColor: travel.shipper_color || '#009E60',
     operationType: travel.operation_type,
     vehicleId: travel.vehicle_id,
     plate: travel.plate,
@@ -135,6 +151,7 @@ function mapTravel(travel: ApiTravel): TravelRecord {
     thirdPartyName: travel.third_party_name ?? '',
     thirdPartyPlate: travel.third_party_plate ?? '',
     thirdPartyPayoutAmount: Number(travel.third_party_payout_amount ?? 0),
+    thirdPartyPayoutDate: travel.third_party_payout_date ?? '',
     detachedTrailerId: travel.detached_trailer_id,
     detachedTrailerPlate: travel.detached_trailer_plate ?? '',
     netFreight: Number(travel.net_freight),
@@ -164,11 +181,15 @@ function buildPayload(data: TravelFormData) {
     third_party_plate: data.operationType === 'THIRD_PARTY' ? data.thirdPartyPlate.trim() : null,
     third_party_payout_amount:
       data.operationType === 'THIRD_PARTY' ? parseDecimalInput(data.thirdPartyPayoutAmount) : 0,
+    third_party_payout_date:
+      data.operationType === 'THIRD_PARTY' && data.thirdPartyPayoutDate ? data.thirdPartyPayoutDate : null,
     detached_trailer_id: data.detachedTrailerId ? Number(data.detachedTrailerId) : null,
     ctes: data.ctes.map((cte) => ({
       cte_type: cte.cteType,
       cte_number: cte.cteNumber.trim(),
       cte_series: cte.cteSeries.trim(),
+      complemented_cte_number:
+        cte.cteType === 'FREIGHT_COMPLEMENT' ? cte.complementedCteNumber.trim() : null,
       net_freight: parseDecimalInput(cte.netFreight),
       insurance_amount: parseDecimalInput(cte.insuranceAmount),
       toll_amount: parseDecimalInput(cte.tollAmount),
@@ -206,6 +227,15 @@ export const travelService = {
       filterPlates: response.data.filter_plates,
       warnings: response.data.warnings ?? [],
     };
+  },
+
+  async cities(): Promise<TravelCityOption[]> {
+    const response = await api.get<{ cities: ApiTravelCity[] }>('/api/travels/cities');
+    return response.data.cities.map((city) => ({
+      id: city.id,
+      name: city.name,
+      stateAbbreviation: city.state_abbreviation,
+    }));
   },
 
   async createShipper(name: string): Promise<{ message: string; shipper: TravelOptionShipper }> {

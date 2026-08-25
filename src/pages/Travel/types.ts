@@ -1,6 +1,6 @@
 export type Shipper = string;
 export type TravelShipperFilter = string;
-export type CteType = 'NORMAL' | 'FREIGHT_COMPLEMENT';
+export type CteType = 'NORMAL' | 'FREIGHT_COMPLEMENT' | 'DAILY';
 export type TravelCteTypeFilter = 'ALL' | CteType;
 export type TravelOperationType = 'FLEET' | 'THIRD_PARTY';
 
@@ -20,6 +20,13 @@ export interface TravelOptionShipper {
   id: number;
   name: string;
   status: string;
+  color: string;
+}
+
+export interface TravelCityOption {
+  id: number;
+  name: string;
+  stateAbbreviation: string;
 }
 
 export interface TravelOptions {
@@ -37,6 +44,7 @@ export interface TravelCteRecord {
   cteType: CteType;
   cteNumber: string;
   cteSeries: string;
+  complementedCteNumber: string;
   netFreight: number;
   insuranceAmount: number;
   tollAmount: number;
@@ -49,6 +57,7 @@ export interface TravelCteFormData {
   cteType: CteType;
   cteNumber: string;
   cteSeries: string;
+  complementedCteNumber: string;
   netFreight: string;
   insuranceAmount: string;
   tollAmount: string;
@@ -69,6 +78,7 @@ export interface TravelRecord {
   ctes: TravelCteRecord[];
   shipperId: number | null;
   shipper: Shipper;
+  shipperColor: string;
   operationType: TravelOperationType;
   vehicleId: number | null;
   plate: string;
@@ -81,6 +91,7 @@ export interface TravelRecord {
   thirdPartyName: string;
   thirdPartyPlate: string;
   thirdPartyPayoutAmount: number;
+  thirdPartyPayoutDate: string;
   detachedTrailerId: number | null;
   detachedTrailerPlate: string;
   /** Totais somados de todos os CT-es da viagem. */
@@ -113,6 +124,7 @@ export interface TravelFormData {
   thirdPartyName: string;
   thirdPartyPlate: string;
   thirdPartyPayoutAmount: string;
+  thirdPartyPayoutDate: string;
   detachedTrailerId: string;
   ctes: TravelCteFormData[];
 }

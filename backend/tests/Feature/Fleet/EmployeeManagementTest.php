@@ -28,7 +28,14 @@ class EmployeeManagementTest extends TestCase
             'aso_file' => UploadedFile::fake()->image('aso.jpg'),
         ]);
 
-        $createResponse->assertCreated()->assertJsonPath('employee.employee_code', 'MOT-001');
+        $createResponse
+            ->assertCreated()
+            ->assertJsonPath('employee.employee_code', 'MOT-001')
+            ->assertJsonPath('employee.state.abbreviation', 'SC')
+            ->assertJsonPath('employee.city.name', 'Itajaí')
+            ->assertJsonPath('employee.probation_end_date', '2024-02-24')
+            ->assertJsonPath('employee.probation_extension_end_date', '2024-04-09')
+            ->assertJsonPath('employee.vacation_date', '2025-11-10');
         $employee = Employee::query()->firstOrFail();
         $this->assertDatabaseCount('employee_documents', 2);
 
@@ -69,12 +76,16 @@ class EmployeeManagementTest extends TestCase
             'birth_date' => '1990-01-10',
             'phone' => '47999999999',
             'email' => 'motorista@example.com',
-            'full_address' => 'Rua Teste, 100, Centro, Itajaí - SC',
+            'full_address' => 'Rua Teste, 100 - Centro - Itajaí - SC',
+            'address_street' => 'Rua Teste',
+            'address_number' => '100',
+            'address_neighborhood' => 'Centro',
+            'state_id' => '42',
+            'city_id' => '4208203',
             'job_title' => 'Motorista',
             'admission_date' => '2024-01-10',
             'termination_date' => '',
             'family_contact' => 'Maria - esposa - 47988888888',
-            'probation_end_date' => '2024-04-10',
             'status' => 'ACTIVE',
             'cnh_number' => '01234567890',
             'cnh_category' => 'E',

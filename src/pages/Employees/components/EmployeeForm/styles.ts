@@ -80,9 +80,14 @@ export const Grid = styled.div`
   }
 `;
 
-export const Field = styled.div<{ $fullWidth?: boolean }>`
+export const Field = styled.div<{ $fullWidth?: boolean; $spanTwo?: boolean }>`
   min-width: 0;
-  grid-column: ${({ $fullWidth }) => ($fullWidth ? '1 / -1' : 'auto')};
+  grid-column: ${({ $fullWidth, $spanTwo }) =>
+    $fullWidth ? '1 / -1' : $spanTwo ? 'span 2' : 'auto'};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-column: 1 / -1;
+  }
 `;
 
 export const Label = styled.label`

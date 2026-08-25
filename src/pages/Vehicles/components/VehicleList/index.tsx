@@ -1,4 +1,5 @@
-import { Download, Edit3, FileDown, Plus, Search, Sheet, Trash2, Truck } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Download, Edit3, FileDown, Plus, Search, Sheet, Trash2, Truck } from 'lucide-react';
 
 import { VEHICLE_STATUS_OPTIONS } from '../../constants';
 import { formatDate, formatInteger, getVehicleTypeLabel } from '../../utils';
@@ -29,6 +30,12 @@ import {
   MobileType,
   MobileValue,
   MutedValue,
+  PageButton,
+  PageInfo,
+  PageSizeSelect,
+  Pagination,
+  PaginationActions,
+  PaginationSummary,
   SearchIcon,
   SearchInput,
   SearchShell,
@@ -45,16 +52,29 @@ export function VehicleList({
   totalRecords,
   searchTerm,
   statusFilter,
+  plateEndFilter,
   loading,
   deletingId,
   onSearchChange,
   onStatusFilterChange,
+  onPlateEndFilterChange,
   onCreate,
   onEdit,
   onDelete,
   onDownloadCrlv,
   onExport,
 }: VehicleListProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const totalPages = Math.max(1, Math.ceil(records.length / pageSize));
+  const visiblePage = Math.min(currentPage, totalPages);
+  const paginatedRecords = useMemo(() => {
+    const start = (visiblePage - 1) * pageSize;
+    return records.slice(start, start + pageSize);
+  }, [pageSize, records, visiblePage]);
+  const firstVisibleRecord = records.length === 0 ? 0 : (visiblePage - 1) * pageSize + 1;
+  const lastVisibleRecord = Math.min(visiblePage * pageSize, records.length);
+
   return (
     <ListCard>
       <ListToolbar>
@@ -66,7 +86,10 @@ export function VehicleList({
             <SearchInput
               type="search"
               value={searchTerm}
-              onChange={(event) => onSearchChange(event.target.value)}
+              onChange={(event) => {
+                setCurrentPage(1);
+                onSearchChange(event.target.value);
+              }}
               placeholder="Buscar por placa, frota, marca, modelo, RENAVAM ou chassi..."
               aria-label="Buscar veículos"
             />
@@ -74,15 +97,32 @@ export function VehicleList({
 
           <FilterSelect
             value={statusFilter}
-            onChange={(event) =>
-              onStatusFilterChange(event.target.value as VehicleListProps['statusFilter'])
-            }
+            onChange={(event) => {
+              setCurrentPage(1);
+              onStatusFilterChange(event.target.value as VehicleListProps['statusFilter']);
+            }}
             aria-label="Filtrar veículos por situação"
           >
             <option value="ALL">Todas as situações</option>
             {VEHICLE_STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
+              </option>
+            ))}
+          </FilterSelect>
+
+          <FilterSelect
+            value={plateEndFilter}
+            onChange={(event) => {
+              setCurrentPage(1);
+              onPlateEndFilterChange(event.target.value as VehicleListProps['plateEndFilter']);
+            }}
+            aria-label="Filtrar veículos pelo final da placa"
+          >
+            <option value="ALL">Todos os finais</option>
+            {Array.from({ length: 10 }, (_, digit) => (
+              <option key={digit} value={String(digit)}>
+                Final {digit}
               </option>
             ))}
           </FilterSelect>
@@ -102,7 +142,11 @@ export function VehicleList({
 
       <ListMeta>
         <span>
-          {loading ? 'Carregando veículos...' : `${records.length} veículo(s) exibido(s)`}
+          {loading
+            ? 'Carregando veículos...'
+            : records.length === 0
+              ? 'Nenhum veículo no filtro atual'
+              : `${firstVisibleRecord}-${lastVisibleRecord} de ${records.length} veículo(s) no filtro atual`}
         </span>
         <span>{totalRecords} cadastrado(s) no total</span>
       </ListMeta>
@@ -135,7 +179,7 @@ export function VehicleList({
                 </tr>
               </thead>
               <tbody>
-                {records.map((record) => (
+                {paginatedRecords.map((record) => (
                   <tr key={record.id}>
                     <Td>
                       {record.fleetNumber ? (
@@ -206,7 +250,7 @@ export function VehicleList({
           </TableWrapper>
 
           <MobileList>
-            {records.map((record) => (
+            {paginatedRecords.map((record) => (
               <MobileCard key={record.id}>
                 <MobileCardHeader>
                   <div>
@@ -269,6 +313,48 @@ export function VehicleList({
               </MobileCard>
             ))}
           </MobileList>
+
+          <Pagination aria-label="Paginação de veículos">
+            <PaginationSummary>
+              <span>Itens por página</span>
+              <PageSizeSelect
+                value={pageSize}
+                onChange={(event) => {
+                  setPageSize(Number(event.target.value));
+                  setCurrentPage(1);
+                }}
+                aria-label="Quantidade de veículos por página"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </PageSizeSelect>
+            </PaginationSummary>
+
+            <PaginationActions>
+              <PageButton
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={visiblePage === 1}
+                aria-label="Página anterior"
+              >
+                <ChevronLeft size={16} />
+              </PageButton>
+
+              <PageInfo>
+                Página <strong>{visiblePage}</strong> de <strong>{totalPages}</strong>
+              </PageInfo>
+
+              <PageButton
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={visiblePage === totalPages}
+                aria-label="Próxima página"
+              >
+                <ChevronRight size={16} />
+              </PageButton>
+            </PaginationActions>
+          </Pagination>
         </>
       )}
     </ListCard>

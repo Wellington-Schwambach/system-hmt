@@ -13,6 +13,13 @@ import type {
 } from './types';
 import { onlyDigits } from './utils';
 
+
+function sortEmployeesByName(records: EmployeeRecord[]): EmployeeRecord[] {
+  return [...records].sort((left, right) =>
+    left.fullName.localeCompare(right.fullName, 'pt-BR', { sensitivity: 'base' }),
+  );
+}
+
 function persistEmployeeCache(records: EmployeeRecord[]): void {
   try {
     window.localStorage.setItem(EMPLOYEES_STORAGE_KEY, JSON.stringify(records));
@@ -25,7 +32,7 @@ export function useEmployeeRecords() {
   const notifications = useNotifications();
   const [allRecords, setAllRecords] = useState<EmployeeRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<EmployeeStatus | 'ALL'>('ACTIVE');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -37,8 +44,9 @@ export function useEmployeeRecords() {
       .list()
       .then((records) => {
         if (active) {
-          setAllRecords(records);
-          persistEmployeeCache(records);
+          const sortedRecords = sortEmployeesByName(records);
+          setAllRecords(sortedRecords);
+          persistEmployeeCache(sortedRecords);
         }
       })
       .catch((error: unknown) => {
@@ -56,19 +64,28 @@ export function useEmployeeRecords() {
   }, [notifications]);
 
   const records = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR');
-    const searchDigits = onlyDigits(normalizedSearch);
+    const normalizeText = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase('pt-BR');
+
+    const normalizedSearch = normalizeText(searchTerm.trim());
+    const searchDigits = onlyDigits(searchTerm);
 
     return allRecords.filter((record) => {
       const matchesStatus = statusFilter === 'ALL' || record.status === statusFilter;
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        record.fullName.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.employeeCode.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.cpf.includes(searchDigits) ||
-        record.cnhNumber.includes(searchDigits) ||
-        record.jobTitle.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.email.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
+      const matchesText =
+        normalizeText(record.fullName).includes(normalizedSearch) ||
+        normalizeText(record.employeeCode).includes(normalizedSearch) ||
+        normalizeText(record.jobTitle).includes(normalizedSearch) ||
+        normalizeText(record.email).includes(normalizedSearch);
+      const matchesDigits =
+        searchDigits.length > 0 &&
+        (record.cpf.includes(searchDigits) ||
+          record.cnhNumber.includes(searchDigits) ||
+          record.phone.includes(searchDigits));
+      const matchesSearch = normalizedSearch.length === 0 || matchesText || matchesDigits;
 
       return matchesStatus && matchesSearch;
     });
@@ -84,9 +101,11 @@ export function useEmployeeRecords() {
           : await employeeService.create(formData);
 
         setAllRecords((currentRecords) => {
-          const updatedRecords = editingId
-            ? currentRecords.map((record) => (record.id === editingId ? result.employee : record))
-            : [result.employee, ...currentRecords];
+          const updatedRecords = sortEmployeesByName(
+            editingId
+              ? currentRecords.map((record) => (record.id === editingId ? result.employee : record))
+              : [result.employee, ...currentRecords],
+          );
           persistEmployeeCache(updatedRecords);
           return updatedRecords;
         });

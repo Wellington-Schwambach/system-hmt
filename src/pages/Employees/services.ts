@@ -2,6 +2,8 @@ import axios from 'axios';
 
 import { api } from '../../services/api';
 import type {
+  BrazilCityOption,
+  BrazilStateOption,
   EmployeeDocument,
   EmployeeDocumentType,
   EmployeeFormData,
@@ -24,11 +26,20 @@ interface ApiEmployee {
   phone: string | null;
   email: string | null;
   full_address: string | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_neighborhood: string | null;
+  state_id: number | null;
+  state: { id: number; abbreviation: string; name: string } | null;
+  city_id: number | null;
+  city: { id: number; name: string } | null;
   job_title: string;
   admission_date: string;
   termination_date: string | null;
   family_contact: string | null;
   probation_end_date: string | null;
+  probation_extension_end_date: string | null;
+  vacation_date: string | null;
   status: EmployeeRecord['status'];
   cnh_number: string | null;
   cnh_category: EmployeeRecord['cnhCategory'] | null;
@@ -79,11 +90,21 @@ function mapEmployee(employee: ApiEmployee): EmployeeRecord {
     phone: employee.phone ?? '',
     email: employee.email ?? '',
     fullAddress: employee.full_address ?? '',
+    addressStreet: employee.address_street ?? '',
+    addressNumber: employee.address_number ?? '',
+    addressNeighborhood: employee.address_neighborhood ?? '',
+    stateId: employee.state_id,
+    stateName: employee.state?.name ?? '',
+    stateAbbreviation: employee.state?.abbreviation ?? '',
+    cityId: employee.city_id,
+    cityName: employee.city?.name ?? '',
     jobTitle: employee.job_title,
     admissionDate: employee.admission_date,
     terminationDate: employee.termination_date ?? '',
     familyContact: employee.family_contact ?? '',
     probationEndDate: employee.probation_end_date ?? '',
+    probationExtensionEndDate: employee.probation_extension_end_date ?? '',
+    vacationDate: employee.vacation_date ?? '',
     status: employee.status,
     cnhNumber: employee.cnh_number ?? '',
     cnhCategory: employee.cnh_category ?? '',
@@ -123,11 +144,15 @@ function buildPayload(data: EmployeeFormData): FormData {
   append(payload, 'phone', data.phone);
   append(payload, 'email', data.email);
   append(payload, 'full_address', data.fullAddress);
+  append(payload, 'address_street', data.addressStreet);
+  append(payload, 'address_number', data.addressNumber);
+  append(payload, 'address_neighborhood', data.addressNeighborhood);
+  append(payload, 'state_id', data.stateId);
+  append(payload, 'city_id', data.cityId);
   append(payload, 'job_title', data.jobTitle);
   append(payload, 'admission_date', data.admissionDate);
   append(payload, 'termination_date', data.terminationDate);
   append(payload, 'family_contact', data.familyContact);
-  append(payload, 'probation_end_date', data.probationEndDate);
   append(payload, 'status', data.status);
   append(payload, 'cnh_number', data.cnhNumber);
   append(payload, 'cnh_category', data.cnhCategory);
@@ -181,6 +206,30 @@ const documentRouteNames: Record<EmployeeDocumentType, string> = {
   aso: 'aso',
   toxicological: 'toxicological',
   registrationForm: 'registration-form',
+};
+
+
+
+export const locationService = {
+  async states(): Promise<BrazilStateOption[]> {
+    const response = await api.get<{
+      states: Array<{ id: number; abbreviation: string; name: string }>;
+    }>('/api/locations/states');
+
+    return response.data.states;
+  },
+
+  async cities(stateId: number): Promise<BrazilCityOption[]> {
+    const response = await api.get<{
+      cities: Array<{ id: number; state_id: number; name: string }>;
+    }>(`/api/locations/states/${stateId}/cities`);
+
+    return response.data.cities.map((city) => ({
+      id: city.id,
+      stateId: city.state_id,
+      name: city.name,
+    }));
+  },
 };
 
 export const employeeService = {
