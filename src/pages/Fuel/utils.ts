@@ -1,12 +1,4 @@
-import type {
-  FuelRecord,
-  FuelType,
-  FuelRecordWithMetrics,
-  FuelStatus,
-  FuelSummary,
-  LegacyFuelRecord,
-  PersistedFuelRecord,
-} from './types';
+import type { FuelRecord, FuelType, FuelRecordWithMetrics, FuelStatus, FuelSummary, PersistedFuelRecord } from './types';
 
 const numberFormatter = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 2,
@@ -24,7 +16,12 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 export function formatDate(date: string): string {
   const [year, month, day] = date.split('-');
-  return `${day}/${month}/${year}`;
+  return year && month && day ? `${day}/${month}/${year}` : date;
+}
+
+export function formatBillingMonth(value: string): string {
+  const [year, month] = value.split('-');
+  return year && month ? `${month}/${year}` : value;
 }
 
 export function formatDecimal(value: number): string {
@@ -40,17 +37,13 @@ export function formatCurrency(value: number): string {
 }
 
 export function getFuelTypeLabel(type: FuelType): string {
-  const labels: Record<FuelType, string> = {
-    DIESEL: 'Diesel',
-    ARLA: 'Arla',
-  };
-
-  return labels[type];
+  return type === 'DIESEL' ? 'Diesel' : 'Arla';
 }
 
 export function getFuelStatusLabel(status: FuelStatus): string {
   const labels: Record<FuelStatus, string> = {
     F: 'Faturado',
+    P: 'Metade faturado',
     N: 'Não faturado',
   };
 
@@ -64,124 +57,42 @@ export function parseDecimalInput(value: string): number {
 }
 
 export function calculateValuePerLiter(totalValue: number, liters: number): number {
-  if (liters <= 0) {
-    return 0;
-  }
-
-  return totalValue / liters;
+  return liters > 0 ? totalValue / liters : 0;
 }
 
-export function calculateVehicleAverage(km: number, dieselLiters: number): number | null {
-  if (km <= 0 || dieselLiters <= 0) {
-    return null;
-  }
+export function calculateVehicleAverage(
+  vehicleCurrentKm: number,
+  fuelKm: number | null,
+  dieselLiters: number,
+): number {
+  if (vehicleCurrentKm <= 0 || fuelKm === null || dieselLiters <= 0) return 0;
+  if (fuelKm < vehicleCurrentKm) return 0;
 
-  return km / dieselLiters;
+  return (fuelKm - vehicleCurrentKm) / dieselLiters;
 }
 
-function isLegacyFuelRecord(record: PersistedFuelRecord): record is LegacyFuelRecord {
-  return 'type' in record && 'liters' in record;
-}
-
-function getLegacyTotalValue(record: LegacyFuelRecord): number {
-  if (typeof record.totalValue === 'number') {
-    return record.totalValue;
-  }
-
-  return record.liters * (record.valuePerLiter ?? 0);
-}
-
-function normalizeStatus(status: 'P' | 'F' | 'N'): FuelStatus {
-  return status === 'F' ? 'F' : 'N';
-}
-
-function createRecordFromLegacy(record: LegacyFuelRecord): FuelRecord {
-  const totalValue = getLegacyTotalValue(record);
-
-  return {
-    id: record.id,
-    date: record.date,
-    station: record.station,
-    plate: record.plate?.trim() || 'SKT8H52',
-    km: record.km,
-    dieselLiters: record.type === 'DIESEL' ? record.liters : 0,
-    dieselTotalValue: record.type === 'DIESEL' ? totalValue : 0,
-    arlaLiters: record.type === 'ARLA' ? record.liters : 0,
-    arlaTotalValue: record.type === 'ARLA' ? totalValue : 0,
-    driver: record.driver,
-    status: normalizeStatus(record.status),
-  };
-}
-
-function canMergeLegacyRecords(baseRecord: FuelRecord, candidate: FuelRecord): boolean {
-  const sameContext =
-    baseRecord.date === candidate.date &&
-    baseRecord.station === candidate.station &&
-    baseRecord.driver === candidate.driver &&
-    baseRecord.plate === candidate.plate;
-
-  const closeKm = Math.abs(baseRecord.km - candidate.km) <= 5;
-  const complementaryFuel =
-    (baseRecord.dieselLiters > 0 && candidate.arlaLiters > 0) ||
-    (baseRecord.arlaLiters > 0 && candidate.dieselLiters > 0);
-
-  return sameContext && closeKm && complementaryFuel;
-}
-
-function mergeFuelRecords(baseRecord: FuelRecord, candidate: FuelRecord): FuelRecord {
-  return {
-    ...baseRecord,
-    id: baseRecord.dieselLiters > 0 ? baseRecord.id : candidate.id,
-    km: Math.max(baseRecord.km, candidate.km),
-    dieselLiters: Math.max(baseRecord.dieselLiters, candidate.dieselLiters),
-    dieselTotalValue: Math.max(baseRecord.dieselTotalValue, candidate.dieselTotalValue),
-    arlaLiters: Math.max(baseRecord.arlaLiters, candidate.arlaLiters),
-    arlaTotalValue: Math.max(baseRecord.arlaTotalValue, candidate.arlaTotalValue),
-    status: baseRecord.status === 'F' && candidate.status === 'F' ? 'F' : 'N',
-  };
-}
-
-export function normalizeFuelRecords(records: PersistedFuelRecord[]): FuelRecord[] {
-  const normalizedRecords: FuelRecord[] = records.map((record) => {
-    if (isLegacyFuelRecord(record)) {
-      return createRecordFromLegacy(record);
-    }
-
-    return {
-      ...record,
-      plate: record.plate?.trim() || 'SKT8H52',
-      dieselLiters: Number(record.dieselLiters) || 0,
-      dieselTotalValue: Number(record.dieselTotalValue) || 0,
-      arlaLiters: Number(record.arlaLiters) || 0,
-      arlaTotalValue: Number(record.arlaTotalValue) || 0,
-      status: record.status === 'F' ? ('F' as const) : ('N' as const),
-    };
-  });
-
-  return normalizedRecords.reduce<FuelRecord[]>((result, record) => {
-    const mergeIndex = result.findIndex((currentRecord) =>
-      canMergeLegacyRecords(currentRecord, record),
-    );
-
-    if (mergeIndex === -1) {
-      return [...result, record];
-    }
-
-    const updatedResult = [...result];
-    updatedResult[mergeIndex] = mergeFuelRecords(updatedResult[mergeIndex], record);
-    return updatedResult;
-  }, []);
+export function calculateFuelStatus(
+  dieselInvoiced: boolean,
+  arlaInvoiced: boolean,
+  hasArla: boolean,
+): FuelStatus {
+  if (dieselInvoiced && (!hasArla || arlaInvoiced)) return 'F';
+  if (hasArla && (dieselInvoiced || arlaInvoiced)) return 'P';
+  return 'N';
 }
 
 export function enrichFuelRecords(records: FuelRecord[]): FuelRecordWithMetrics[] {
   return [...records]
     .sort((a, b) => {
+      const billingMonthComparison = b.billingMonth.localeCompare(a.billingMonth);
+      if (billingMonthComparison !== 0) return billingMonthComparison;
+
       const dateComparison = b.date.localeCompare(a.date);
-      return dateComparison !== 0 ? dateComparison : b.km - a.km;
+      return dateComparison !== 0 ? dateComparison : b.id - a.id;
     })
     .map((record) => ({
       ...record,
-      dieselAverage: calculateVehicleAverage(record.km, record.dieselLiters),
+      dieselAverage: record.dieselAverage,
       dieselValuePerLiter: calculateValuePerLiter(record.dieselTotalValue, record.dieselLiters),
       arlaValuePerLiter: calculateValuePerLiter(record.arlaTotalValue, record.arlaLiters),
       totalValue: record.dieselTotalValue + record.arlaTotalValue,
@@ -194,13 +105,21 @@ export function getFuelSummary(records: FuelRecordWithMetrics[]): FuelSummary {
       totalRecords: summary.totalRecords + 1,
       totalDieselLiters: summary.totalDieselLiters + record.dieselLiters,
       totalArlaLiters: summary.totalArlaLiters + record.arlaLiters,
+      totalDieselValue: summary.totalDieselValue + record.dieselTotalValue,
+      totalArlaValue: summary.totalArlaValue + record.arlaTotalValue,
       totalValue: summary.totalValue + record.totalValue,
     }),
     {
       totalRecords: 0,
       totalDieselLiters: 0,
       totalArlaLiters: 0,
+      totalDieselValue: 0,
+      totalArlaValue: 0,
       totalValue: 0,
     },
   );
+}
+
+export function normalizeFuelRecords(records: PersistedFuelRecord[]): FuelRecord[] {
+  return records.map((record) => ({ ...record }));
 }

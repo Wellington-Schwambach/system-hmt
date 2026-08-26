@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -131,8 +132,23 @@ class VehicleController extends Controller
         ]);
     }
 
-    public function destroy(Vehicle $vehicle): Response
+    public function destroy(Vehicle $vehicle): Response|JsonResponse
     {
+        if (Schema::hasTable('vehicle_sets')) {
+            $isInActiveSet = DB::table('vehicle_sets')
+                ->where('status', 'ACTIVE')
+                ->where(function ($query) use ($vehicle): void {
+                    $query->where('tractor_id', $vehicle->id)->orWhere('trailer_id', $vehicle->id);
+                })
+                ->exists();
+
+            if ($isInActiveSet) {
+                return response()->json([
+                    'message' => 'Este veículo está vinculado a um conjunto ativo. Desatrele o conjunto antes de excluir o veículo.',
+                ], 422);
+            }
+        }
+
         $path = $vehicle->crlv_path;
         $vehicle->delete();
 

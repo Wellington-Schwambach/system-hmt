@@ -8,6 +8,11 @@ const STATUS_COLORS: Record<FuelStatus, { text: string; background: string; bord
     background: '#e8f8ef',
     border: '#b8e7cd',
   },
+  P: {
+    text: '#9a6700',
+    background: '#fff8dc',
+    border: '#eadb9a',
+  },
   N: {
     text: '#a23a3a',
     background: '#fff0f0',

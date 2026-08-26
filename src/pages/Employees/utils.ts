@@ -175,7 +175,7 @@ export function calculateEmploymentDates(admissionDate: string): {
   return {
     probationEndDate: addDaysToIsoDate(admissionDate, 45),
     probationExtensionEndDate: addDaysToIsoDate(admissionDate, 90),
-    vacationDate: addMonthsToIsoDate(admissionDate, 22),
+    vacationDate: addMonthsToIsoDate(admissionDate, 12),
   };
 }
 

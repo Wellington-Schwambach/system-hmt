@@ -283,3 +283,108 @@ export const PageSize = styled.select`
   min-height: 2.35rem; padding: 0.4rem 0.7rem; border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
   border-radius: 0.65rem; color: ${({ theme }) => theme.colors.dashboardText}; background: ${({ theme }) => theme.colors.surfaceElevated};
 `;
+
+export const DocumentsSection = styled.section`
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 1rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const DocumentsHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+
+  > div {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.82rem;
+  }
+
+  span {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.72rem;
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`;
+
+export const DocumentGrid = styled.div`
+  display: grid;
+  gap: 0.65rem;
+`;
+
+export const DocumentRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.2fr) minmax(13rem, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.8rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+
+  @media (max-width: ${breakpoints.tablet}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const DocumentNameShell = styled.div`
+  position: relative;
+
+  > svg {
+    position: absolute;
+    top: 50%;
+    left: 0.78rem;
+    z-index: 1;
+    transform: translateY(-50%);
+    color: ${({ theme }) => theme.colors.brandGreen};
+    pointer-events: none;
+  }
+
+  > input {
+    padding-left: 2.35rem;
+  }
+`;
+
+export const DocumentFile = styled.div`
+  min-width: 0;
+  min-height: 2.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.8rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font-size: 0.72rem;
+
+  svg { flex: 0 0 auto; color: ${({ theme }) => theme.colors.brandGreen}; }
+  span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+`;
+
+export const DocumentActions = styled.div`
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+`;
+
+export const DocumentHint = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.7rem;
+`;

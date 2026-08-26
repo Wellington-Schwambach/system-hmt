@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
@@ -170,8 +171,21 @@ class EmployeeController extends Controller
         ]);
     }
 
-    public function destroy(Employee $employee): Response
+    public function destroy(Employee $employee): Response|JsonResponse
     {
+        if (Schema::hasTable('vehicle_sets')) {
+            $isInActiveSet = DB::table('vehicle_sets')
+                ->where('status', 'ACTIVE')
+                ->where('driver_id', $employee->id)
+                ->exists();
+
+            if ($isInActiveSet) {
+                return response()->json([
+                    'message' => 'Este motorista está vinculado a um conjunto ativo. Altere ou desatrele o conjunto antes de excluir o colaborador.',
+                ], 422);
+            }
+        }
+
         $paths = $employee->documents()->pluck('path')->all();
         $employee->delete();
 
@@ -229,7 +243,7 @@ class EmployeeController extends Controller
         $admissionDate = CarbonImmutable::parse((string) $validated['admission_date'])->startOfDay();
         $validated['probation_end_date'] = $admissionDate->addDays(45)->toDateString();
         $validated['probation_extension_end_date'] = $admissionDate->addDays(90)->toDateString();
-        $validated['vacation_date'] = $admissionDate->addMonthsNoOverflow(22)->toDateString();
+        $validated['vacation_date'] = $admissionDate->addYear()->toDateString();
 
         $validated['full_address'] = $this->composeFullAddress($validated);
 

@@ -306,3 +306,7 @@ Os filtros de placa e embarcador também são alimentados pelo PostgreSQL. Consu
 ## Atualização do cadastro de motoristas
 
 A atualização de endereço estruturado, máscaras, status no grid e tabelas brasileiras de estados/cidades está documentada em `documents/COMO_APLICAR_MELHORIAS_CADASTRO_MOTORISTAS.md`.
+
+## Conjuntos de veículos
+
+O sistema possui o módulo `/conjuntos` para vincular cavalo, carreta e motorista, registrar horários, trocar motorista, desatrelar e manter histórico auditável. Consulte `documents/COMO_APLICAR_MODULO_CONJUNTOS_VINCULAR_CARRETAS.md`.

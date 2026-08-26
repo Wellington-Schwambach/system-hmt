@@ -192,9 +192,11 @@ export function filterDriverTravels(
     .sort((firstTravel, secondTravel) => secondTravel.date.localeCompare(firstTravel.date));
 }
 
+type FuelRecordWithKm = FuelRecord & { km: number };
+
 function calculateAverageFromFuelings(
-  allPlateRecords: FuelRecord[],
-  referenceRecords: FuelRecord[],
+  allPlateRecords: FuelRecordWithKm[],
+  referenceRecords: FuelRecordWithKm[],
 ): { average: number | null; fuelingsCount: number } {
   let distance = 0;
   let liters = 0;
@@ -233,8 +235,12 @@ export function getVehicleAverageSummaries(
   return Object.entries(plateTripCounts).map(([plate, tripsCount]) => {
     const allPlateRecords = fuelRecords
       .filter(
-        (record) =>
-          record.plate === plate && driversMatch(record.driver, driver) && record.date <= endDate,
+        (record): record is FuelRecordWithKm =>
+          record.km !== null &&
+          record.km > 0 &&
+          record.plate === plate &&
+          driversMatch(record.driver, driver) &&
+          record.date <= endDate,
       )
       .sort((firstRecord, secondRecord) => {
         const dateComparison = firstRecord.date.localeCompare(secondRecord.date);

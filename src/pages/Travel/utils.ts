@@ -94,7 +94,7 @@ export function getTravelSummary(
         ? record.icmsAmount
         : ctes.reduce((total, cte) => total + cte.icmsAmount, 0);
 
-      const countsAsTrip = record.ctes.some((cte) => cte.cteType !== 'FREIGHT_COMPLEMENT');
+      const countsAsTrip = record.ctes.some((cte) => cte.cteType === 'NORMAL');
 
       return {
         totalTrips: summary.totalTrips + (countsAsTrip ? 1 : 0),

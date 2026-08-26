@@ -334,8 +334,8 @@ export function TravelFormModal({
 
   const isEditing = Boolean(editingRecord);
   const isThirdParty = formData.operationType === 'THIRD_PARTY';
-  const complementOnly =
-    formData.ctes.length > 0 && formData.ctes.every((cte) => cte.cteType === 'FREIGHT_COMPLEMENT');
+  const supplementaryOnly =
+    formData.ctes.length > 0 && formData.ctes.every((cte) => cte.cteType !== 'NORMAL');
 
   function handleChange(field: Exclude<keyof TravelFormData, 'ctes'>, value: string) {
     setFormError('');
@@ -379,14 +379,14 @@ export function TravelFormModal({
 
         return nextCte;
       });
-      const nextIsComplementOnly =
-        nextCtes.length > 0 && nextCtes.every((cte) => cte.cteType === 'FREIGHT_COMPLEMENT');
+      const nextIsSupplementaryOnly =
+        nextCtes.length > 0 && nextCtes.every((cte) => cte.cteType !== 'NORMAL');
 
       return {
         ...current,
         ctes: nextCtes,
-        driverOneId: nextIsComplementOnly ? '' : current.driverOneId,
-        driverTwoId: nextIsComplementOnly ? '' : current.driverTwoId,
+        driverOneId: nextIsSupplementaryOnly ? '' : current.driverOneId,
+        driverTwoId: nextIsSupplementaryOnly ? '' : current.driverTwoId,
       };
     });
   }
@@ -478,12 +478,12 @@ export function TravelFormModal({
         return;
       }
 
-      if (!complementOnly && !formData.driverOneId) {
+      if (!supplementaryOnly && !formData.driverOneId) {
         setFormError('Selecione pelo menos um motorista para a viagem da frota.');
         return;
       }
 
-      if (!complementOnly && formData.driverTwoId && formData.driverTwoId === formData.driverOneId) {
+      if (!supplementaryOnly && formData.driverTwoId && formData.driverTwoId === formData.driverOneId) {
         setFormError('O segundo motorista deve ser diferente do primeiro.');
         return;
       }
@@ -886,7 +886,7 @@ export function TravelFormModal({
                 </Field>
               )}
 
-              {!isThirdParty && !complementOnly ? (
+              {!isThirdParty && !supplementaryOnly ? (
                 <>
                   <Field>
                     <Label htmlFor="travel-driver-one">Motorista</Label>
@@ -968,9 +968,9 @@ export function TravelFormModal({
                 </>
               ) : null}
 
-              {!isThirdParty && complementOnly ? (
+              {!isThirdParty && supplementaryOnly ? (
                 <InlineInfo>
-                  CT-e de Complemento: motorista não é obrigatório. O cavalo continua vinculado à viagem.
+                  Complemento ou Diária isolados: motorista não é obrigatório. O cavalo continua vinculado ao lançamento.
                 </InlineInfo>
               ) : null}
 

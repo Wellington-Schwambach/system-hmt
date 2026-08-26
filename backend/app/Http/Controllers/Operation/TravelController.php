@@ -364,7 +364,7 @@ class TravelController extends Controller
             $vehicle = Vehicle::query()->findOrFail((int) $validated['vehicle_id']);
 
             $requiresDriver = collect($validated['ctes'] ?? [])
-                ->contains(fn (array $cte): bool => ($cte['cte_type'] ?? 'NORMAL') !== 'FREIGHT_COMPLEMENT');
+                ->contains(fn (array $cte): bool => ($cte['cte_type'] ?? 'NORMAL') === 'NORMAL');
 
             if ($requiresDriver) {
                 $driverOne = Employee::query()->findOrFail((int) $validated['driver_one_id']);

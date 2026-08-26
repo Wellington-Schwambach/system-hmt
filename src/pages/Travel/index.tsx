@@ -4,6 +4,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
   Map,
   TrendingUp,
@@ -41,6 +43,7 @@ export function Travel() {
   const [editingRecord, setEditingRecord] = useState<TravelRecordWithMetrics | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showFinancialValues, setShowFinancialValues] = useState(false);
   const {
     records,
     summary,
@@ -149,29 +152,41 @@ export function Travel() {
     [deleteRecord, notifications],
   );
 
+  const hiddenMoney = '••••••';
+
   return (
     <>
       <SummaryGrid aria-label="Resumo das viagens">
         <TravelSummaryCard label="Total de viagens" value={String(summary.totalTrips)} icon={Map} />
         <TravelSummaryCard
           label="Frete líquido"
-          value={formatCurrency(summary.totalNetFreight)}
+          value={showFinancialValues ? formatCurrency(summary.totalNetFreight) : hiddenMoney}
           icon={CircleDollarSign}
         />
         <TravelSummaryCard
           label="Frete bruto"
-          value={formatCurrency(summary.totalGrossFreight)}
+          value={showFinancialValues ? formatCurrency(summary.totalGrossFreight) : hiddenMoney}
           icon={Banknote}
         />
         <TravelSummaryCard
           label="Diferença"
-          value={formatCurrency(summary.totalDifference)}
+          value={showFinancialValues ? formatCurrency(summary.totalDifference) : hiddenMoney}
           icon={TrendingUp}
           breakdown={[
-            { label: 'ICMS', value: formatCurrency(summary.totalIcms) },
-            { label: 'Seguro', value: formatCurrency(summary.totalInsurance) },
-            { label: 'Pedágio', value: formatCurrency(summary.totalToll) },
+            { label: 'ICMS', value: showFinancialValues ? formatCurrency(summary.totalIcms) : hiddenMoney },
+            { label: 'Seguro', value: showFinancialValues ? formatCurrency(summary.totalInsurance) : hiddenMoney },
+            { label: 'Pedágio', value: showFinancialValues ? formatCurrency(summary.totalToll) : hiddenMoney },
           ]}
+          action={
+            <button
+              type="button"
+              onClick={() => setShowFinancialValues((visible) => !visible)}
+              aria-label={showFinancialValues ? 'Ocultar valores financeiros' : 'Mostrar valores financeiros'}
+              title={showFinancialValues ? 'Ocultar valores' : 'Mostrar valores'}
+            >
+              {showFinancialValues ? <EyeOff size={17} /> : <Eye size={17} />}
+            </button>
+          }
         />
       </SummaryGrid>
 

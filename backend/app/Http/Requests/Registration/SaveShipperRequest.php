@@ -24,6 +24,7 @@ class SaveShipperRequest extends FormRequest
                 : strtoupper($name),
             'display_color' => $color,
             'status' => strtoupper(trim((string) $this->input('status', 'ACTIVE'))),
+            'receipt_term_days' => $this->input('receipt_term_days') === '' ? null : $this->input('receipt_term_days'),
         ]);
     }
 
@@ -40,6 +41,7 @@ class SaveShipperRequest extends FormRequest
             ],
             'display_color' => ['required', 'string', 'regex:/^#[0-9A-F]{6}$/'],
             'status' => ['required', 'string', Rule::in(['ACTIVE', 'INACTIVE'])],
+            'receipt_term_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
         ];
     }
 
@@ -53,6 +55,9 @@ class SaveShipperRequest extends FormRequest
             'display_color.required' => 'Selecione uma cor para o embarcador.',
             'display_color.regex' => 'Selecione uma cor válida para o embarcador.',
             'status.in' => 'Selecione uma situação válida para o embarcador.',
+            'receipt_term_days.integer' => 'Informe o prazo de recebimento em dias inteiros.',
+            'receipt_term_days.min' => 'O prazo de recebimento não pode ser negativo.',
+            'receipt_term_days.max' => 'O prazo de recebimento deve ser de no máximo 3650 dias.',
         ];
     }
 }

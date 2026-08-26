@@ -4,7 +4,7 @@ import { breakpoints } from '../../../../styles/breakpoints';
 
 export const FiltersBar = styled.section`
   display: grid;
-  grid-template-columns: minmax(10rem, 0.24fr) minmax(17rem, 0.34fr) minmax(18rem, 0.42fr);
+  grid-template-columns: minmax(13rem, 0.22fr) minmax(11rem, 0.17fr) minmax(25rem, 0.34fr) minmax(18rem, 0.27fr);
   align-items: end;
   gap: 0.8rem;
   padding: 0.85rem;
@@ -14,8 +14,9 @@ export const FiltersBar = styled.section`
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
 
   @media (max-width: ${breakpoints.desktop}) {
-    grid-template-columns: minmax(10rem, 0.35fr) minmax(17rem, 0.65fr);
+    grid-template-columns: minmax(13rem, 1fr) minmax(13rem, 1fr);
 
+    > div:nth-child(3),
     > label:last-child {
       grid-column: 1 / -1;
     }

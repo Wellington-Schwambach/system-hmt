@@ -1,20 +1,19 @@
 import type {
   TravelCteTypeFilter,
   TravelOptionShipper,
-  TravelShipperFilter,
 } from '../../types';
 
 export interface TravelFiltersProps {
-  shipperFilter: TravelShipperFilter;
+  shipperFilter: string[];
   shipperOptions: TravelOptionShipper[];
-  plateFilter: string;
+  plateFilter: string[];
   plateOptions: string[];
   cteTypeFilter: TravelCteTypeFilter;
   dateFrom: string;
   dateTo: string;
   searchTerm: string;
-  onShipperFilterChange: (filter: TravelShipperFilter) => void;
-  onPlateFilterChange: (plate: string) => void;
+  onShipperFilterChange: (filter: string[]) => void;
+  onPlateFilterChange: (plates: string[]) => void;
   onCteTypeFilterChange: (filter: TravelCteTypeFilter) => void;
   onDateFromChange: (value: string) => void;
   onDateToChange: (value: string) => void;

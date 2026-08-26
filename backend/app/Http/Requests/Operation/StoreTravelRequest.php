@@ -335,7 +335,7 @@ class StoreTravelRequest extends FormRequest
         }
 
         foreach ($ctes as $cte) {
-            if (is_array($cte) && ($cte['cte_type'] ?? 'NORMAL') !== 'FREIGHT_COMPLEMENT') {
+            if (is_array($cte) && ($cte['cte_type'] ?? 'NORMAL') === 'NORMAL') {
                 return true;
             }
         }

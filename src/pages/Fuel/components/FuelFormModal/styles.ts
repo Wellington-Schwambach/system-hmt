@@ -74,6 +74,11 @@ export const CloseButton = styled.button`
   color: ${({ theme }) => theme.colors.dashboardTextMuted};
   background: ${({ theme }) => theme.colors.dashboardSurface};
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 export const Form = styled.form`
@@ -81,6 +86,42 @@ export const Form = styled.form`
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
+`;
+
+export const BillingPeriodPanel = styled.section`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+  border-radius: 1rem;
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const BillingPeriodCopy = styled.div`
+  min-width: 0;
+`;
+
+export const BillingPeriodTitle = styled.strong`
+  display: block;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.9rem;
+`;
+
+export const BillingPeriodDescription = styled.p`
+  margin: 0.25rem 0 0;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  line-height: 1.4;
+`;
+
+export const BillingPeriodField = styled.div`
+  min-width: 0;
 `;
 
 export const FormSection = styled.section`
@@ -122,7 +163,6 @@ export const FieldGrid = styled.div`
 `;
 
 export const Field = styled.div<{ $fullWidth?: boolean }>`
-  position: relative;
   grid-column: ${({ $fullWidth }) => ($fullWidth ? '1 / -1' : 'auto')};
 
   @media (max-width: ${breakpoints.mobile}) {
@@ -138,13 +178,18 @@ export const Label = styled.label`
   font-weight: 750;
 `;
 
+export const FieldControl = styled.div`
+  position: relative;
+`;
+
 export const FieldIcon = styled.span`
   position: absolute;
+  top: 50%;
   left: 0.85rem;
-  bottom: 0.86rem;
   z-index: 1;
   display: grid;
   place-items: center;
+  transform: translateY(-50%);
   color: ${({ theme }) => theme.colors.brandGreen};
   pointer-events: none;
 `;
@@ -167,6 +212,20 @@ export const Input = styled.input`
     border-color: ${({ theme }) => theme.colors.brandGreen};
     box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
   }
+`;
+
+export const ReadonlyInput = styled(Input)`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  cursor: default;
+`;
+
+export const FieldHelp = styled.small`
+  display: block;
+  margin-top: 0.35rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.68rem;
+  line-height: 1.35;
 `;
 
 export const Select = styled.select`
@@ -267,6 +326,11 @@ export const CancelButton = styled.button`
   background: ${({ theme }) => theme.colors.surfaceElevated};
   font-weight: 800;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 export const SaveButton = styled.button`
@@ -283,4 +347,9 @@ export const SaveButton = styled.button`
   box-shadow: ${({ theme }) => theme.shadow.green};
   font-weight: 800;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: wait;
+  }
 `;

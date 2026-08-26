@@ -4,6 +4,7 @@ import {
   Fuel,
   Landmark,
   LayoutDashboard,
+  Link2,
   Map,
   NotebookPen,
   ShieldCheck,
@@ -73,6 +74,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     permission: 'travel',
   },
 
+  {
+    id: 'vehicle-sets',
+    label: 'Conjuntos',
+    icon: Link2,
+    path: '/conjuntos',
+    permission: 'vehicle_sets',
+  },
   {
     id: 'acertos',
     label: 'Acertos',

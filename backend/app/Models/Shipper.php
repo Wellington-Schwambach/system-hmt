@@ -16,6 +16,7 @@ class Shipper extends Model
         'normalized_name',
         'status',
         'display_color',
+        'receipt_term_days',
         'created_by',
         'updated_by',
     ];
@@ -42,6 +43,16 @@ class Shipper extends Model
         $index = abs(crc32($normalized)) % count($palette);
 
         return $palette[$index];
+    }
+
+    protected function casts(): array
+    {
+        return ['receipt_term_days' => 'integer'];
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(ShipperDocument::class)->orderBy('position')->orderBy('id');
     }
 
     public function travels(): HasMany
