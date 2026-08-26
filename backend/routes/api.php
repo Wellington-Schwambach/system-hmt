@@ -5,6 +5,9 @@ use App\Http\Controllers\Fleet\EmployeeController;
 use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
 use App\Http\Controllers\Operation\TravelController;
+use App\Http\Controllers\Operation\FuelController;
+use App\Http\Controllers\Operation\VehicleSetController;
+use App\Http\Controllers\Registration\ShipperController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->group(function (): void {
@@ -55,10 +58,48 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
                 ->name('employees.documents.download');
         });
 
+
+    Route::prefix('shippers')
+        ->middleware('permission:registrations.shippers')
+        ->group(function (): void {
+            Route::get('/', [ShipperController::class, 'index']);
+            Route::post('/', [ShipperController::class, 'store']);
+            Route::put('/{shipper}', [ShipperController::class, 'update']);
+            Route::delete('/{shipper}', [ShipperController::class, 'destroy']);
+            Route::post('/{shipper}/documents', [ShipperController::class, 'storeDocument']);
+            Route::put('/{shipper}/documents/{document}', [ShipperController::class, 'updateDocument']);
+            Route::delete('/{shipper}/documents/{document}', [ShipperController::class, 'destroyDocument']);
+            Route::get('/{shipper}/documents/{document}/download', [ShipperController::class, 'downloadDocument']);
+        });
+
+
+    Route::prefix('vehicle-sets')
+        ->middleware('permission:vehicle_sets')
+        ->group(function (): void {
+            Route::get('/options', [VehicleSetController::class, 'options']);
+            Route::get('/', [VehicleSetController::class, 'index']);
+            Route::post('/', [VehicleSetController::class, 'store']);
+            Route::put('/{vehicleSet}/driver', [VehicleSetController::class, 'updateDriver']);
+            Route::post('/{vehicleSet}/detach', [VehicleSetController::class, 'detach']);
+        });
+
+    Route::prefix('fuel')
+        ->middleware('permission:fuel')
+        ->group(function (): void {
+            Route::get('/options', [FuelController::class, 'options']);
+            Route::get('/', [FuelController::class, 'index']);
+            Route::post('/import-legacy', [FuelController::class, 'importLegacy']);
+            Route::post('/', [FuelController::class, 'store']);
+            Route::put('/{fuelRecord}', [FuelController::class, 'update']);
+            Route::patch('/{fuelRecord}/invoice', [FuelController::class, 'invoice']);
+            Route::delete('/{fuelRecord}', [FuelController::class, 'destroy']);
+        });
+
     Route::prefix('travels')
         ->middleware('permission:travel')
         ->group(function (): void {
             Route::get('/options', [TravelController::class, 'options']);
+            Route::get('/cities', [TravelController::class, 'cities']);
             Route::post('/shippers', [TravelController::class, 'storeShipper']);
             Route::get('/', [TravelController::class, 'index']);
             Route::post('/', [TravelController::class, 'store']);
@@ -66,6 +107,4 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::delete('/{travel}', [TravelController::class, 'destroy']);
         });
 
-    // Ao criar APIs dos demais módulos, aplique a permissão correspondente:
-    // Route::apiResource('fuel', FuelController::class)->middleware('permission:fuel');
 });

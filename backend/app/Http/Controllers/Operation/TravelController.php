@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Operation\StoreShipperRequest;
 use App\Http\Requests\Operation\StoreTravelRequest;
 use App\Http\Requests\Operation\UpdateTravelRequest;
+use App\Models\BrazilCity;
 use App\Models\Employee;
 use App\Models\Shipper;
 use App\Models\Travel;
@@ -37,7 +38,7 @@ class TravelController extends Controller
         $cteType = strtoupper(trim((string) $request->query('cte_type', '')));
         $hasTravelCtes = Schema::hasTable('travel_ctes');
 
-        $query = Travel::query();
+        $query = Travel::query()->with('shipperRelation:id,display_color');
 
         if ($hasTravelCtes) {
             $query->with('ctes');
@@ -47,7 +48,7 @@ class TravelController extends Controller
             ->when($shipperId > 0, fn ($query) => $query->where('shipper_id', $shipperId))
             ->when($plate !== '' && $plate !== 'ALL', fn ($query) => $query->where('plate_snapshot', $plate))
             ->when(
-                in_array($cteType, ['NORMAL', 'FREIGHT_COMPLEMENT'], true),
+                in_array($cteType, ['NORMAL', 'FREIGHT_COMPLEMENT', 'DAILY'], true),
                 function ($query) use ($cteType, $hasTravelCtes): void {
                     if ($hasTravelCtes) {
                         $query->whereHas('ctes', fn ($cteQuery) => $cteQuery->where('cte_type', $cteType));
@@ -72,7 +73,8 @@ class TravelController extends Controller
                         $query->orWhereHas('ctes', function ($cteQuery) use ($like): void {
                             $cteQuery
                                 ->whereRaw('LOWER(cte_number) LIKE ?', [$like])
-                                ->orWhereRaw('LOWER(cte_series) LIKE ?', [$like]);
+                                ->orWhereRaw('LOWER(cte_series) LIKE ?', [$like])
+                                ->orWhereRaw("LOWER(COALESCE(complemented_cte_number, '')) LIKE ?", [$like]);
                         });
                     } else {
                         $query
@@ -132,7 +134,7 @@ class TravelController extends Controller
             fn (): Collection => Shipper::query()
                 ->where('status', 'ACTIVE')
                 ->orderBy('name')
-                ->get(['id', 'name', 'status'])
+                ->get(['id', 'name', 'status', 'display_color'])
                 ->map(fn (Shipper $shipper): array => $this->shipperPayload($shipper)),
             'O cadastro de embarcadores ainda não está disponível. Execute as migrations do backend.',
             $warnings
@@ -142,34 +144,21 @@ class TravelController extends Controller
         // inclusive um recém-criado pelo botão (+), aparece imediatamente na listagem.
         $filterShippers = $shippers->values();
 
-        $registeredTractorPlates = $this->safeAuxiliaryQuery(
+        // O filtro de placas usa exclusivamente os cavalos cadastrados no módulo de Veículos.
+        // Placas de terceiros e carretas não entram nesta lista.
+        $filterPlates = $this->safeAuxiliaryQuery(
             'vehicles',
-            fn (): Collection => Vehicle::query()->where('type', 'TRACTOR')->pluck('plate'),
-            'Não foi possível carregar as placas cadastradas.',
+            fn (): Collection => Vehicle::query()
+                ->where('type', 'TRACTOR')
+                ->orderBy('plate')
+                ->pluck('plate')
+                ->filter()
+                ->map(fn ($plate): string => strtoupper((string) $plate))
+                ->unique()
+                ->values(),
+            'Não foi possível carregar as placas dos cavalos cadastrados.',
             $warnings
         );
-
-        $historicalPlates = collect();
-        if (Schema::hasTable('travels') && Schema::hasColumn('travels', 'plate_snapshot')) {
-            try {
-                $historicalPlates = Travel::query()
-                    ->whereNotNull('plate_snapshot')
-                    ->where('plate_snapshot', '<>', '')
-                    ->distinct()
-                    ->pluck('plate_snapshot');
-            } catch (Throwable $exception) {
-                report($exception);
-                $warnings[] = 'Não foi possível carregar as placas históricas das viagens.';
-            }
-        }
-
-        $filterPlates = $registeredTractorPlates
-            ->merge($historicalPlates)
-            ->filter()
-            ->map(fn ($plate): string => strtoupper((string) $plate))
-            ->unique()
-            ->sort()
-            ->values();
 
         return response()->json([
             'tractors' => $tractors,
@@ -180,6 +169,33 @@ class TravelController extends Controller
             'filter_plates' => $filterPlates,
             'warnings' => array_values(array_unique($warnings)),
         ]);
+    }
+
+    public function cities(): JsonResponse
+    {
+        if (! Schema::hasTable('brazil_cities') || ! Schema::hasTable('brazil_states')) {
+            return response()->json([
+                'message' => 'A base de cidades ainda não foi preparada no banco de dados. Execute as migrations do backend.',
+                'code' => 'TRAVEL_CITIES_SCHEMA_MISSING',
+            ], 503);
+        }
+
+        $cities = BrazilCity::query()
+            ->join('brazil_states as state', 'state.id', '=', 'brazil_cities.state_id')
+            ->orderBy('brazil_cities.name')
+            ->orderBy('state.abbreviation')
+            ->get([
+                'brazil_cities.id',
+                'brazil_cities.name',
+                'state.abbreviation as state_abbreviation',
+            ])
+            ->map(fn ($city): array => [
+                'id' => (int) $city->id,
+                'name' => (string) $city->name,
+                'state_abbreviation' => (string) $city->state_abbreviation,
+            ]);
+
+        return response()->json(['cities' => $cities]);
     }
 
     /** @param callable(): Collection $query @param array<int, string> $warnings */
@@ -218,6 +234,7 @@ class TravelController extends Controller
             'name' => $validated['name'],
             'normalized_name' => $validated['normalized_name'],
             'status' => 'ACTIVE',
+            'display_color' => Shipper::suggestedColor($validated['name']),
             'created_by' => $request->user()?->id,
             'updated_by' => $request->user()?->id,
         ]);
@@ -345,10 +362,16 @@ class TravelController extends Controller
 
         if ($operationType === 'FLEET') {
             $vehicle = Vehicle::query()->findOrFail((int) $validated['vehicle_id']);
-            $driverOne = Employee::query()->findOrFail((int) $validated['driver_one_id']);
-            $driverTwo = ! empty($validated['driver_two_id'])
-                ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
-                : null;
+
+            $requiresDriver = collect($validated['ctes'] ?? [])
+                ->contains(fn (array $cte): bool => ($cte['cte_type'] ?? 'NORMAL') === 'NORMAL');
+
+            if ($requiresDriver) {
+                $driverOne = Employee::query()->findOrFail((int) $validated['driver_one_id']);
+                $driverTwo = ! empty($validated['driver_two_id'])
+                    ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
+                    : null;
+            }
         }
 
         $trailer = ! empty($validated['detached_trailer_id'])
@@ -384,6 +407,9 @@ class TravelController extends Controller
             'third_party_payout_amount' => $operationType === 'THIRD_PARTY'
                 ? round((float) ($validated['third_party_payout_amount'] ?? 0), 2)
                 : 0,
+            'third_party_payout_date' => $operationType === 'THIRD_PARTY'
+                ? ($validated['third_party_payout_date'] ?? null)
+                : null,
             'detached_trailer_id' => $trailer?->id,
             'detached_trailer_plate_snapshot' => $trailer?->plate,
         ];
@@ -404,6 +430,9 @@ class TravelController extends Controller
                 'cte_type' => $cte['cte_type'],
                 'cte_number' => trim((string) $cte['cte_number']),
                 'cte_series' => trim((string) $cte['cte_series']),
+                'complemented_cte_number' => ($cte['cte_type'] ?? null) === 'FREIGHT_COMPLEMENT'
+                    ? trim((string) ($cte['complemented_cte_number'] ?? ''))
+                    : null,
                 'net_freight' => $netFreight,
                 'insurance_amount' => $insurance,
                 'toll_amount' => $toll,
@@ -456,6 +485,7 @@ class TravelController extends Controller
                     'cte_type' => $travel->cte_type,
                     'cte_number' => $travel->cte_number,
                     'cte_series' => $travel->cte_series,
+                    'complemented_cte_number' => null,
                     'net_freight' => $travel->net_freight,
                     'insurance_amount' => $travel->insurance_amount,
                     'toll_amount' => $travel->toll_amount,
@@ -478,6 +508,7 @@ class TravelController extends Controller
             'ctes' => $ctes->map(fn (TravelCte $cte): array => $this->ctePayload($cte))->values(),
             'shipper_id' => $travel->shipper_id,
             'shipper' => $travel->shipper,
+            'shipper_color' => $travel->shipperRelation?->display_color ?? '#009E60',
             'operation_type' => $travel->operation_type,
             'vehicle_id' => $travel->vehicle_id,
             'plate' => $travel->plate_snapshot,
@@ -488,6 +519,7 @@ class TravelController extends Controller
             'third_party_name' => $travel->third_party_name,
             'third_party_plate' => $travel->third_party_plate,
             'third_party_payout_amount' => (float) $travel->third_party_payout_amount,
+            'third_party_payout_date' => $travel->third_party_payout_date?->format('Y-m-d'),
             'detached_trailer_id' => $travel->detached_trailer_id,
             'detached_trailer_plate' => $travel->detached_trailer_plate_snapshot,
             'net_freight' => (float) $travel->net_freight,
@@ -509,6 +541,7 @@ class TravelController extends Controller
             'cte_type' => $cte->cte_type,
             'cte_number' => $cte->cte_number,
             'cte_series' => $cte->cte_series,
+            'complemented_cte_number' => $cte->complemented_cte_number,
             'net_freight' => (float) $cte->net_freight,
             'insurance_amount' => (float) $cte->insurance_amount,
             'toll_amount' => (float) $cte->toll_amount,
@@ -518,13 +551,14 @@ class TravelController extends Controller
         ];
     }
 
-    /** @return array{id:int,name:string,status:string} */
+    /** @return array{id:int,name:string,status:string,color:string} */
     private function shipperPayload(Shipper $shipper): array
     {
         return [
             'id' => $shipper->id,
             'name' => $shipper->name,
             'status' => $shipper->status,
+            'color' => $shipper->display_color ?? '#009E60',
         ];
     }
 }

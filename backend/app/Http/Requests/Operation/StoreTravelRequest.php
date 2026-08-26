@@ -29,6 +29,7 @@ class StoreTravelRequest extends FormRequest
                 'cte_type' => $this->input('cte_type', 'NORMAL'),
                 'cte_number' => $this->input('cte_number'),
                 'cte_series' => $this->input('cte_series', '1'),
+                'complemented_cte_number' => $this->input('complemented_cte_number'),
                 'net_freight' => $this->input('net_freight'),
                 'insurance_amount' => $this->input('insurance_amount', 0),
                 'toll_amount' => $this->input('toll_amount', 0),
@@ -43,6 +44,7 @@ class StoreTravelRequest extends FormRequest
                 'cte_type' => strtoupper(trim((string) ($cte['cte_type'] ?? 'NORMAL'))),
                 'cte_number' => trim((string) ($cte['cte_number'] ?? '')),
                 'cte_series' => trim((string) ($cte['cte_series'] ?? '1')),
+                'complemented_cte_number' => trim((string) ($cte['complemented_cte_number'] ?? '')),
                 'net_freight' => $cte['net_freight'] ?? null,
                 'insurance_amount' => $cte['insurance_amount'] ?? 0,
                 'toll_amount' => $cte['toll_amount'] ?? 0,
@@ -59,12 +61,14 @@ class StoreTravelRequest extends FormRequest
                 'third_party_name' => $this->nullableTrim('third_party_name'),
                 'third_party_plate' => $this->nullableUppercasePlate('third_party_plate'),
                 'third_party_payout_amount' => $this->input('third_party_payout_amount'),
+                'third_party_payout_date' => $this->input('third_party_payout_date'),
             ]
             : [
                 // No modo frota, dados antigos de terceiro nunca seguem para a gravação.
                 'third_party_name' => null,
                 'third_party_plate' => null,
                 'third_party_payout_amount' => 0,
+                'third_party_payout_date' => null,
             ];
 
         $this->merge([
@@ -80,6 +84,7 @@ class StoreTravelRequest extends FormRequest
     {
         $isFleet = fn (): bool => $this->input('operation_type') === 'FLEET';
         $isThirdParty = fn (): bool => $this->input('operation_type') === 'THIRD_PARTY';
+        $requiresDriver = fn (): bool => $isFleet() && $this->hasTripGeneratingCte();
 
         return [
             'travel_date' => ['bail', 'required', 'date_format:Y-m-d'],
@@ -96,13 +101,13 @@ class StoreTravelRequest extends FormRequest
                 'exists:vehicles,id',
             ],
             'driver_one_id' => [
-                Rule::excludeIf(fn (): bool => ! $isFleet()),
+                Rule::excludeIf(fn (): bool => ! $requiresDriver()),
                 'required',
                 'integer',
                 'exists:employees,id',
             ],
             'driver_two_id' => [
-                Rule::excludeIf(fn (): bool => ! $isFleet()),
+                Rule::excludeIf(fn (): bool => ! $requiresDriver()),
                 'nullable',
                 'integer',
                 'different:driver_one_id',
@@ -129,13 +134,19 @@ class StoreTravelRequest extends FormRequest
                 'min:0',
                 'max:999999999999.99',
             ],
+            'third_party_payout_date' => [
+                Rule::excludeIf(fn (): bool => ! $isThirdParty()),
+                'nullable',
+                'date_format:Y-m-d',
+            ],
 
             'detached_trailer_id' => ['bail', 'nullable', 'integer', 'exists:vehicles,id'],
 
             'ctes' => ['required', 'array', 'min:1', 'max:20'],
-            'ctes.*.cte_type' => ['bail', 'required', Rule::in(['NORMAL', 'FREIGHT_COMPLEMENT'])],
+            'ctes.*.cte_type' => ['bail', 'required', Rule::in(['NORMAL', 'FREIGHT_COMPLEMENT', 'DAILY'])],
             'ctes.*.cte_number' => ['bail', 'required', 'string', 'max:30'],
             'ctes.*.cte_series' => ['bail', 'required', 'string', 'max:10'],
+            'ctes.*.complemented_cte_number' => ['bail', 'nullable', 'string', 'max:30'],
             'ctes.*.net_freight' => ['bail', 'required', 'numeric', 'min:0', 'max:999999999999.99'],
             'ctes.*.insurance_amount' => ['bail', 'nullable', 'numeric', 'min:0', 'max:999999999999.99'],
             'ctes.*.toll_amount' => ['bail', 'nullable', 'numeric', 'min:0', 'max:999999999999.99'],
@@ -168,6 +179,7 @@ class StoreTravelRequest extends FormRequest
             'third_party_payout_amount.required' => 'Informe o valor de repasse ao terceiro.',
             'third_party_payout_amount.numeric' => 'Informe um valor de repasse válido para o terceiro.',
             'third_party_payout_amount.min' => 'O valor de repasse ao terceiro não pode ser negativo.',
+            'third_party_payout_date.date_format' => 'Informe uma data de repasse válida.',
             'detached_trailer_id.exists' => 'A carreta selecionada não existe mais no cadastro.',
             'ctes.required' => 'Adicione pelo menos um CT-e à viagem.',
             'ctes.array' => 'Os CT-es informados não estão em um formato válido.',
@@ -177,6 +189,7 @@ class StoreTravelRequest extends FormRequest
             'ctes.*.cte_type.in' => 'Existe um CT-e com tipo inválido.',
             'ctes.*.cte_number.required' => 'Informe o número de todos os CT-es.',
             'ctes.*.cte_series.required' => 'Informe a série de todos os CT-es.',
+            'ctes.*.complemented_cte_number.max' => 'O número do CT-e complementado deve possuir no máximo 30 caracteres.',
             'ctes.*.net_freight.required' => 'Informe o frete líquido de todos os CT-es.',
             'ctes.*.net_freight.numeric' => 'Existe um CT-e com frete líquido inválido.',
             'ctes.*.insurance_amount.numeric' => 'Existe um CT-e com valor de seguro inválido.',
@@ -191,6 +204,7 @@ class StoreTravelRequest extends FormRequest
             'ctes.*.cte_type' => 'tipo do CT-e',
             'ctes.*.cte_number' => 'número do CT-e',
             'ctes.*.cte_series' => 'série do CT-e',
+            'ctes.*.complemented_cte_number' => 'CT-e complementado',
             'ctes.*.net_freight' => 'frete líquido',
             'ctes.*.insurance_amount' => 'seguro',
             'ctes.*.toll_amount' => 'pedágio',
@@ -206,6 +220,7 @@ class StoreTravelRequest extends FormRequest
                     return;
                 }
 
+                $this->validateComplementReferences($validator);
                 $this->validateCteUniqueness($validator);
 
                 if ($this->filled('shipper_id')) {
@@ -240,6 +255,10 @@ class StoreTravelRequest extends FormRequest
             if ($vehicle && $vehicle->status !== 'ACTIVE') {
                 $validator->errors()->add('vehicle_id', 'O cavalo selecionado não está ativo.');
             }
+        }
+
+        if (! $this->hasTripGeneratingCte()) {
+            return;
         }
 
         foreach (['driver_one_id', 'driver_two_id'] as $field) {
@@ -283,6 +302,45 @@ class StoreTravelRequest extends FormRequest
         if ($trailer && $trailer->status !== 'ACTIVE') {
             $validator->errors()->add('detached_trailer_id', 'A carreta selecionada para o desengate não está ativa.');
         }
+    }
+
+    private function validateComplementReferences(Validator $validator): void
+    {
+        $ctes = $this->input('ctes', []);
+
+        if (! is_array($ctes)) {
+            return;
+        }
+
+        foreach ($ctes as $index => $cte) {
+            if (! is_array($cte) || ($cte['cte_type'] ?? null) !== 'FREIGHT_COMPLEMENT') {
+                continue;
+            }
+
+            if (trim((string) ($cte['complemented_cte_number'] ?? '')) === '') {
+                $validator->errors()->add(
+                    "ctes.$index.complemented_cte_number",
+                    'Informe o número do CT-e que este complemento está complementando.'
+                );
+            }
+        }
+    }
+
+    private function hasTripGeneratingCte(): bool
+    {
+        $ctes = $this->input('ctes', []);
+
+        if (! is_array($ctes) || count($ctes) === 0) {
+            return true;
+        }
+
+        foreach ($ctes as $cte) {
+            if (is_array($cte) && ($cte['cte_type'] ?? 'NORMAL') === 'NORMAL') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function validateCteUniqueness(Validator $validator): void

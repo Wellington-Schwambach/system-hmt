@@ -1,6 +1,8 @@
 import type { ChangeEvent, FocusEvent } from 'react';
 import { Search } from 'lucide-react';
 
+import { CheckboxMultiSelect } from '../../../../components/CheckboxMultiSelect';
+
 import { CTE_TYPE_OPTIONS } from '../../constants';
 import type { TravelCteTypeFilter } from '../../types';
 import type { TravelFiltersProps } from './types';
@@ -37,7 +39,6 @@ const formatDateBR = (value: string): string => {
   }
 
   const [year, month, day] = value.split('-');
-
   return `${day}/${month}/${year}`;
 };
 
@@ -115,37 +116,31 @@ export function TravelFilters({
   return (
     <FiltersBar>
       <SelectWrapper>
-        <FilterLabel htmlFor="travel-plate-filter">Placa</FilterLabel>
-        <Select
-          id="travel-plate-filter"
+        <FilterLabel>Placa</FilterLabel>
+        <CheckboxMultiSelect
           value={plateFilter}
-          onChange={(event) => onPlateFilterChange(event.target.value)}
-          aria-label="Filtrar viagens por placa"
-        >
-          <option value="ALL">Todas as placas</option>
-          {plateOptions.map((plate) => (
-            <option key={plate} value={plate}>
-              {plate}
-            </option>
-          ))}
-        </Select>
+          options={plateOptions.map((plate) => ({ value: plate, label: plate }))}
+          allLabel="Todas as placas"
+          searchPlaceholder="Pesquisar placa..."
+          ariaLabel="Filtrar viagens por uma ou mais placas"
+          onChange={onPlateFilterChange}
+        />
       </SelectWrapper>
 
       <SelectWrapper>
-        <FilterLabel htmlFor="travel-shipper-filter">Embarcador</FilterLabel>
-        <Select
-          id="travel-shipper-filter"
+        <FilterLabel>Embarcador</FilterLabel>
+        <CheckboxMultiSelect
           value={shipperFilter}
-          onChange={(event) => onShipperFilterChange(event.target.value)}
-          aria-label="Filtrar viagens por embarcador"
-        >
-          <option value="ALL">Todos os embarcadores</option>
-          {shipperOptions.map((shipper) => (
-            <option key={shipper.id} value={String(shipper.id)}>
-              {shipper.name}
-            </option>
-          ))}
-        </Select>
+          options={shipperOptions.map((shipper) => ({
+            value: String(shipper.id),
+            label: shipper.name,
+            searchText: shipper.name,
+          }))}
+          allLabel="Todos os embarcadores"
+          searchPlaceholder="Pesquisar embarcador..."
+          ariaLabel="Filtrar viagens por um ou mais embarcadores"
+          onChange={onShipperFilterChange}
+        />
       </SelectWrapper>
 
       <SelectWrapper>

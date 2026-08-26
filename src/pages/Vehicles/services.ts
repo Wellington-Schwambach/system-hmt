@@ -23,6 +23,7 @@ interface ApiVehicle {
   opentech_expiry_date: string | null;
   angellira_expiry_date: string | null;
   licensing_expiry_date: string | null;
+  tachograph_expiry_date: string | null;
   notes: string | null;
   crlv: null | {
     name: string;
@@ -60,6 +61,7 @@ function mapVehicle(vehicle: ApiVehicle): VehicleRecord {
     opentechExpiryDate: vehicle.opentech_expiry_date ?? '',
     angelliraExpiryDate: vehicle.angellira_expiry_date ?? '',
     licensingExpiryDate: vehicle.licensing_expiry_date ?? '',
+    tachographExpiryDate: vehicle.tachograph_expiry_date ?? '',
     notes: vehicle.notes ?? '',
     crlv: vehicle.crlv
       ? {
@@ -98,6 +100,7 @@ function buildPayload(data: VehicleFormData): FormData {
   append(payload, 'opentech_expiry_date', data.opentechExpiryDate);
   append(payload, 'angellira_expiry_date', data.angelliraExpiryDate);
   append(payload, 'licensing_expiry_date', data.licensingExpiryDate);
+  append(payload, 'tachograph_expiry_date', data.tachographExpiryDate);
   append(payload, 'notes', data.notes);
   append(payload, 'crlv_valid_until', data.crlvValidUntil);
   payload.append('remove_crlv', data.removeCrlv ? '1' : '0');

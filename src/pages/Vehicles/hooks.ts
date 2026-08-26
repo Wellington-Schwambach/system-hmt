@@ -6,6 +6,7 @@ import { vehicleService } from './services';
 import type {
   VehicleFormData,
   VehicleOperationResult,
+  VehiclePlateEndFilter,
   VehicleRecord,
   VehicleStatus,
 } from './types';
@@ -15,6 +16,7 @@ export function useVehicleRecords() {
   const [allRecords, setAllRecords] = useState<VehicleRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<VehicleStatus | 'ALL'>('ALL');
+  const [plateEndFilter, setPlateEndFilter] = useState<VehiclePlateEndFilter>('ALL');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -46,6 +48,8 @@ export function useVehicleRecords() {
 
     return allRecords.filter((record) => {
       const matchesStatus = statusFilter === 'ALL' || record.status === statusFilter;
+      const matchesPlateEnd =
+        plateEndFilter === 'ALL' || record.plate.slice(-1) === plateEndFilter;
       const matchesSearch =
         normalizedSearch.length === 0 ||
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
@@ -55,9 +59,9 @@ export function useVehicleRecords() {
         record.renavam.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.chassis.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesPlateEnd && matchesSearch;
     });
-  }, [allRecords, searchTerm, statusFilter]);
+  }, [allRecords, plateEndFilter, searchTerm, statusFilter]);
 
   const saveRecord = useCallback(
     async (formData: VehicleFormData, editingId?: number): Promise<VehicleOperationResult> => {
@@ -126,11 +130,13 @@ export function useVehicleRecords() {
     totalRecords: allRecords.length,
     searchTerm,
     statusFilter,
+    plateEndFilter,
     loading,
     saving,
     deletingId,
     setSearchTerm,
     setStatusFilter,
+    setPlateEndFilter,
     clearFeedback: () => undefined,
     saveRecord,
     deleteRecord,

@@ -3,6 +3,7 @@ import {
   Breakdown,
   BreakdownItem,
   Card,
+  CardAction,
   Helper,
   IconBox,
   Label,
@@ -16,9 +17,11 @@ export function TravelSummaryCard({
   helper,
   icon: Icon,
   breakdown,
+  action,
 }: TravelSummaryCardProps) {
   return (
     <Card>
+      {action ? <CardAction>{action}</CardAction> : null}
       <IconBox>
         <Icon size={20} aria-hidden="true" />
       </IconBox>

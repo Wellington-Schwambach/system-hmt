@@ -66,6 +66,8 @@ export function SearchableSelect({
     [options, query],
   );
 
+  const visibleOptions = useMemo(() => filteredOptions.slice(0, 100), [filteredOptions]);
+
   useEffect(() => {
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
@@ -109,7 +111,7 @@ export function SearchableSelect({
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setActiveIndex((current) =>
-        filteredOptions.length === 0 ? 0 : Math.min(current + 1, filteredOptions.length - 1),
+        visibleOptions.length === 0 ? 0 : Math.min(current + 1, visibleOptions.length - 1),
       );
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -119,10 +121,10 @@ export function SearchableSelect({
       setActiveIndex(0);
     } else if (event.key === 'End') {
       event.preventDefault();
-      setActiveIndex(Math.max(filteredOptions.length - 1, 0));
+      setActiveIndex(Math.max(visibleOptions.length - 1, 0));
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      const option = filteredOptions[safeActiveIndex];
+      const option = visibleOptions[safeActiveIndex];
       if (option) selectOption(option);
     } else if (event.key === 'Escape') {
       event.preventDefault();
@@ -132,8 +134,8 @@ export function SearchableSelect({
   }
 
   const visibleValue = isOpen ? query : selectedOption?.label ?? '';
-  const safeActiveIndex = Math.min(activeIndex, Math.max(filteredOptions.length - 1, 0));
-  const activeOption = filteredOptions[safeActiveIndex];
+  const safeActiveIndex = Math.min(activeIndex, Math.max(visibleOptions.length - 1, 0));
+  const activeOption = visibleOptions[safeActiveIndex];
 
   return (
     <Root ref={rootRef}>
@@ -211,14 +213,14 @@ export function SearchableSelect({
         <Dropdown>
           <ResultsMeta>
             <span>{query ? `Busca: “${query}”` : 'Comece a digitar para filtrar'}</span>
-            <span>{filteredOptions.length} resultado(s)</span>
+            <span>{filteredOptions.length > 100 ? `100 de ${filteredOptions.length}` : `${filteredOptions.length} resultado(s)`}</span>
           </ResultsMeta>
 
           <OptionsList id={listboxId} role="listbox" aria-label={ariaLabel ?? placeholder}>
-            {filteredOptions.length === 0 ? (
+            {visibleOptions.length === 0 ? (
               <EmptyState>{emptyMessage}</EmptyState>
             ) : (
-              filteredOptions.map((option, index) => {
+              visibleOptions.map((option, index) => {
                 const selected = option.value === value;
                 return (
                   <OptionButton

@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 
 export const Card = styled.article`
+  position: relative;
   min-width: 0;
   padding: 1rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
@@ -79,5 +80,31 @@ export const BreakdownItem = styled.div`
     color: ${({ theme }) => theme.colors.dashboardText};
     font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
+  }
+`;
+
+
+export const CardAction = styled.div`
+  position: absolute;
+  top: 0.85rem;
+  right: 0.9rem;
+
+  button {
+    width: 2.25rem;
+    height: 2.25rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+    border-radius: 0.7rem;
+    color: ${({ theme }) => theme.colors.brandGreenDark};
+    background: ${({ theme }) => theme.colors.dashboardSurface};
+    cursor: pointer;
+    transition: transform 150ms ease, background 150ms ease;
+  }
+
+  button:hover {
+    transform: translateY(-1px);
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
   }
 `;

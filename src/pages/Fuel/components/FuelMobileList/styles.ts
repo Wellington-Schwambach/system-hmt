@@ -100,6 +100,11 @@ const actionButtonStyles = `
   font-size: 0.78rem;
   font-weight: 800;
   cursor: pointer;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
 `;
 
 export const EditButton = styled.button`
@@ -127,5 +132,17 @@ export const EmptyState = styled.div`
     color: ${({ theme }) => theme.colors.dashboardTextMuted};
     background: ${({ theme }) => theme.colors.surfaceElevated};
     text-align: center;
+  }
+`;
+
+export const DeleteButton = styled.button`
+  ${actionButtonStyles}
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 `;

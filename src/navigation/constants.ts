@@ -4,11 +4,13 @@ import {
   Fuel,
   Landmark,
   LayoutDashboard,
+  Link2,
   Map,
   NotebookPen,
   ShieldCheck,
   Truck,
   Users,
+  Building2,
   Wrench,
 } from 'lucide-react';
 
@@ -48,6 +50,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
         path: '/cadastros/colaboradores',
         permission: 'registrations.employees',
       },
+      {
+        id: 'shippers',
+        label: 'Embarcadores',
+        icon: Building2,
+        path: '/cadastros/embarcadores',
+        permission: 'registrations.shippers',
+      },
     ],
   },
   {
@@ -65,6 +74,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     permission: 'travel',
   },
 
+  {
+    id: 'vehicle-sets',
+    label: 'Conjuntos',
+    icon: Link2,
+    path: '/conjuntos',
+    permission: 'vehicle_sets',
+  },
   {
     id: 'acertos',
     label: 'Acertos',

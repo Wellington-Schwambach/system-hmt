@@ -29,6 +29,7 @@ class Vehicle extends Model
         'opentech_expiry_date',
         'angellira_expiry_date',
         'licensing_expiry_date',
+        'tachograph_expiry_date',
         'notes',
         'crlv_path',
         'crlv_original_name',
@@ -51,6 +52,7 @@ class Vehicle extends Model
             'opentech_expiry_date' => 'date:Y-m-d',
             'angellira_expiry_date' => 'date:Y-m-d',
             'licensing_expiry_date' => 'date:Y-m-d',
+            'tachograph_expiry_date' => 'date:Y-m-d',
             'crlv_valid_until' => 'date:Y-m-d',
         ];
     }

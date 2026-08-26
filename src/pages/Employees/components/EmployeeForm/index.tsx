@@ -27,6 +27,7 @@ import {
 import { locationService } from '../../services';
 import type { BrazilCityOption, BrazilStateOption, EmployeeDocumentType, EmployeeFormData } from '../../types';
 import {
+  calculateEmploymentDates,
   calculateTenure,
   employeeRecordToFormData,
   formatCpfInput,
@@ -162,6 +163,11 @@ export function EmployeeForm({
     [formData.admissionDate, formData.terminationDate],
   );
 
+  const employmentDates = useMemo(
+    () => calculateEmploymentDates(formData.admissionDate),
+    [formData.admissionDate],
+  );
+
   function handleChange(field: keyof EmployeeFormData, value: string) {
     setFormError('');
     setFormData((currentData) => ({ ...currentData, [field]: value }));
@@ -233,11 +239,6 @@ export function EmployeeForm({
       return;
     }
 
-    if (formData.probationEndDate && formData.probationEndDate < formData.admissionDate) {
-      setFormError('O fim da experiência não pode ser anterior à admissão.');
-      return;
-    }
-
     if (
       formData.cnhIssuedAt &&
       formData.cnhExpiryDate &&
@@ -247,7 +248,15 @@ export function EmployeeForm({
       return;
     }
 
-    const result = await onSubmit(formData, editingRecord?.id);
+    const result = await onSubmit(
+      {
+        ...formData,
+        probationEndDate: employmentDates.probationEndDate,
+        probationExtensionEndDate: employmentDates.probationExtensionEndDate,
+        vacationDate: employmentDates.vacationDate,
+      },
+      editingRecord?.id,
+    );
 
     if (!result.success) return;
   }
@@ -490,12 +499,38 @@ export function EmployeeForm({
             </Field>
 
             <Field>
-              <Label htmlFor="employee-probation-end">Fim da experiência</Label>
+              <Label htmlFor="employee-probation-end">Fim da experiência 45 dias</Label>
               <DateInput
                 id="employee-probation-end"
-                value={formData.probationEndDate}
-                onValueChange={(value) => handleChange('probationEndDate', value)}
+                value={employmentDates.probationEndDate}
+                onValueChange={() => undefined}
+                disabled
               />
+              <HelperText>Calculado automaticamente: admissão + 45 dias.</HelperText>
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-probation-extension-end">
+                Fim da experiência + 45 dias
+              </Label>
+              <DateInput
+                id="employee-probation-extension-end"
+                value={employmentDates.probationExtensionEndDate}
+                onValueChange={() => undefined}
+                disabled
+              />
+              <HelperText>Calculado automaticamente: admissão + 90 dias.</HelperText>
+            </Field>
+
+            <Field>
+              <Label htmlFor="employee-vacation-date">Férias</Label>
+              <DateInput
+                id="employee-vacation-date"
+                value={employmentDates.vacationDate}
+                onValueChange={() => undefined}
+                disabled
+              />
+              <HelperText>Calculado automaticamente: admissão + 1 ano.</HelperText>
             </Field>
 
             <Field>

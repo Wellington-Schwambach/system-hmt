@@ -18,6 +18,9 @@ const Fuel = lazy(() => import('../pages/Fuel').then((module) => ({ default: mod
 const Travel = lazy(() =>
   import('../pages/Travel').then((module) => ({ default: module.Travel })),
 );
+const VehicleSets = lazy(() =>
+  import('../pages/VehicleSets').then((module) => ({ default: module.VehicleSets })),
+);
 const Acerto = lazy(() =>
   import('../pages/Acerto').then((module) => ({ default: module.Acerto })),
 );
@@ -35,6 +38,9 @@ const Vehicles = lazy(() =>
 );
 const Employees = lazy(() =>
   import('../pages/Employees').then((module) => ({ default: module.Employees })),
+);
+const Shippers = lazy(() =>
+  import('../pages/Shippers').then((module) => ({ default: module.Shippers })),
 );
 const Security = lazy(() =>
   import('../pages/Security').then((module) => ({ default: module.Security })),
@@ -68,6 +74,9 @@ export function AppRoutes() {
               <Route element={<PermissionRoute permission="travel" />}>
                 <Route path="/travel" element={<Travel />} />
               </Route>
+              <Route element={<PermissionRoute permission="vehicle_sets" />}>
+                <Route path="/conjuntos" element={<VehicleSets />} />
+              </Route>
               <Route element={<PermissionRoute permission="settlements" />}>
                 <Route path="/acertos" element={<Acerto />} />
               </Route>
@@ -85,6 +94,9 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="registrations.employees" />}>
                 <Route path="/cadastros/colaboradores" element={<Employees />} />
+              </Route>
+              <Route element={<PermissionRoute permission="registrations.shippers" />}>
+                <Route path="/cadastros/embarcadores" element={<Shippers />} />
               </Route>
 
               <Route element={<AdministratorRoute />}>

@@ -1,23 +1,43 @@
 export type FuelType = 'DIESEL' | 'ARLA';
-export type FuelStatus = 'F' | 'N';
-export type FuelFilter = 'ALL' | 'WITH_ARLA' | 'DIESEL_ONLY';
+export type FuelStatus = 'F' | 'P' | 'N';
+export type FuelFilter = 'ALL' | FuelStatus;
+export type FuelInvoiceTarget = 'DIESEL' | 'ARLA';
+
+export interface FuelVehicleOption {
+  id: number;
+  plate: string;
+  currentKm: number;
+}
+
+export interface FuelDriverOption {
+  id: number;
+  employeeCode: string | null;
+  name: string;
+}
 
 export interface FuelRecord {
-  id: string;
+  id: number;
+  vehicleId: number | null;
+  driverId: number | null;
   date: string;
+  billingMonth: string;
   station: string;
   plate: string;
-  km: number;
+  km: number | null;
+  vehicleKmReference: number | null;
+  distanceKm: number | null;
+  dieselAverage: number | null;
   dieselLiters: number;
   dieselTotalValue: number;
   arlaLiters: number;
   arlaTotalValue: number;
   driver: string;
+  dieselInvoiced: boolean;
+  arlaInvoiced: boolean;
   status: FuelStatus;
 }
 
 export interface FuelRecordWithMetrics extends FuelRecord {
-  dieselAverage: number | null;
   dieselValuePerLiter: number;
   arlaValuePerLiter: number;
   totalValue: number;
@@ -25,36 +45,25 @@ export interface FuelRecordWithMetrics extends FuelRecord {
 
 export interface FuelFormData {
   station: string;
-  plate: string;
+  vehicleId: string;
   date: string;
+  billingMonth: string;
   km: string;
   dieselLiters: string;
   dieselTotalValue: string;
   hasArla: boolean;
   arlaLiters: string;
   arlaTotalValue: string;
-  driver: string;
+  driverId: string;
 }
 
 export interface FuelSummary {
   totalRecords: number;
   totalDieselLiters: number;
   totalArlaLiters: number;
+  totalDieselValue: number;
+  totalArlaValue: number;
   totalValue: number;
 }
 
-export interface LegacyFuelRecord {
-  id: string;
-  date: string;
-  type: 'DIESEL' | 'ARLA';
-  station: string;
-  km: number;
-  liters: number;
-  totalValue?: number;
-  valuePerLiter?: number;
-  driver: string;
-  status: 'P' | 'F' | 'N';
-  plate?: string;
-}
-
-export type PersistedFuelRecord = FuelRecord | LegacyFuelRecord;
+export type PersistedFuelRecord = FuelRecord;

@@ -23,7 +23,7 @@ export const TableScroll = styled.div`
 
 export const Table = styled.table`
   width: 100%;
-  min-width: 92rem;
+  min-width: 104rem;
   border-collapse: collapse;
 `;
 
@@ -119,7 +119,7 @@ export const InvoiceButton = styled.button`
   color: ${({ theme }) => theme.colors.white};
   background: ${({ theme }) => theme.colors.brandGreen};
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${({ theme }) => theme.colors.brandGreenDark};
     border-color: ${({ theme }) => theme.colors.brandGreenDark};
     transform: translateY(-1px);
@@ -129,6 +129,22 @@ export const InvoiceButton = styled.button`
     outline: 2px solid ${({ theme }) => theme.colors.brandGreen};
     outline-offset: 2px;
   }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+`;
+
+
+export const InvoicedLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
 `;
 
 export const EmptyState = styled.div`
@@ -141,5 +157,24 @@ export const EmptyState = styled.div`
 
   @media (max-width: ${breakpoints.mobile}) {
     display: none;
+  }
+`;
+
+export const DeleteButton = styled.button`
+  ${actionButtonStyles}
+  width: 2.35rem;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.danger};
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: wait;
   }
 `;

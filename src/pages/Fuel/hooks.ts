@@ -1,129 +1,188 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { getVehiclePlateOptions } from '../../utils/vehiclePlates';
-import { FUEL_STORAGE_KEY, INITIAL_FUEL_RECORDS } from './constants';
-import type { FuelFilter, FuelFormData, FuelRecord, PersistedFuelRecord } from './types';
-import {
-  enrichFuelRecords,
-  getFuelSummary,
-  normalizeFuelRecords,
-  parseDecimalInput,
-} from './utils';
+import { fuelService, type LegacyLocalFuelRecord } from './services';
+import { FUEL_STORAGE_KEY } from './constants';
+import type {
+  FuelDriverOption,
+  FuelFilter,
+  FuelFormData,
+  FuelInvoiceTarget,
+  FuelRecord,
+  FuelVehicleOption,
+} from './types';
+import { enrichFuelRecords, getFuelSummary } from './utils';
 
-function persistFuelRecords(records: FuelRecord[]): void {
-  window.localStorage.setItem(FUEL_STORAGE_KEY, JSON.stringify(records));
-}
 
-function loadFuelRecords(): FuelRecord[] {
+function readLegacyLocalRecords(): LegacyLocalFuelRecord[] {
   try {
-    const savedRecords = window.localStorage.getItem(FUEL_STORAGE_KEY);
+    const raw = window.localStorage.getItem(FUEL_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
 
-    if (!savedRecords) {
-      return INITIAL_FUEL_RECORDS;
-    }
-
-    const parsedRecords = JSON.parse(savedRecords) as PersistedFuelRecord[];
-
-    if (!Array.isArray(parsedRecords)) {
-      return INITIAL_FUEL_RECORDS;
-    }
-
-    const normalizedRecords = normalizeFuelRecords(parsedRecords);
-    persistFuelRecords(normalizedRecords);
-
-    return normalizedRecords;
+    return parsed.filter((item): item is LegacyLocalFuelRecord => {
+      if (!item || typeof item !== 'object') return false;
+      const record = item as Partial<LegacyLocalFuelRecord>;
+      return Boolean(
+        record.date &&
+        record.station &&
+        record.plate &&
+        record.driver &&
+        typeof record.dieselLiters === 'number' &&
+        typeof record.dieselTotalValue === 'number'
+      );
+    });
   } catch {
-    return INITIAL_FUEL_RECORDS;
+    return [];
   }
 }
 
-function createRecordFromForm(
-  formData: FuelFormData,
-  id: string,
-  status: FuelRecord['status'],
-): FuelRecord {
-  return {
-    id,
-    station: formData.station.trim(),
-    plate: formData.plate,
-    date: formData.date,
-    km: Number(formData.km),
-    dieselLiters: parseDecimalInput(formData.dieselLiters),
-    dieselTotalValue: parseDecimalInput(formData.dieselTotalValue),
-    arlaLiters: formData.hasArla ? parseDecimalInput(formData.arlaLiters) : 0,
-    arlaTotalValue: formData.hasArla ? parseDecimalInput(formData.arlaTotalValue) : 0,
-    driver: formData.driver,
-    status,
-  };
+async function loadDatabaseRecordsWithLegacyMigration(): Promise<FuelRecord[]> {
+  const loaded = await fuelService.list();
+  if (loaded.length > 0) return loaded;
+
+  const legacy = readLegacyLocalRecords();
+  if (legacy.length === 0) return loaded;
+
+  const imported = await fuelService.importLegacy(legacy);
+  if (imported > 0) {
+    window.localStorage.removeItem(FUEL_STORAGE_KEY);
+    return fuelService.list();
+  }
+
+  return loaded;
 }
 
 export function useFuelRecords() {
-  const [records, setRecords] = useState<FuelRecord[]>(loadFuelRecords);
+  const [records, setRecords] = useState<FuelRecord[]>([]);
   const [filter, setFilter] = useState<FuelFilter>('ALL');
-  const [plateFilter, setPlateFilter] = useState('ALL');
+  const [plateFilter, setPlateFilter] = useState<string[]>([]);
+  const [billingMonthFilter, setBillingMonthFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [vehicleOptions, setVehicleOptions] = useState<FuelVehicleOption[]>([]);
+  const [driverOptions, setDriverOptions] = useState<FuelDriverOption[]>([]);
+  const [plateOptions, setPlateOptions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [databaseReady, setDatabaseReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [invoicingKey, setInvoicingKey] = useState<string | null>(null);
+  const applyOptions = useCallback((options: {
+    vehicles: FuelVehicleOption[];
+    filterPlates: string[];
+    drivers: FuelDriverOption[];
+  }) => {
+    setVehicleOptions(options.vehicles);
+    setPlateOptions(options.filterPlates);
+    setDriverOptions(options.drivers);
+  }, []);
+
+  const refreshOptions = useCallback(async () => {
+    const options = await fuelService.options();
+    applyOptions(options);
+    return options;
+  }, [applyOptions]);
+
+  const refresh = useCallback(async () => {
+    const [loadedRecords, options] = await Promise.all([loadDatabaseRecordsWithLegacyMigration(), fuelService.options()]);
+    setRecords(loadedRecords);
+    applyOptions(options);
+  }, [applyOptions]);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([loadDatabaseRecordsWithLegacyMigration(), fuelService.options()])
+      .then(([loadedRecords, options]) => {
+        if (!active) return;
+        setRecords(loadedRecords);
+        applyOptions(options);
+        setDatabaseReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setRecords([]);
+        setVehicleOptions([]);
+        setPlateOptions([]);
+        setDriverOptions([]);
+        setDatabaseReady(false);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [applyOptions]);
+
+  useEffect(() => {
+    if (loading || !databaseReady) return;
+    window.localStorage.setItem(FUEL_STORAGE_KEY, JSON.stringify(records));
+  }, [databaseReady, loading, records]);
 
   const enrichedRecords = useMemo(() => enrichFuelRecords(records), [records]);
-
-  const plateOptions = useMemo(
-    () => getVehiclePlateOptions(enrichedRecords.map((record) => record.plate)),
+  const billingMonthOptions = useMemo(
+    () =>
+      Array.from(new Set(enrichedRecords.map((record) => record.billingMonth).filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a)),
     [enrichedRecords],
   );
-
   const filteredRecords = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR');
 
     return enrichedRecords.filter((record) => {
-      const matchesFilter =
-        filter === 'ALL' ||
-        (filter === 'WITH_ARLA' && record.arlaLiters > 0) ||
-        (filter === 'DIESEL_ONLY' && record.arlaLiters <= 0);
-
-      const matchesPlate = plateFilter === 'ALL' || record.plate === plateFilter;
-
+      const matchesFilter = filter === 'ALL' || record.status === filter;
+      const matchesPlate = plateFilter.length === 0 || plateFilter.includes(record.plate);
+      const matchesBillingMonth = billingMonthFilter === 'ALL' || record.billingMonth === billingMonthFilter;
       const matchesSearch =
         normalizedSearch.length === 0 ||
         record.station.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.driver.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        String(record.km).includes(normalizedSearch);
+        (record.km !== null && record.km > 0 && String(record.km).includes(normalizedSearch));
 
-      return matchesFilter && matchesPlate && matchesSearch;
+      return matchesFilter && matchesPlate && matchesBillingMonth && matchesSearch;
     });
-  }, [enrichedRecords, filter, plateFilter, searchTerm]);
+  }, [billingMonthFilter, enrichedRecords, filter, plateFilter, searchTerm]);
 
-  const summary = useMemo(() => getFuelSummary(enrichedRecords), [enrichedRecords]);
+  const summary = useMemo(() => getFuelSummary(filteredRecords), [filteredRecords]);
 
-  const addRecord = useCallback((formData: FuelFormData) => {
-    const newRecord = createRecordFromForm(formData, `fuel-${Date.now()}`, 'N');
+  const saveRecord = useCallback(async (formData: FuelFormData, id?: number) => {
+    setSaving(true);
+    try {
+      const saved = id ? await fuelService.update(id, formData) : await fuelService.create(formData);
+      setRecords((current) => {
+        if (id) return current.map((record) => (record.id === id ? saved : record));
+        return [saved, ...current];
+      });
+      await refreshOptions();
+      return saved;
+    } finally {
+      setSaving(false);
+    }
+  }, [refreshOptions]);
 
-    setRecords((currentRecords) => {
-      const updatedRecords = [...currentRecords, newRecord];
-      persistFuelRecords(updatedRecords);
-      return updatedRecords;
-    });
+  const invoiceRecord = useCallback(async (recordId: number, target: FuelInvoiceTarget) => {
+    const key = `${recordId}:${target}`;
+    setInvoicingKey(key);
+    try {
+      const updated = await fuelService.invoice(recordId, target);
+      setRecords((current) => current.map((record) => (record.id === recordId ? updated : record)));
+      return updated;
+    } finally {
+      setInvoicingKey(null);
+    }
   }, []);
 
-  const updateRecord = useCallback((recordId: string, formData: FuelFormData) => {
-    setRecords((currentRecords) => {
-      const updatedRecords = currentRecords.map((record) =>
-        record.id === recordId ? createRecordFromForm(formData, record.id, record.status) : record,
-      );
-
-      persistFuelRecords(updatedRecords);
-      return updatedRecords;
-    });
-  }, []);
-
-  const invoiceRecord = useCallback((recordId: string) => {
-    setRecords((currentRecords) => {
-      const updatedRecords = currentRecords.map((record) =>
-        record.id === recordId ? { ...record, status: 'F' as const } : record,
-      );
-
-      persistFuelRecords(updatedRecords);
-      return updatedRecords;
-    });
+  const deleteRecord = useCallback(async (recordId: number) => {
+    setDeletingId(recordId);
+    try {
+      await fuelService.remove(recordId);
+      setRecords((current) => current.filter((record) => record.id !== recordId));
+    } finally {
+      setDeletingId(null);
+    }
   }, []);
 
   return {
@@ -132,12 +191,23 @@ export function useFuelRecords() {
     filter,
     plateFilter,
     plateOptions,
+    billingMonthFilter,
+    billingMonthOptions,
+    vehicleOptions,
+    driverOptions,
     searchTerm,
+    loading,
+    saving,
+    deletingId,
+    invoicingKey,
     setFilter,
     setPlateFilter,
+    setBillingMonthFilter,
     setSearchTerm,
-    addRecord,
-    updateRecord,
+    refresh,
+    refreshOptions,
+    saveRecord,
     invoiceRecord,
+    deleteRecord,
   };
 }

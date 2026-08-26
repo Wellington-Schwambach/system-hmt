@@ -6,6 +6,7 @@ export const VEHICLE_TYPE_OPTIONS: ReadonlyArray<{
 }> = [
   { value: 'TRACTOR', label: 'Cavalo' },
   { value: 'TRAILER', label: 'Carreta' },
+  { value: 'OTHER', label: 'Outros' },
 ];
 
 export const VEHICLE_FUEL_OPTIONS: ReadonlyArray<{
@@ -47,6 +48,7 @@ export const INITIAL_VEHICLE_FORM: VehicleFormData = {
   opentechExpiryDate: '',
   angelliraExpiryDate: '',
   licensingExpiryDate: '',
+  tachographExpiryDate: '',
   notes: '',
   crlvFile: null,
   crlvValidUntil: '',

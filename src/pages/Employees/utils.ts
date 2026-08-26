@@ -34,6 +34,8 @@ export function employeeRecordToFormData(record: EmployeeRecord): EmployeeFormDa
     terminationDate: record.terminationDate,
     familyContact: record.familyContact,
     probationEndDate: record.probationEndDate,
+    probationExtensionEndDate: record.probationExtensionEndDate,
+    vacationDate: record.vacationDate,
     status: record.status,
     cnhNumber: record.cnhNumber,
     cnhCategory: record.cnhCategory,
@@ -115,6 +117,66 @@ export function calculateTenure(
   if (years > 0) parts.push(`${years} ${years === 1 ? 'ano' : 'anos'}`);
   if (months > 0) parts.push(`${months} ${months === 1 ? 'mês' : 'meses'}`);
   return parts.join(' e ');
+}
+
+
+function parseIsoDateParts(value: string): { year: number; month: number; day: number } | null {
+  const [year, month, day] = value.split('-').map(Number);
+
+  if (!year || !month || !day) return null;
+
+  return { year, month, day };
+}
+
+function isoFromUtcDate(date: Date): string {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+export function addDaysToIsoDate(value: string, days: number): string {
+  const parts = parseIsoDateParts(value);
+  if (!parts) return '';
+
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  date.setUTCDate(date.getUTCDate() + days);
+
+  return isoFromUtcDate(date);
+}
+
+export function addMonthsToIsoDate(value: string, months: number): string {
+  const parts = parseIsoDateParts(value);
+  if (!parts) return '';
+
+  const monthIndex = parts.month - 1 + months;
+  const targetYear = parts.year + Math.floor(monthIndex / 12);
+  const targetMonth = ((monthIndex % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const targetDay = Math.min(parts.day, lastDay);
+
+  return isoFromUtcDate(new Date(Date.UTC(targetYear, targetMonth, targetDay)));
+}
+
+export function calculateEmploymentDates(admissionDate: string): {
+  probationEndDate: string;
+  probationExtensionEndDate: string;
+  vacationDate: string;
+} {
+  if (!admissionDate) {
+    return {
+      probationEndDate: '',
+      probationExtensionEndDate: '',
+      vacationDate: '',
+    };
+  }
+
+  return {
+    probationEndDate: addDaysToIsoDate(admissionDate, 45),
+    probationExtensionEndDate: addDaysToIsoDate(admissionDate, 90),
+    vacationDate: addMonthsToIsoDate(admissionDate, 12),
+  };
 }
 
 export function formatFileSize(value: number | null): string {
@@ -282,7 +344,7 @@ export function exportEmployeesToExcel(records: EmployeeRecord[]): void {
   const headers = [
     'Matrícula', 'Nome', 'CPF', 'RG', 'Data de nascimento', 'Telefone', 'E-mail',
     'Rua', 'Número', 'Bairro', 'Cidade', 'Estado', 'UF', 'Cargo / Função', 'Data admissão', 'Data rescisão',
-    'Contato familiar', 'Fim da experiência', 'Status', 'Tempo de empresa',
+    'Contato familiar', 'Fim da experiência 45 dias', 'Fim da experiência + 45 dias', 'Férias', 'Status', 'Tempo de empresa',
     'CNH', 'Categoria CNH', 'Emissão CNH', 'Primeira habilitação', 'Vencimento CNH',
     'UF CNH', 'Código de segurança CNH', 'Vencimento ASO', 'Vencimento Opentech',
     'Vencimento Angellira', 'Vencimento Toxicológico', 'Treinamentos', 'Observações',
@@ -308,6 +370,8 @@ export function exportEmployeesToExcel(records: EmployeeRecord[]): void {
     formatDate(record.terminationDate),
     record.familyContact,
     formatDate(record.probationEndDate),
+    formatDate(record.probationExtensionEndDate),
+    formatDate(record.vacationDate),
     getEmployeeStatusLabel(record.status),
     calculateTenure(record.admissionDate, record.terminationDate),
     record.cnhNumber,

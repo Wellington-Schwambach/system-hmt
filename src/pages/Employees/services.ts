@@ -38,6 +38,8 @@ interface ApiEmployee {
   termination_date: string | null;
   family_contact: string | null;
   probation_end_date: string | null;
+  probation_extension_end_date: string | null;
+  vacation_date: string | null;
   status: EmployeeRecord['status'];
   cnh_number: string | null;
   cnh_category: EmployeeRecord['cnhCategory'] | null;
@@ -101,6 +103,8 @@ function mapEmployee(employee: ApiEmployee): EmployeeRecord {
     terminationDate: employee.termination_date ?? '',
     familyContact: employee.family_contact ?? '',
     probationEndDate: employee.probation_end_date ?? '',
+    probationExtensionEndDate: employee.probation_extension_end_date ?? '',
+    vacationDate: employee.vacation_date ?? '',
     status: employee.status,
     cnhNumber: employee.cnh_number ?? '',
     cnhCategory: employee.cnh_category ?? '',
@@ -149,7 +153,6 @@ function buildPayload(data: EmployeeFormData): FormData {
   append(payload, 'admission_date', data.admissionDate);
   append(payload, 'termination_date', data.terminationDate);
   append(payload, 'family_contact', data.familyContact);
-  append(payload, 'probation_end_date', data.probationEndDate);
   append(payload, 'status', data.status);
   append(payload, 'cnh_number', data.cnhNumber);
   append(payload, 'cnh_category', data.cnhCategory);

@@ -27,8 +27,12 @@ export const ListToolbar = styled.div`
 export const Filters = styled.div`
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, 13rem);
+  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, 13rem) minmax(9rem, 11rem);
   gap: 0.7rem;
+
+  @media (max-width: ${breakpoints.tablet}) {
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem);
+  }
 
   @media (max-width: ${breakpoints.mobile}) {
     grid-template-columns: 1fr;
@@ -361,4 +365,96 @@ export const EmptyText = styled.p`
   margin: 0;
   font-size: 0.76rem;
   line-height: 1.5;
+`;
+
+
+export const Pagination = styled.nav`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+  padding: 0.8rem 1rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`;
+
+export const PaginationSummary = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  font-weight: 700;
+`;
+
+export const PageSizeSelect = styled.select`
+  min-height: 2.2rem;
+  padding: 0.35rem 1.7rem 0.35rem 0.65rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.65rem;
+  outline: none;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.18rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+`;
+
+export const PaginationActions = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    justify-content: space-between;
+  }
+`;
+
+export const PageButton = styled.button`
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.7rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+
+  &:not(:disabled):hover {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+    transform: translateY(-1px);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+  }
+`;
+
+export const PageInfo = styled.span`
+  min-width: 8.5rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  text-align: center;
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-weight: 850;
+  }
 `;
