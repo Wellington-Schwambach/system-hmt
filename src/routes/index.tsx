@@ -18,6 +18,9 @@ const Fuel = lazy(() => import('../pages/Fuel').then((module) => ({ default: mod
 const Travel = lazy(() =>
   import('../pages/Travel').then((module) => ({ default: module.Travel })),
 );
+const VehicleSets = lazy(() =>
+  import('../pages/VehicleSets').then((module) => ({ default: module.VehicleSets })),
+);
 const Acerto = lazy(() =>
   import('../pages/Acerto').then((module) => ({ default: module.Acerto })),
 );
@@ -70,6 +73,9 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="travel" />}>
                 <Route path="/travel" element={<Travel />} />
+              </Route>
+              <Route element={<PermissionRoute permission="vehicle_sets" />}>
+                <Route path="/conjuntos" element={<VehicleSets />} />
               </Route>
               <Route element={<PermissionRoute permission="settlements" />}>
                 <Route path="/acertos" element={<Acerto />} />

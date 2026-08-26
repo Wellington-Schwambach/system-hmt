@@ -1,6 +1,8 @@
 import { Search } from 'lucide-react';
 
+import { CheckboxMultiSelect } from '../../../../components/CheckboxMultiSelect';
 import type { FuelFilter } from '../../types';
+import { formatBillingMonth } from '../../utils';
 import type { FuelFiltersProps } from './types';
 import {
   FilterButton,
@@ -16,39 +18,55 @@ import {
 
 const FILTERS: Array<{ value: FuelFilter; label: string }> = [
   { value: 'ALL', label: 'Todos' },
-  { value: 'WITH_ARLA', label: 'Com Arla' },
-  { value: 'DIESEL_ONLY', label: 'Somente Diesel' },
+  { value: 'N', label: 'Não faturado' },
+  { value: 'P', label: 'Metade faturado' },
+  { value: 'F', label: 'Faturado' },
 ];
 
 export function FuelFilters({
   filter,
   plateFilter,
   plateOptions,
+  billingMonthFilter,
+  billingMonthOptions,
   searchTerm,
   onFilterChange,
   onPlateFilterChange,
+  onBillingMonthFilterChange,
   onSearchChange,
 }: FuelFiltersProps) {
   return (
     <FiltersBar>
       <SelectWrapper>
-        <FilterLabel htmlFor="fuel-plate-filter">Placa</FilterLabel>
-        <Select
-          id="fuel-plate-filter"
+        <FilterLabel>Placa</FilterLabel>
+        <CheckboxMultiSelect
           value={plateFilter}
-          onChange={(event) => onPlateFilterChange(event.target.value)}
-          aria-label="Filtrar abastecimentos por placa"
+          options={plateOptions.map((plate) => ({ value: plate, label: plate }))}
+          allLabel="Todos os cavalos"
+          searchPlaceholder="Pesquisar placa..."
+          ariaLabel="Filtrar abastecimentos por um ou mais cavalos"
+          onChange={onPlateFilterChange}
+        />
+      </SelectWrapper>
+
+      <SelectWrapper>
+        <FilterLabel htmlFor="fuel-billing-month-filter">Mês faturado</FilterLabel>
+        <Select
+          id="fuel-billing-month-filter"
+          value={billingMonthFilter}
+          onChange={(event) => onBillingMonthFilterChange(event.target.value)}
+          aria-label="Filtrar abastecimentos pelo mês faturado"
         >
-          <option value="ALL">Todas as placas</option>
-          {plateOptions.map((plate) => (
-            <option key={plate} value={plate}>
-              {plate}
+          <option value="ALL">Todos os meses</option>
+          {billingMonthOptions.map((month) => (
+            <option key={month} value={month}>
+              {formatBillingMonth(month)}
             </option>
           ))}
         </Select>
       </SelectWrapper>
 
-      <FilterGroup aria-label="Filtrar abastecimentos por composição">
+      <FilterGroup aria-label="Filtrar abastecimentos por faturamento">
         {FILTERS.map((item) => (
           <FilterButton
             key={item.value}

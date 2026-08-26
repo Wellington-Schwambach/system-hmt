@@ -530,7 +530,7 @@ export function EmployeeForm({
                 onValueChange={() => undefined}
                 disabled
               />
-              <HelperText>Calculado automaticamente: admissão + 1 ano e 10 meses.</HelperText>
+              <HelperText>Calculado automaticamente: admissão + 1 ano.</HelperText>
             </Field>
 
             <Field>

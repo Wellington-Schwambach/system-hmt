@@ -1,4 +1,4 @@
-import { CircleCheckBig, Pencil, Truck } from 'lucide-react';
+import { CircleCheckBig, Pencil, Trash2, Truck } from 'lucide-react';
 
 import { FuelStatusBadge } from '../FuelStatusBadge';
 import type { FuelMobileListProps } from './types';
@@ -10,6 +10,7 @@ import {
   DataItem,
   DataLabel,
   DataValue,
+  DeleteButton,
   EditButton,
   EmptyState,
   InvoiceButton,
@@ -17,9 +18,9 @@ import {
   Plate,
   Station,
 } from './styles';
-import { formatCurrency, formatDate, formatDecimal, formatInteger } from '../../utils';
+import { formatBillingMonth, formatCurrency, formatDate, formatDecimal, formatInteger } from '../../utils';
 
-export function FuelMobileList({ records, onEdit, onInvoice }: FuelMobileListProps) {
+export function FuelMobileList({ records, deletingId, invoicingKey, onEdit, onInvoice, onDelete }: FuelMobileListProps) {
   if (records.length === 0) {
     return <EmptyState>Nenhum abastecimento encontrado.</EmptyState>;
   }
@@ -31,70 +32,43 @@ export function FuelMobileList({ records, onEdit, onInvoice }: FuelMobileListPro
           <CardHeader>
             <div>
               <Station>{record.station}</Station>
-              <Plate>
-                <Truck size={14} aria-hidden="true" />
-                {record.plate}
-              </Plate>
+              <Plate><Truck size={14} aria-hidden="true" />{record.plate}</Plate>
               <span>{formatDate(record.date)}</span>
             </div>
             <FuelStatusBadge status={record.status} />
           </CardHeader>
 
           <DataGrid>
-            <DataItem>
-              <DataLabel>KM</DataLabel>
-              <DataValue>{formatInteger(record.km)}</DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Motorista</DataLabel>
-              <DataValue>{record.driver}</DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Diesel</DataLabel>
-              <DataValue>{formatDecimal(record.dieselLiters)} L</DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Diesel R$/L</DataLabel>
-              <DataValue>{formatCurrency(record.dieselValuePerLiter)}</DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Média</DataLabel>
-              <DataValue>
-                {record.dieselAverage === null
-                  ? '—'
-                  : `${formatDecimal(record.dieselAverage)} km/L`}
-              </DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Arla</DataLabel>
-              <DataValue>
-                {record.arlaLiters > 0 ? `${formatDecimal(record.arlaLiters)} L` : '—'}
-              </DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Arla R$/L</DataLabel>
-              <DataValue>
-                {record.arlaValuePerLiter > 0 ? formatCurrency(record.arlaValuePerLiter) : '—'}
-              </DataValue>
-            </DataItem>
-            <DataItem>
-              <DataLabel>Valor total</DataLabel>
-              <DataValue>{formatCurrency(record.totalValue)}</DataValue>
-            </DataItem>
+            <DataItem><DataLabel>Mês faturado</DataLabel><DataValue>{formatBillingMonth(record.billingMonth)}</DataValue></DataItem>
+            <DataItem><DataLabel>KM</DataLabel><DataValue>{record.km !== null && record.km > 0 ? formatInteger(record.km) : '—'}</DataValue></DataItem>
+            <DataItem><DataLabel>Motorista</DataLabel><DataValue>{record.driver}</DataValue></DataItem>
+            <DataItem><DataLabel>Litros Diesel</DataLabel><DataValue>{formatDecimal(record.dieselLiters)} L</DataValue></DataItem>
+            <DataItem><DataLabel>Média</DataLabel><DataValue>{record.dieselAverage === null ? '—' : `${formatDecimal(record.dieselAverage)} km/L`}</DataValue></DataItem>
+            <DataItem><DataLabel>Valor Diesel</DataLabel><DataValue>{formatCurrency(record.dieselTotalValue)}</DataValue></DataItem>
+            <DataItem><DataLabel>Valor Arla</DataLabel><DataValue>{record.arlaTotalValue > 0 ? formatCurrency(record.arlaTotalValue) : '—'}</DataValue></DataItem>
           </DataGrid>
 
           <CardActions>
+            {!record.dieselInvoiced && (
+              <InvoiceButton type="button" onClick={() => onInvoice(record, 'DIESEL')} disabled={invoicingKey === `${record.id}:DIESEL`}>
+                <CircleCheckBig size={16} aria-hidden="true" />
+                Faturar Diesel
+              </InvoiceButton>
+            )}
+            {record.arlaTotalValue > 0 && !record.arlaInvoiced && (
+              <InvoiceButton type="button" onClick={() => onInvoice(record, 'ARLA')} disabled={invoicingKey === `${record.id}:ARLA`}>
+                <CircleCheckBig size={16} aria-hidden="true" />
+                Faturar Arla
+              </InvoiceButton>
+            )}
             <EditButton type="button" onClick={() => onEdit(record)}>
               <Pencil size={16} aria-hidden="true" />
               Editar
             </EditButton>
-
-            {record.status === 'N' && (
-              <InvoiceButton type="button" onClick={() => onInvoice(record)}>
-                <CircleCheckBig size={16} aria-hidden="true" />
-                Faturar
-              </InvoiceButton>
-            )}
+            <DeleteButton type="button" onClick={() => onDelete(record)} disabled={deletingId === record.id}>
+              <Trash2 size={16} aria-hidden="true" />
+              Excluir
+            </DeleteButton>
           </CardActions>
         </Card>
       ))}

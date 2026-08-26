@@ -1,5 +1,4 @@
 export type Shipper = string;
-export type TravelShipperFilter = string;
 export type CteType = 'NORMAL' | 'FREIGHT_COMPLEMENT' | 'DAILY';
 export type TravelCteTypeFilter = 'ALL' | CteType;
 export type TravelOperationType = 'FLEET' | 'THIRD_PARTY';

@@ -145,21 +145,19 @@ class TravelManagementTest extends TestCase
             ->assertJsonValidationErrors(['ctes.0.complemented_cte_number']);
     }
 
-    public function test_daily_cte_is_accepted_and_requires_driver_for_fleet(): void
+    public function test_daily_cte_is_accepted_without_driver_for_fleet(): void
     {
         $user = User::factory()->create(['menu_permissions' => ['travel']]);
         $shipper = $this->shipper();
         $tractor = $this->vehicle('DAY1C45', 'TRACTOR');
-        $driver = $this->driver();
-
         $payload = $this->basePayload($shipper->id, '910003');
         $payload['operation_type'] = 'FLEET';
         $payload['vehicle_id'] = $tractor->id;
-        $payload['driver_one_id'] = $driver->id;
         $payload['ctes'][0]['cte_type'] = 'DAILY';
 
         $this->actingAs($user)->postJson('/api/travels', $payload)
             ->assertCreated()
+            ->assertJsonPath('travel.driver_one_id', null)
             ->assertJsonPath('travel.ctes.0.cte_type', 'DAILY');
     }
 

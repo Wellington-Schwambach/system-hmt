@@ -1,10 +1,33 @@
+import {
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardPenLine,
+  Download,
+  FilePlus2,
+  FileText,
+  List,
+  Paperclip,
+  Pencil,
+  PencilLine,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Building2, ChevronLeft, ChevronRight, ClipboardPenLine, List, Pencil, Plus, Save, Search, Trash2 } from 'lucide-react';
 
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { shipperService } from './services';
-import type { ShipperFormData, ShipperRecord, ShipperStatus, ShipperTab } from './types';
+import type {
+  ShipperDocumentRecord,
+  ShipperFormData,
+  ShipperRecord,
+  ShipperStatus,
+  ShipperTab,
+} from './types';
 import {
   Actions,
   Card,
@@ -14,6 +37,14 @@ import {
   ColorField,
   ColorInput,
   CountBadge,
+  DocumentActions,
+  DocumentFile,
+  DocumentGrid,
+  DocumentHint,
+  DocumentNameShell,
+  DocumentRow,
+  DocumentsHeader,
+  DocumentsSection,
   Empty,
   Field,
   Filters,
@@ -47,7 +78,34 @@ import {
 } from './styles';
 
 const PALETTE = ['#2563EB', '#16A34A', '#7C3AED', '#EA580C', '#0891B2', '#DC2626', '#CA8A04', '#0F766E', '#C026D3', '#4F46E5'];
-const EMPTY_FORM: ShipperFormData = { name: '', displayColor: '#16A34A', status: 'ACTIVE' };
+const EMPTY_FORM: ShipperFormData = {
+  name: '',
+  displayColor: '#16A34A',
+  receiptTermDays: '',
+  status: 'ACTIVE',
+};
+
+interface DocumentDraft {
+  key: string;
+  id: number | null;
+  name: string;
+  originalName: string;
+  originalSavedName: string;
+  file: File | null;
+  removed: boolean;
+}
+
+function createDocumentDraft(document?: ShipperDocumentRecord): DocumentDraft {
+  return {
+    key: document ? `stored-${document.id}` : `new-${crypto.randomUUID()}`,
+    id: document?.id ?? null,
+    name: document?.name ?? '',
+    originalName: document?.originalName ?? '',
+    originalSavedName: document?.name ?? '',
+    file: null,
+    removed: false,
+  };
+}
 
 function contrastText(hex: string): string {
   const normalized = hex.replace('#', '');
@@ -67,10 +125,17 @@ export function Shippers() {
   const [activeTab, setActiveTab] = useState<ShipperTab>('LIST');
   const [editing, setEditing] = useState<ShipperRecord | null>(null);
   const [form, setForm] = useState<ShipperFormData>(EMPTY_FORM);
+  const [documents, setDocuments] = useState<DocumentDraft[]>([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'ALL' | ShipperStatus>('ACTIVE');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  async function reloadRecords(): Promise<ShipperRecord[]> {
+    const items = await shipperService.list();
+    setRecords(items);
+    return items;
+  }
 
   useEffect(() => {
     let active = true;
@@ -109,35 +174,113 @@ export function Shippers() {
   const first = filtered.length === 0 ? 0 : (visiblePage - 1) * pageSize + 1;
   const last = Math.min(visiblePage * pageSize, filtered.length);
 
-  function startCreate() {
+  function resetForm() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setDocuments([]);
+  }
+
+  function startCreate() {
+    resetForm();
     setActiveTab('FORM');
   }
 
   function startEdit(record: ShipperRecord) {
     setEditing(record);
-    setForm({ name: record.name, displayColor: record.displayColor, status: record.status });
+    setForm({
+      name: record.name,
+      displayColor: record.displayColor,
+      receiptTermDays: record.receiptTermDays === null ? '' : String(record.receiptTermDays),
+      status: record.status,
+    });
+    setDocuments(record.documents.map(createDocumentDraft));
     setActiveTab('FORM');
+  }
+
+  function addDocumentRow() {
+    setDocuments((current) => [...current, createDocumentDraft()]);
+  }
+
+  function updateDocumentDraft(key: string, patch: Partial<DocumentDraft>) {
+    setDocuments((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
+  }
+
+  function removeDocumentRow(key: string) {
+    setDocuments((current) =>
+      current
+        .map((item) => (item.key === key && item.id ? { ...item, removed: true } : item))
+        .filter((item) => item.key !== key || item.id !== null),
+    );
+  }
+
+  async function syncDocuments(shipperId: number): Promise<void> {
+    for (const draft of documents) {
+      if (draft.id) {
+        if (draft.removed) {
+          await shipperService.removeDocument(shipperId, draft.id);
+          continue;
+        }
+
+        if (draft.name.trim() !== draft.originalSavedName.trim()) {
+          await shipperService.renameDocument(shipperId, draft.id, draft.name.trim());
+        }
+        continue;
+      }
+
+      if (!draft.removed && draft.file) {
+        await shipperService.uploadDocument(shipperId, draft.name.trim(), draft.file);
+      }
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const activeDocuments = documents.filter((document) => !document.removed);
+    const invalidDocument = activeDocuments.find((document) => document.name.trim().length < 2);
+    if (invalidDocument) {
+      notifications.warning('Revise os documentos', 'Informe um nome para cada documento adicionado.');
+      return;
+    }
+
+    const newWithoutFile = activeDocuments.find((document) => !document.id && !document.file);
+    if (newWithoutFile) {
+      notifications.warning('Arquivo não selecionado', 'Selecione o arquivo de cada novo documento antes de salvar.');
+      return;
+    }
+
+    const tooLarge = activeDocuments.find((document) => document.file && document.file.size > 10 * 1024 * 1024);
+    if (tooLarge) {
+      notifications.warning('Arquivo muito grande', `${tooLarge.name || 'O documento'} deve possuir no máximo 10 MB.`);
+      return;
+    }
+
     setSaving(true);
+
     try {
       const result = editing
         ? await shipperService.update(editing.id, form)
         : await shipperService.create(form);
 
-      setRecords((current) => {
-        const next = editing
-          ? current.map((item) => (item.id === result.shipper.id ? result.shipper : item))
-          : [...current, result.shipper];
-        return next.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-      });
+      let documentError: unknown = null;
+      try {
+        await syncDocuments(result.shipper.id);
+      } catch (error) {
+        documentError = error;
+      }
+
+      await reloadRecords();
       notifications.success(editing ? 'Embarcador atualizado' : 'Embarcador cadastrado', result.message);
-      setEditing(null);
-      setForm(EMPTY_FORM);
+
+      if (documentError) {
+        const feedback = getApiErrorFeedback(
+          documentError,
+          'O cadastro foi salvo, mas um dos documentos não pôde ser atualizado. Abra o embarcador e tente anexar novamente.',
+        );
+        notifications.warning('Documento pendente', feedback.message, feedback.details);
+      }
+
+      resetForm();
       setActiveTab('LIST');
       setPage(1);
     } catch (error) {
@@ -148,12 +291,21 @@ export function Shippers() {
     }
   }
 
+  async function handleDownloadDocument(record: ShipperRecord, document: ShipperDocumentRecord) {
+    try {
+      await shipperService.downloadDocument(record.id, document);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível baixar o documento.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    }
+  }
+
   async function handleDelete(record: ShipperRecord) {
     const confirmed = await notifications.confirm({
       title: 'Excluir embarcador?',
       message: record.travelsCount > 0
         ? `${record.name} possui ${record.travelsCount} viagem(ns) vinculada(s). O sistema não permitirá apagar o histórico.`
-        : `${record.name} será removido permanentemente.`,
+        : `${record.name} e seus documentos serão removidos permanentemente.`,
       details: record.travelsCount > 0 ? ['Para preservar as viagens, prefira alterar o status para Inativo.'] : undefined,
       type: 'error',
       confirmLabel: 'Excluir embarcador',
@@ -191,7 +343,7 @@ export function Shippers() {
           <CardHeader>
             <div>
               <h2>{editing ? 'Editar embarcador' : 'Novo embarcador'}</h2>
-              <p>Defina o nome, a situação e a cor usada para identificar o embarcador no sistema.</p>
+              <p>Defina identificação, prazo de recebimento e manuais/documentos próprios do embarcador.</p>
             </div>
           </CardHeader>
           <Form onSubmit={handleSubmit}>
@@ -208,6 +360,26 @@ export function Shippers() {
               </Field>
 
               <Field>
+                Prazo de recebimento (dias)
+                <Input
+                  type="number"
+                  min={0}
+                  max={3650}
+                  value={form.receiptTermDays}
+                  onChange={(event) => setForm((current) => ({ ...current, receiptTermDays: event.target.value }))}
+                  placeholder="Ex.: 45"
+                />
+              </Field>
+
+              <Field>
+                Status
+                <Select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as ShipperStatus }))}>
+                  <option value="ACTIVE">Ativo</option>
+                  <option value="INACTIVE">Inativo</option>
+                </Select>
+              </Field>
+
+              <Field>
                 Cor de identificação
                 <ColorField>
                   <ColorInput
@@ -218,14 +390,6 @@ export function Shippers() {
                   />
                   <Preview $color={form.displayColor} $textColor={previewText}>{form.name.trim() || 'Prévia'}</Preview>
                 </ColorField>
-              </Field>
-
-              <Field>
-                Status
-                <Select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as ShipperStatus }))}>
-                  <option value="ACTIVE">Ativo</option>
-                  <option value="INACTIVE">Inativo</option>
-                </Select>
               </Field>
             </FormGrid>
 
@@ -246,8 +410,72 @@ export function Shippers() {
               </Palette>
             </Field>
 
+            <DocumentsSection>
+              <DocumentsHeader>
+                <div>
+                  <strong>Manuais e documentos</strong>
+                  <span>Adicione quantos arquivos forem necessários e dê um nome claro para cada um.</span>
+                </div>
+                <SecondaryButton type="button" onClick={addDocumentRow}>
+                  <FilePlus2 size={16} /> Adicionar documento
+                </SecondaryButton>
+              </DocumentsHeader>
+
+              {documents.filter((document) => !document.removed).length === 0 ? (
+                <DocumentHint><Paperclip size={17} /> Nenhum documento adicionado.</DocumentHint>
+              ) : (
+                <DocumentGrid>
+                  {documents.filter((document) => !document.removed).map((document) => (
+                    <DocumentRow key={document.key}>
+                      <DocumentNameShell>
+                        <PencilLine size={16} />
+                        <Input
+                          value={document.name}
+                          onChange={(event) => updateDocumentDraft(document.key, { name: event.target.value })}
+                          placeholder="Nome do documento. Ex.: Manual de agendamento"
+                          maxLength={120}
+                        />
+                      </DocumentNameShell>
+
+                      {document.id ? (
+                        <DocumentFile>
+                          <FileText size={16} />
+                          <span title={document.originalName}>{document.originalName}</span>
+                        </DocumentFile>
+                      ) : (
+                        <Input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                          onChange={(event) => updateDocumentDraft(document.key, { file: event.target.files?.[0] ?? null })}
+                        />
+                      )}
+
+                      <DocumentActions>
+                        {document.id && editing ? (
+                          <IconButton
+                            type="button"
+                            title="Baixar documento"
+                            onClick={() => {
+                              const stored = editing.documents.find((item) => item.id === document.id);
+                              if (stored) void handleDownloadDocument(editing, stored);
+                            }}
+                          >
+                            <Download size={16} />
+                          </IconButton>
+                        ) : null}
+                        <IconButton $danger type="button" title="Remover documento" onClick={() => removeDocumentRow(document.key)}>
+                          <X size={16} />
+                        </IconButton>
+                      </DocumentActions>
+                    </DocumentRow>
+                  ))}
+                </DocumentGrid>
+              )}
+              <DocumentHint>PDF, JPG, PNG, Word ou Excel, com até 10 MB por arquivo.</DocumentHint>
+            </DocumentsSection>
+
             <Actions>
-              <SecondaryButton type="button" onClick={() => { setEditing(null); setForm(EMPTY_FORM); setActiveTab('LIST'); }}>Cancelar</SecondaryButton>
+              <SecondaryButton type="button" onClick={() => { resetForm(); setActiveTab('LIST'); }}>Cancelar</SecondaryButton>
               <PrimaryButton type="submit" disabled={saving || form.name.trim().length < 2}>
                 <Save size={17} /> {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Cadastrar embarcador'}
               </PrimaryButton>
@@ -288,7 +516,7 @@ export function Shippers() {
             <>
               <TableWrap>
                 <Table>
-                  <thead><tr><Th>Nome</Th><Th>Cor</Th><Th>Status</Th><Th>Viagens</Th><Th>Ações</Th></tr></thead>
+                  <thead><tr><Th>Nome</Th><Th>Cor</Th><Th>Recebimento</Th><Th>Documentos</Th><Th>Status</Th><Th>Viagens</Th><Th>Ações</Th></tr></thead>
                   <tbody>
                     {visibleRecords.map((record) => {
                       const textColor = contrastText(record.displayColor);
@@ -296,6 +524,8 @@ export function Shippers() {
                         <tr key={record.id}>
                           <Td><strong>{record.name}</strong></Td>
                           <Td><ColorBadge $color={record.displayColor} $textColor={textColor}>{record.name}</ColorBadge></Td>
+                          <Td>{record.receiptTermDays === null ? '-' : `${record.receiptTermDays} dia(s)`}</Td>
+                          <Td>{record.documents.length > 0 ? `${record.documents.length} arquivo(s)` : '-'}</Td>
                           <Td><StatusBadge $active={record.status === 'ACTIVE'}>{record.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}</StatusBadge></Td>
                           <Td>{record.travelsCount}</Td>
                           <Td>

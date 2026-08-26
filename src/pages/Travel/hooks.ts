@@ -10,7 +10,6 @@ import type {
   TravelOptionShipper,
   TravelOptions,
   TravelRecord,
-  TravelShipperFilter,
   TravelCteTypeFilter,
 } from './types';
 import { enrichTravelRecords, getTravelSummary } from './utils';
@@ -52,8 +51,8 @@ export function useTravelRecords() {
   const notifications = useNotifications();
   const [allRecords, setAllRecords] = useState<TravelRecord[]>([]);
   const [options, setOptions] = useState<TravelOptions>(EMPTY_OPTIONS);
-  const [shipperFilter, setShipperFilter] = useState<TravelShipperFilter>('ALL');
-  const [plateFilter, setPlateFilter] = useState('ALL');
+  const [shipperFilter, setShipperFilter] = useState<string[]>([]);
+  const [plateFilter, setPlateFilter] = useState<string[]>([]);
   const [cteTypeFilter, setCteTypeFilter] = useState<TravelCteTypeFilter>('ALL');
   const [dateFrom, setDateFrom] = useState(CURRENT_MONTH_RANGE.from);
   const [dateTo, setDateTo] = useState(CURRENT_MONTH_RANGE.to);
@@ -136,8 +135,8 @@ export function useTravelRecords() {
 
     return enrichedRecords.filter((record) => {
       const matchesShipper =
-        shipperFilter === 'ALL' || String(record.shipperId ?? '') === shipperFilter;
-      const matchesPlate = plateFilter === 'ALL' || record.plate === plateFilter;
+        shipperFilter.length === 0 || shipperFilter.includes(String(record.shipperId ?? ''));
+      const matchesPlate = plateFilter.length === 0 || plateFilter.includes(record.plate);
       const matchesCteType =
         cteTypeFilter === 'ALL' ||
         record.ctes.some((cte) => cte.cteType === cteTypeFilter);

@@ -1,0 +1,701 @@
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  Info,
+  Link2,
+  RefreshCw,
+  Save,
+  Search,
+  Truck,
+  Unlink,
+  UserRound,
+  X,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import genericTractorPhoto from '../../assets/vehicle-sets/generic-tractor.png';
+import genericTrailerPhoto from '../../assets/vehicle-sets/generic-trailer.png';
+import { SearchableSelect } from '../../components/SearchableSelect';
+import { useNotifications } from '../../contexts/Notifications';
+import { getApiErrorFeedback } from '../../utils/apiError';
+import { vehicleSetService } from './services';
+import type {
+  VehicleSetDriverOption,
+  VehicleSetEventAction,
+  VehicleSetEventRecord,
+  VehicleSetOptions,
+  VehicleSetRecord,
+  VehicleSetVehicleOption,
+} from './types';
+import {
+  ActionBadge,
+  ActiveBanner,
+  ActiveCard,
+  ActiveIcon,
+  ActiveList,
+  ActiveText,
+  BottomGrid,
+  Builder,
+  BuilderActions,
+  BuilderLower,
+  BuilderTop,
+  CloseButton,
+  DangerButton,
+  DateGrid,
+  DateTimeInput,
+  DetailList,
+  DriverAvatar,
+  DriverCard,
+  DriverGrid,
+  Empty,
+  EmptyVehicle,
+  Field,
+  HeaderStats,
+  HistoryFilters,
+  InfoHint,
+  LinkBridge,
+  Modal,
+  ModalActions,
+  ModalBackdrop,
+  ModalBody,
+  ModalHeader,
+  ModalSection,
+  Page,
+  PageButton,
+  PageHeader,
+  PageInfo,
+  Pagination,
+  Panel,
+  PanelHeader,
+  PrimaryButton,
+  SearchInput,
+  SecondaryButton,
+  SelectionBlock,
+  StatChip,
+  StepNumber,
+  StepTitle,
+  Summary,
+  SummaryCard,
+  SummaryRow,
+  SummaryTitle,
+  Table,
+  TableWrap,
+  Td,
+  Th,
+  VehicleCard,
+  VehiclePhoto,
+  VehicleVisual,
+  Workflow,
+  WorkflowSection,
+} from './styles';
+
+const EMPTY_OPTIONS: VehicleSetOptions = { tractors: [], trailers: [], drivers: [] };
+const HISTORY_PAGE_SIZE = 10;
+
+function nowLocalInput(): string {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatCpf(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length !== 11) return value;
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+}
+
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat('pt-BR').format(value || 0);
+}
+
+function eventLabel(action: VehicleSetEventAction): string {
+  return {
+    COUPLED: 'Conjunto atrelado',
+    DRIVER_ASSIGNED: 'Motorista atrelado',
+    DRIVER_CHANGED: 'Motorista alterado',
+    DETACHED: 'Conjunto desatrelado',
+  }[action];
+}
+
+function eventColor(action: VehicleSetEventAction): 'green' | 'blue' | 'orange' | 'red' {
+  return {
+    COUPLED: 'green',
+    DRIVER_ASSIGNED: 'blue',
+    DRIVER_CHANGED: 'orange',
+    DETACHED: 'red',
+  }[action] as 'green' | 'blue' | 'orange' | 'red';
+}
+
+function vehicleLabel(vehicle: VehicleSetVehicleOption): string {
+  const model = `${vehicle.brand} ${vehicle.model}`.trim();
+  return model ? `${vehicle.plate} - ${model}` : vehicle.plate;
+}
+
+function VehicleDetails({ vehicle }: { vehicle: VehicleSetVehicleOption }) {
+  const trailer = vehicle.type === 'TRAILER';
+  return (
+    <VehicleCard $selected>
+      <VehicleVisual aria-hidden="true">
+        <VehiclePhoto
+          src={trailer ? genericTrailerPhoto : genericTractorPhoto}
+          alt=""
+          $trailer={trailer}
+          draggable={false}
+        />
+      </VehicleVisual>
+      <DetailList>
+        <dt>Placa</dt><dd>{vehicle.plate}</dd>
+        <dt>Marca/Modelo</dt><dd>{vehicle.brand} {vehicle.model}</dd>
+        <dt>Ano</dt><dd>{vehicle.modelYear || vehicle.manufactureYear}</dd>
+        {trailer ? (
+          <>
+            <dt>Tara</dt><dd>{formatNumber(vehicle.tareKg)} kg</dd>
+            <dt>Capacidade</dt><dd>{formatNumber(vehicle.loadCapacityKg)} kg</dd>
+          </>
+        ) : (
+          <>
+            <dt>KM atual</dt><dd>{formatNumber(vehicle.currentKm)}</dd>
+            <dt>RENAVAM</dt><dd>{vehicle.renavam || '-'}</dd>
+          </>
+        )}
+        <dt>Chassi</dt><dd>{vehicle.chassis || '-'}</dd>
+      </DetailList>
+    </VehicleCard>
+  );
+}
+
+function DriverDetails({ driver }: { driver: VehicleSetDriverOption }) {
+  return (
+    <DriverCard>
+      <DriverAvatar><UserRound size={28} /></DriverAvatar>
+      <DetailList>
+        <dt>Matrícula</dt><dd>{driver.employeeCode}</dd>
+        <dt>CPF</dt><dd>{formatCpf(driver.cpf)}</dd>
+        <dt>CNH</dt><dd>{driver.cnhNumber || '-'}{driver.cnhCategory ? ` · Cat. ${driver.cnhCategory}` : ''}</dd>
+        <dt>Validade CNH</dt><dd>{driver.cnhExpiryDate ? new Date(`${driver.cnhExpiryDate}T12:00:00`).toLocaleDateString('pt-BR') : '-'}</dd>
+      </DetailList>
+    </DriverCard>
+  );
+}
+
+export function VehicleSets() {
+  const notifications = useNotifications();
+  const [options, setOptions] = useState<VehicleSetOptions>(EMPTY_OPTIONS);
+  const [sets, setSets] = useState<VehicleSetRecord[]>([]);
+  const [history, setHistory] = useState<VehicleSetEventRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [tractorId, setTractorId] = useState('');
+  const [trailerId, setTrailerId] = useState('');
+  const [driverId, setDriverId] = useState('');
+  const [coupledAt, setCoupledAt] = useState(nowLocalInput());
+  const [driverAssignedAt, setDriverAssignedAt] = useState(nowLocalInput());
+  const [activeSearch, setActiveSearch] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPlateFilter, setHistoryPlateFilter] = useState('');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
+  const [managingSet, setManagingSet] = useState<VehicleSetRecord | null>(null);
+  const [managedDriverId, setManagedDriverId] = useState('');
+  const [managedDriverAt, setManagedDriverAt] = useState(nowLocalInput());
+  const [detachedAt, setDetachedAt] = useState(nowLocalInput());
+  const [managing, setManaging] = useState(false);
+
+  const loadData = useCallback(async (showError = true) => {
+    try {
+      const [listData, optionData] = await Promise.all([
+        vehicleSetService.list(),
+        vehicleSetService.options(),
+      ]);
+      setSets(listData.sets);
+      setHistory(listData.history);
+      setOptions(optionData);
+    } catch (error) {
+      if (showError) {
+        const feedback = getApiErrorFeedback(error, 'Não foi possível carregar os conjuntos.');
+        notifications.error(feedback.title, feedback.message, feedback.details);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [notifications]);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([vehicleSetService.list(), vehicleSetService.options()])
+      .then(([listData, optionData]) => {
+        if (!active) return;
+        setSets(listData.sets);
+        setHistory(listData.history);
+        setOptions(optionData);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const feedback = getApiErrorFeedback(error, 'Não foi possível carregar os conjuntos.');
+        notifications.error(feedback.title, feedback.message, feedback.details);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [notifications]);
+
+  const selectedTractor = useMemo(
+    () => options.tractors.find((item) => item.id === Number(tractorId)) ?? null,
+    [options.tractors, tractorId],
+  );
+  const selectedTrailer = useMemo(
+    () => options.trailers.find((item) => item.id === Number(trailerId)) ?? null,
+    [options.trailers, trailerId],
+  );
+  const selectedDriver = useMemo(
+    () => options.drivers.find((item) => item.id === Number(driverId)) ?? null,
+    [driverId, options.drivers],
+  );
+
+  const tractorOptions = useMemo(
+    () => options.tractors.filter((item) => item.available).map((item) => ({
+      value: String(item.id),
+      label: vehicleLabel(item),
+      searchText: `${item.plate} ${item.fleetNumber ?? ''} ${item.brand} ${item.model}`,
+    })),
+    [options.tractors],
+  );
+  const trailerOptions = useMemo(
+    () => options.trailers.filter((item) => item.available).map((item) => ({
+      value: String(item.id),
+      label: vehicleLabel(item),
+      searchText: `${item.plate} ${item.fleetNumber ?? ''} ${item.brand} ${item.model}`,
+    })),
+    [options.trailers],
+  );
+  const driverOptions = useMemo(
+    () => options.drivers.filter((item) => item.available).map((item) => ({
+      value: String(item.id),
+      label: item.name,
+      searchText: `${item.name} ${item.employeeCode} ${item.cpf} ${item.cnhNumber ?? ''}`,
+    })),
+    [options.drivers],
+  );
+
+  const ready = Boolean(tractorId && trailerId && driverId && coupledAt && driverAssignedAt);
+
+  const filteredActiveSets = useMemo(() => {
+    const term = activeSearch.trim().toLocaleLowerCase('pt-BR');
+    if (!term) return sets;
+    return sets.filter((item) =>
+      `${item.tractorPlate} ${item.trailerPlate} ${item.driverName}`.toLocaleLowerCase('pt-BR').includes(term),
+    );
+  }, [activeSearch, sets]);
+
+  const historyPlateOptions = useMemo(
+    () => Array.from(new Set(history.map((event) => event.tractorPlate).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((plate) => ({ value: plate, label: plate, searchText: plate })),
+    [history],
+  );
+
+  const filteredHistory = useMemo(() => {
+    return history.filter((event) => {
+      const eventDate = new Date(event.occurredAt);
+      const localDate = Number.isNaN(eventDate.getTime())
+        ? event.occurredAt.slice(0, 10)
+        : `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}-${String(eventDate.getDate()).padStart(2, '0')}`;
+
+      const matchesPlate = !historyPlateFilter || event.tractorPlate === historyPlateFilter;
+      const matchesFrom = !historyDateFrom || localDate >= historyDateFrom;
+      const matchesTo = !historyDateTo || localDate <= historyDateTo;
+      return matchesPlate && matchesFrom && matchesTo;
+    });
+  }, [history, historyDateFrom, historyDateTo, historyPlateFilter]);
+
+  const totalHistoryPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PAGE_SIZE));
+  const safeHistoryPage = Math.min(historyPage, totalHistoryPages);
+  const visibleHistory = filteredHistory.slice(
+    (safeHistoryPage - 1) * HISTORY_PAGE_SIZE,
+    safeHistoryPage * HISTORY_PAGE_SIZE,
+  );
+
+  function resetBuilder() {
+    setTractorId('');
+    setTrailerId('');
+    setDriverId('');
+    const now = nowLocalInput();
+    setCoupledAt(now);
+    setDriverAssignedAt(now);
+  }
+
+  async function handleSave() {
+    if (!ready) return;
+    setSaving(true);
+    try {
+      const result = await vehicleSetService.create({
+        tractorId: Number(tractorId),
+        trailerId: Number(trailerId),
+        driverId: Number(driverId),
+        coupledAt,
+        driverAssignedAt,
+      });
+      notifications.success('Conjunto ativo', result.message);
+      resetBuilder();
+      setHistoryPage(1);
+      await loadData(false);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar o conjunto.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openManager(vehicleSet: VehicleSetRecord) {
+    setManagingSet(vehicleSet);
+    setManagedDriverId(String(vehicleSet.driverId ?? ''));
+    setManagedDriverAt(nowLocalInput());
+    setDetachedAt(nowLocalInput());
+  }
+
+  const managerDriverOptions = useMemo(() => {
+    if (!managingSet) return [];
+    const ids = new Set<number>();
+    return options.drivers
+      .filter((item) => item.available || item.id === managingSet.driverId)
+      .filter((item) => {
+        if (ids.has(item.id)) return false;
+        ids.add(item.id);
+        return true;
+      })
+      .map((item) => ({
+        value: String(item.id),
+        label: item.name,
+        searchText: `${item.name} ${item.employeeCode} ${item.cpf}`,
+      }));
+  }, [managingSet, options.drivers]);
+
+  async function handleChangeDriver() {
+    if (!managingSet || !managedDriverId || Number(managedDriverId) === managingSet.driverId) return;
+    setManaging(true);
+    try {
+      const result = await vehicleSetService.changeDriver(managingSet.id, Number(managedDriverId), managedDriverAt);
+      notifications.success('Motorista atualizado', result.message);
+      setManagingSet(null);
+      setHistoryPage(1);
+      await loadData(false);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível alterar o motorista.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setManaging(false);
+    }
+  }
+
+  async function handleDetach() {
+    if (!managingSet) return;
+    const confirmed = await notifications.confirm({
+      title: 'Desatrelar conjunto?',
+      message: `${managingSet.tractorPlate} / ${managingSet.trailerPlate} será encerrado e os três recursos ficarão disponíveis para novos vínculos.`,
+      type: 'error',
+      confirmLabel: 'Desatrelar conjunto',
+    });
+    if (!confirmed) return;
+
+    setManaging(true);
+    try {
+      const result = await vehicleSetService.detach(managingSet.id, detachedAt);
+      notifications.success('Conjunto desatrelado', result.message);
+      setManagingSet(null);
+      setHistoryPage(1);
+      await loadData(false);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível desatrelar o conjunto.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setManaging(false);
+    }
+  }
+
+  return (
+    <Page>
+      <PageHeader>
+        <div>
+          <h1>Vincular carretas</h1>
+          <p>Monte o conjunto, registre o momento do atrelamento e vincule o motorista responsável.</p>
+        </div>
+        <HeaderStats>
+          <StatChip><Link2 size={14} /> {sets.length} conjunto(s) ativo(s)</StatChip>
+          <StatChip><Truck size={14} /> {tractorOptions.length} cavalo(s) livre(s)</StatChip>
+        </HeaderStats>
+      </PageHeader>
+
+      <Builder>
+        <BuilderTop>
+          <SelectionBlock>
+            <StepTitle><StepNumber>1</StepNumber>Selecione o cavalo</StepTitle>
+            <SearchableSelect
+              id="vehicle-set-tractor"
+              value={tractorId}
+              options={tractorOptions}
+              onChange={setTractorId}
+              placeholder="Selecione um cavalo disponível"
+              searchPlaceholder="Buscar por placa, frota, marca ou modelo..."
+              emptyMessage="Nenhum cavalo disponível."
+              ariaLabel="Selecionar cavalo"
+            />
+            {selectedTractor ? <VehicleDetails vehicle={selectedTractor} /> : (
+              <VehicleCard $selected={false}><EmptyVehicle>Selecione um cavalo para visualizar os dados do veículo.</EmptyVehicle></VehicleCard>
+            )}
+          </SelectionBlock>
+
+          <LinkBridge><span><Link2 size={22} /></span></LinkBridge>
+
+          <SelectionBlock>
+            <StepTitle><StepNumber>2</StepNumber>Selecione a carreta</StepTitle>
+            <SearchableSelect
+              id="vehicle-set-trailer"
+              value={trailerId}
+              options={trailerOptions}
+              onChange={setTrailerId}
+              placeholder="Selecione uma carreta disponível"
+              searchPlaceholder="Buscar por placa, frota, marca ou modelo..."
+              emptyMessage="Nenhuma carreta disponível."
+              ariaLabel="Selecionar carreta"
+            />
+            {selectedTrailer ? <VehicleDetails vehicle={selectedTrailer} /> : (
+              <VehicleCard $selected={false}><EmptyVehicle>Selecione uma carreta para visualizar tara e capacidade.</EmptyVehicle></VehicleCard>
+            )}
+          </SelectionBlock>
+        </BuilderTop>
+
+        <BuilderLower>
+          <Workflow>
+            <WorkflowSection>
+              <StepTitle><StepNumber>3</StepNumber>Data e horário do atrelamento do conjunto</StepTitle>
+              <DateGrid>
+                <Field>
+                  Momento do atrelamento
+                  <DateTimeInput type="datetime-local" value={coupledAt} onChange={(event) => setCoupledAt(event.target.value)} />
+                </Field>
+                <InfoHint><Info size={16} />Este registro marca quando o cavalo foi fisicamente atrelado à carreta.</InfoHint>
+              </DateGrid>
+            </WorkflowSection>
+
+            <WorkflowSection>
+              <StepTitle><StepNumber>4</StepNumber>Atrele o motorista ao conjunto</StepTitle>
+              <SearchableSelect
+                id="vehicle-set-driver"
+                value={driverId}
+                options={driverOptions}
+                onChange={setDriverId}
+                placeholder="Selecione um motorista disponível"
+                searchPlaceholder="Buscar por nome, matrícula, CPF ou CNH..."
+                emptyMessage="Nenhum motorista disponível."
+                ariaLabel="Selecionar motorista"
+              />
+              <DriverGrid>
+                {selectedDriver ? <DriverDetails driver={selectedDriver} /> : (
+                  <DriverCard>
+                    <DriverAvatar><UserRound size={28} /></DriverAvatar>
+                    <span>Selecione o motorista para visualizar matrícula, CPF e CNH.</span>
+                  </DriverCard>
+                )}
+                <div style={{ display: 'grid', gap: '0.7rem' }}>
+                  <Field>
+                    Data e horário do vínculo do motorista
+                    <DateTimeInput type="datetime-local" value={driverAssignedAt} onChange={(event) => setDriverAssignedAt(event.target.value)} />
+                  </Field>
+                  <InfoHint><Info size={16} />Alterações posteriores de motorista também ficam registradas no histórico.</InfoHint>
+                </div>
+              </DriverGrid>
+            </WorkflowSection>
+          </Workflow>
+
+          <Summary>
+            <SummaryTitle>Resumo do conjunto</SummaryTitle>
+            <SummaryCard>
+              <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{selectedTractor ? vehicleLabel(selectedTractor) : 'Não selecionado'}</strong></SummaryRow>
+              <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{selectedTrailer ? vehicleLabel(selectedTrailer) : 'Não selecionada'}</strong></SummaryRow>
+              <SummaryRow><UserRound size={15} /><span>Motorista</span><strong>{selectedDriver?.name ?? 'Não selecionado'}</strong></SummaryRow>
+              <SummaryRow><CalendarClock size={15} /><span>Atrelado</span><strong>{coupledAt ? formatDateTime(coupledAt) : '-'}</strong></SummaryRow>
+              <SummaryRow><CalendarClock size={15} /><span>Motorista</span><strong>{driverAssignedAt ? formatDateTime(driverAssignedAt) : '-'}</strong></SummaryRow>
+            </SummaryCard>
+            <ActiveBanner $ready={ready}>{ready ? 'Pronto para ativar' : 'Preencha os 4 passos'}</ActiveBanner>
+          </Summary>
+        </BuilderLower>
+
+        <BuilderActions>
+          <SecondaryButton type="button" onClick={resetBuilder}>Limpar</SecondaryButton>
+          <PrimaryButton type="button" disabled={!ready || saving} onClick={() => void handleSave()}>
+            {saving ? <RefreshCw size={16} /> : <Save size={16} />}
+            {saving ? 'Salvando...' : 'Salvar conjunto'}
+          </PrimaryButton>
+        </BuilderActions>
+      </Builder>
+
+      <BottomGrid>
+        <Panel>
+          <PanelHeader>
+            <div><h2>Histórico de alterações do conjunto</h2><span>{filteredHistory.length} de {history.length} evento(s)</span></div>
+            <History size={17} />
+          </PanelHeader>
+          <HistoryFilters>
+            <Field>
+              Cavalo / placa
+              <SearchableSelect
+                id="vehicle-set-history-tractor"
+                value={historyPlateFilter}
+                options={historyPlateOptions}
+                onChange={(value) => { setHistoryPlateFilter(value); setHistoryPage(1); }}
+                placeholder="Todos os cavalos"
+                searchPlaceholder="Pesquisar placa..."
+                emptyMessage="Nenhuma placa encontrada"
+                clearable
+              />
+            </Field>
+            <Field>
+              De
+              <DateTimeInput
+                type="date"
+                value={historyDateFrom}
+                max={historyDateTo || undefined}
+                onChange={(event) => { setHistoryDateFrom(event.target.value); setHistoryPage(1); }}
+              />
+            </Field>
+            <Field>
+              Até
+              <DateTimeInput
+                type="date"
+                value={historyDateTo}
+                min={historyDateFrom || undefined}
+                onChange={(event) => { setHistoryDateTo(event.target.value); setHistoryPage(1); }}
+              />
+            </Field>
+          </HistoryFilters>
+          {loading ? <Empty>Carregando histórico...</Empty> : history.length === 0 ? <Empty>Nenhum vínculo registrado ainda.</Empty> : filteredHistory.length === 0 ? <Empty>Nenhum evento encontrado para os filtros selecionados.</Empty> : (
+            <>
+              <TableWrap>
+                <Table>
+                  <thead><tr><Th>Data/Hora</Th><Th>Ação</Th><Th>Cavalo</Th><Th>Carreta</Th><Th>Motorista</Th><Th>Usuário</Th></tr></thead>
+                  <tbody>
+                    {visibleHistory.map((event) => (
+                      <tr key={event.id}>
+                        <Td>{formatDateTime(event.occurredAt)}</Td>
+                        <Td><ActionBadge $type={eventColor(event.action)}>{eventLabel(event.action)}</ActionBadge></Td>
+                        <Td>{event.tractorPlate}</Td>
+                        <Td>{event.trailerPlate}</Td>
+                        <Td>{event.driverName || '-'}</Td>
+                        <Td>{event.userName || '-'}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </TableWrap>
+              <Pagination>
+                <PageButton type="button" disabled={safeHistoryPage <= 1} onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}><ChevronLeft size={16} /></PageButton>
+                <PageInfo>Página {safeHistoryPage} de {totalHistoryPages}</PageInfo>
+                <PageButton type="button" disabled={safeHistoryPage >= totalHistoryPages} onClick={() => setHistoryPage((page) => Math.min(totalHistoryPages, page + 1))}><ChevronRight size={16} /></PageButton>
+              </Pagination>
+            </>
+          )}
+        </Panel>
+
+        <Panel>
+          <PanelHeader><div><h2>Conjuntos ativos</h2><span>Clique para gerenciar</span></div><Link2 size={17} /></PanelHeader>
+          <ActiveList>
+            <div style={{ position: 'relative' }}>
+              <Search size={15} style={{ position: 'absolute', left: 10, top: 12, opacity: 0.55 }} />
+              <SearchInput value={activeSearch} onChange={(event) => setActiveSearch(event.target.value)} placeholder="Buscar conjunto..." style={{ paddingLeft: 32 }} />
+            </div>
+            {filteredActiveSets.length === 0 ? <Empty>Nenhum conjunto ativo encontrado.</Empty> : filteredActiveSets.map((vehicleSet) => (
+              <ActiveCard key={vehicleSet.id} type="button" onClick={() => openManager(vehicleSet)}>
+                <ActiveIcon><Link2 size={17} /></ActiveIcon>
+                <ActiveText>
+                  <strong>{vehicleSet.tractorPlate} / {vehicleSet.trailerPlate}</strong>
+                  <span>{vehicleSet.driverName}</span>
+                  <span>Desde {formatDateTime(vehicleSet.coupledAt)}</span>
+                </ActiveText>
+                <ChevronRight size={17} />
+              </ActiveCard>
+            ))}
+          </ActiveList>
+        </Panel>
+      </BottomGrid>
+
+      {managingSet ? (
+        <ModalBackdrop role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !managing) setManagingSet(null); }}>
+          <Modal role="dialog" aria-modal="true" aria-labelledby="manage-set-title">
+            <ModalHeader>
+              <div>
+                <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate} / {managingSet.trailerPlate}</h3>
+                <p>Troque o motorista ou encerre o conjunto mantendo todo o histórico.</p>
+              </div>
+              <CloseButton type="button" disabled={managing} onClick={() => setManagingSet(null)}><X size={17} /></CloseButton>
+            </ModalHeader>
+            <ModalBody>
+              <SummaryCard>
+                <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{managingSet.tractorLabel}</strong></SummaryRow>
+                <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{managingSet.trailerLabel}</strong></SummaryRow>
+                <SummaryRow><UserRound size={15} /><span>Atual</span><strong>{managingSet.driverName}</strong></SummaryRow>
+                <SummaryRow><CalendarClock size={15} /><span>Desde</span><strong>{formatDateTime(managingSet.coupledAt)}</strong></SummaryRow>
+              </SummaryCard>
+
+              <ModalSection>
+                <h4>Alterar motorista</h4>
+                <p>O motorista atual será preservado no histórico e o novo vínculo ficará registrado com data, hora e usuário.</p>
+                <SearchableSelect
+                  id="manage-set-driver"
+                  value={managedDriverId}
+                  options={managerDriverOptions}
+                  onChange={setManagedDriverId}
+                  placeholder="Selecione o novo motorista"
+                  searchPlaceholder="Buscar motorista..."
+                  ariaLabel="Novo motorista do conjunto"
+                  clearable={false}
+                />
+                <Field>
+                  Data e horário da alteração
+                  <DateTimeInput type="datetime-local" value={managedDriverAt} onChange={(event) => setManagedDriverAt(event.target.value)} />
+                </Field>
+                <ModalActions>
+                  <PrimaryButton type="button" disabled={managing || !managedDriverId || Number(managedDriverId) === managingSet.driverId} onClick={() => void handleChangeDriver()}>
+                    <UserRound size={15} /> Salvar novo motorista
+                  </PrimaryButton>
+                </ModalActions>
+              </ModalSection>
+
+              <ModalSection>
+                <h4>Desatrelar conjunto</h4>
+                <p>Encerra o conjunto e libera cavalo, carreta e motorista para novos vínculos. O histórico permanece intacto.</p>
+                <Field>
+                  Data e horário do desatrelamento
+                  <DateTimeInput type="datetime-local" value={detachedAt} onChange={(event) => setDetachedAt(event.target.value)} />
+                </Field>
+                <ModalActions>
+                  <DangerButton type="button" disabled={managing} onClick={() => void handleDetach()}><Unlink size={15} /> Desatrelar conjunto</DangerButton>
+                </ModalActions>
+              </ModalSection>
+            </ModalBody>
+          </Modal>
+        </ModalBackdrop>
+      ) : null}
+    </Page>
+  );
+}

@@ -35,7 +35,7 @@ class EmployeeManagementTest extends TestCase
             ->assertJsonPath('employee.city.name', 'Itajaí')
             ->assertJsonPath('employee.probation_end_date', '2024-02-24')
             ->assertJsonPath('employee.probation_extension_end_date', '2024-04-09')
-            ->assertJsonPath('employee.vacation_date', '2025-11-10');
+            ->assertJsonPath('employee.vacation_date', '2025-01-10');
         $employee = Employee::query()->firstOrFail();
         $this->assertDatabaseCount('employee_documents', 2);
 

@@ -1,13 +1,17 @@
 import type { FuelSummaryCardProps } from './types';
-import { Card, IconBox, Value } from './styles';
+import { Card, CardAction, Content, IconBox, Label, Value } from './styles';
 
-export function FuelSummaryCard({ label, value, icon: Icon }: FuelSummaryCardProps) {
+export function FuelSummaryCard({ label, value, icon: Icon, action }: FuelSummaryCardProps) {
   return (
     <Card aria-label={`${label}: ${value}`} title={label}>
+      {action ? <CardAction>{action}</CardAction> : null}
       <IconBox>
-        <Icon size={20} aria-hidden="true" />
+        <Icon size={19} aria-hidden="true" />
       </IconBox>
-      <Value>{value}</Value>
+      <Content>
+        <Label>{label}</Label>
+        <Value>{value}</Value>
+      </Content>
     </Card>
   );
 }
