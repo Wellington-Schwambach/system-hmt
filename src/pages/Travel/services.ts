@@ -189,7 +189,7 @@ function buildPayload(data: TravelFormData) {
       cte_number: cte.cteNumber.trim(),
       cte_series: cte.cteSeries.trim(),
       complemented_cte_number:
-        cte.cteType === 'FREIGHT_COMPLEMENT' ? cte.complementedCteNumber.trim() : null,
+        cte.cteType !== 'NORMAL' ? cte.complementedCteNumber.trim() : null,
       net_freight: parseDecimalInput(cte.netFreight),
       insurance_amount: parseDecimalInput(cte.insuranceAmount),
       toll_amount: parseDecimalInput(cte.tollAmount),

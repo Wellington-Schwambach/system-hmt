@@ -24,10 +24,16 @@ CREATE TABLE IF NOT EXISTS vehicle_sets (
     updated_at TIMESTAMP NULL
 );
 
+-- Suporte a dois motoristas no mesmo conjunto (também atualiza instalações que já tinham a tabela).
+ALTER TABLE vehicle_sets ADD COLUMN IF NOT EXISTS driver_two_id BIGINT NULL REFERENCES employees(id) ON DELETE SET NULL;
+ALTER TABLE vehicle_sets ADD COLUMN IF NOT EXISTS driver_two_name VARCHAR(150) NULL;
+ALTER TABLE vehicle_sets ADD COLUMN IF NOT EXISTS driver_two_assigned_at TIMESTAMP NULL;
+
 CREATE INDEX IF NOT EXISTS vehicle_sets_status_coupled_idx ON vehicle_sets(status, coupled_at);
 CREATE INDEX IF NOT EXISTS vehicle_sets_tractor_status_idx ON vehicle_sets(tractor_id, status);
 CREATE INDEX IF NOT EXISTS vehicle_sets_trailer_status_idx ON vehicle_sets(trailer_id, status);
 CREATE INDEX IF NOT EXISTS vehicle_sets_driver_status_idx ON vehicle_sets(driver_id, status);
+CREATE INDEX IF NOT EXISTS vehicle_sets_driver_two_status_idx ON vehicle_sets(driver_two_id, status);
 
 CREATE UNIQUE INDEX IF NOT EXISTS vehicle_sets_active_tractor_unique
     ON vehicle_sets(tractor_id)
@@ -40,6 +46,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS vehicle_sets_active_trailer_unique
 CREATE UNIQUE INDEX IF NOT EXISTS vehicle_sets_active_driver_unique
     ON vehicle_sets(driver_id)
     WHERE status = 'ACTIVE' AND driver_id IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS vehicle_sets_active_driver_two_unique
+    ON vehicle_sets(driver_two_id)
+    WHERE status = 'ACTIVE' AND driver_two_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS vehicle_set_events (
     id BIGSERIAL PRIMARY KEY,

@@ -52,6 +52,66 @@ class VehicleSetManagementTest extends TestCase
         $this->assertDatabaseHas('vehicle_set_events', ['vehicle_set_id' => $setId, 'action' => 'DETACHED']);
     }
 
+    public function test_second_driver_can_be_linked_to_the_same_active_set(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['vehicle_sets']]);
+        $tractor = $this->vehicle('TWO1A23', 'TRACTOR');
+        $trailer = $this->vehicle('TWO4B56', 'TRAILER');
+        $firstDriver = $this->driver('MOT-201', 'Motorista Principal', '55555555555');
+        $secondDriver = $this->driver('MOT-202', 'Motorista Auxiliar', '66666666666');
+
+        $response = $this->actingAs($user)->postJson('/api/vehicle-sets', [
+            'tractor_id' => $tractor->id,
+            'trailer_id' => $trailer->id,
+            'driver_id' => $firstDriver->id,
+            'driver_two_id' => $secondDriver->id,
+            'coupled_at' => '2026-08-26 08:00:00',
+            'driver_assigned_at' => '2026-08-26 08:05:00',
+            'driver_two_assigned_at' => '2026-08-26 08:10:00',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('set.driver_name', 'Motorista Principal')
+            ->assertJsonPath('set.driver_two_name', 'Motorista Auxiliar');
+
+        $setId = (int) $response->json('set.id');
+        $this->assertDatabaseHas('vehicle_sets', [
+            'id' => $setId,
+            'driver_id' => $firstDriver->id,
+            'driver_two_id' => $secondDriver->id,
+        ]);
+        $this->assertDatabaseHas('vehicle_set_events', [
+            'vehicle_set_id' => $setId,
+            'action' => 'DRIVER_ASSIGNED',
+            'driver_id' => $secondDriver->id,
+        ]);
+    }
+
+    public function test_second_driver_can_be_added_after_set_is_created(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['vehicle_sets']]);
+        $tractor = $this->vehicle('ADD1C23', 'TRACTOR');
+        $trailer = $this->vehicle('ADD4D56', 'TRAILER');
+        $firstDriver = $this->driver('MOT-301', 'Motorista Um', '77777777777');
+        $secondDriver = $this->driver('MOT-302', 'Motorista Dois', '88888888888');
+
+        $created = $this->actingAs($user)->postJson('/api/vehicle-sets', [
+            'tractor_id' => $tractor->id,
+            'trailer_id' => $trailer->id,
+            'driver_id' => $firstDriver->id,
+            'coupled_at' => '2026-08-26 09:00:00',
+            'driver_assigned_at' => '2026-08-26 09:00:00',
+        ])->assertCreated();
+
+        $setId = (int) $created->json('set.id');
+        $this->actingAs($user)->putJson("/api/vehicle-sets/{$setId}/driver", [
+            'driver_id' => $secondDriver->id,
+            'assigned_at' => '2026-08-26 10:00:00',
+            'slot' => 'SECONDARY',
+        ])->assertOk()
+            ->assertJsonPath('set.driver_two_name', 'Motorista Dois');
+    }
+
     public function test_active_tractor_trailer_and_driver_cannot_be_reused(): void
     {
         $user = User::factory()->create(['menu_permissions' => ['vehicle_sets']]);

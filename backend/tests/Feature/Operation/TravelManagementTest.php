@@ -145,7 +145,7 @@ class TravelManagementTest extends TestCase
             ->assertJsonValidationErrors(['ctes.0.complemented_cte_number']);
     }
 
-    public function test_daily_cte_is_accepted_without_driver_for_fleet(): void
+    public function test_daily_cte_is_accepted_without_driver_for_fleet_when_original_cte_is_informed(): void
     {
         $user = User::factory()->create(['menu_permissions' => ['travel']]);
         $shipper = $this->shipper();
@@ -154,11 +154,29 @@ class TravelManagementTest extends TestCase
         $payload['operation_type'] = 'FLEET';
         $payload['vehicle_id'] = $tractor->id;
         $payload['ctes'][0]['cte_type'] = 'DAILY';
+        $payload['ctes'][0]['complemented_cte_number'] = '800003';
 
         $this->actingAs($user)->postJson('/api/travels', $payload)
             ->assertCreated()
             ->assertJsonPath('travel.driver_one_id', null)
-            ->assertJsonPath('travel.ctes.0.cte_type', 'DAILY');
+            ->assertJsonPath('travel.ctes.0.cte_type', 'DAILY')
+            ->assertJsonPath('travel.ctes.0.complemented_cte_number', '800003');
+    }
+
+    public function test_daily_requires_original_cte_number(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['travel']]);
+        $shipper = $this->shipper();
+        $tractor = $this->vehicle('DAY2D56', 'TRACTOR');
+
+        $payload = $this->basePayload($shipper->id, '910004');
+        $payload['operation_type'] = 'FLEET';
+        $payload['vehicle_id'] = $tractor->id;
+        $payload['ctes'][0]['cte_type'] = 'DAILY';
+
+        $this->actingAs($user)->postJson('/api/travels', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['ctes.0.complemented_cte_number']);
     }
 
     public function test_mode_specific_fields_have_friendly_validation_messages(): void

@@ -32,17 +32,21 @@ export interface VehicleSetRecord {
   tractorId: number | null;
   trailerId: number | null;
   driverId: number | null;
+  driverTwoId: number | null;
   tractorPlate: string;
   tractorLabel: string;
   trailerPlate: string;
   trailerLabel: string;
   driverName: string;
+  driverTwoName: string | null;
   coupledAt: string;
   driverAssignedAt: string;
+  driverTwoAssignedAt: string | null;
   detachedAt: string | null;
   tractor: VehicleSetVehicleOption | null;
   trailer: VehicleSetVehicleOption | null;
   driver: VehicleSetDriverOption | null;
+  driverTwo: VehicleSetDriverOption | null;
 }
 
 export type VehicleSetEventAction =

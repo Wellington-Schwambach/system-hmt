@@ -41,17 +41,21 @@ interface ApiVehicleSet {
   tractor_id: number | null;
   trailer_id: number | null;
   driver_id: number | null;
+  driver_two_id: number | null;
   tractor_plate: string;
   tractor_label: string;
   trailer_plate: string;
   trailer_label: string;
   driver_name: string;
+  driver_two_name: string | null;
   coupled_at: string;
   driver_assigned_at: string;
+  driver_two_assigned_at: string | null;
   detached_at: string | null;
   tractor: ApiVehicleOption | null;
   trailer: ApiVehicleOption | null;
   driver: ApiDriverOption | null;
+  driver_two: ApiDriverOption | null;
 }
 
 interface ApiVehicleSetEvent {
@@ -105,17 +109,21 @@ function mapSet(item: ApiVehicleSet): VehicleSetRecord {
     tractorId: item.tractor_id,
     trailerId: item.trailer_id,
     driverId: item.driver_id,
+    driverTwoId: item.driver_two_id,
     tractorPlate: item.tractor_plate,
     tractorLabel: item.tractor_label,
     trailerPlate: item.trailer_plate,
     trailerLabel: item.trailer_label,
     driverName: item.driver_name,
+    driverTwoName: item.driver_two_name,
     coupledAt: item.coupled_at,
     driverAssignedAt: item.driver_assigned_at,
+    driverTwoAssignedAt: item.driver_two_assigned_at,
     detachedAt: item.detached_at,
     tractor: item.tractor ? mapVehicle(item.tractor) : null,
     trailer: item.trailer ? mapVehicle(item.trailer) : null,
     driver: item.driver ? mapDriver(item.driver) : null,
+    driverTwo: item.driver_two ? mapDriver(item.driver_two) : null,
   };
 }
 
@@ -156,15 +164,19 @@ export const vehicleSetService = {
     tractorId: number;
     trailerId: number;
     driverId: number;
+    driverTwoId?: number | null;
     coupledAt: string;
     driverAssignedAt: string;
+    driverTwoAssignedAt?: string | null;
   }): Promise<{ message: string; set: VehicleSetRecord }> {
     const response = await api.post<{ message: string; set: ApiVehicleSet }>('/api/vehicle-sets', {
       tractor_id: data.tractorId,
       trailer_id: data.trailerId,
       driver_id: data.driverId,
+      driver_two_id: data.driverTwoId ?? null,
       coupled_at: data.coupledAt,
       driver_assigned_at: data.driverAssignedAt,
+      driver_two_assigned_at: data.driverTwoAssignedAt ?? null,
     });
 
     return { message: response.data.message, set: mapSet(response.data.set) };
@@ -174,10 +186,12 @@ export const vehicleSetService = {
     setId: number,
     driverId: number,
     assignedAt: string,
+    slot: 'PRIMARY' | 'SECONDARY' = 'PRIMARY',
   ): Promise<{ message: string; set: VehicleSetRecord }> {
     const response = await api.put<{ message: string; set: ApiVehicleSet }>(`/api/vehicle-sets/${setId}/driver`, {
       driver_id: driverId,
       assigned_at: assignedAt,
+      slot,
     });
     return { message: response.data.message, set: mapSet(response.data.set) };
   },

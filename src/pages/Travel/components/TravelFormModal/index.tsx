@@ -373,7 +373,7 @@ export function TravelFormModal({
           [field]: field === 'cteType' ? (value as TravelCteFormData['cteType']) : value,
         };
 
-        if (field === 'cteType' && value !== 'FREIGHT_COMPLEMENT') {
+        if (field === 'cteType' && value === 'NORMAL') {
           nextCte.complementedCteNumber = '';
         }
 
@@ -438,13 +438,13 @@ export function TravelFormModal({
       (cte) =>
         !cte.cteNumber.trim() ||
         !cte.cteSeries.trim() ||
-        (cte.cteType === 'FREIGHT_COMPLEMENT' && !cte.complementedCteNumber.trim()) ||
+        (cte.cteType !== 'NORMAL' && !cte.complementedCteNumber.trim()) ||
         !cte.netFreight.trim() ||
         !Number.isFinite(parseDecimalInput(cte.netFreight)),
     );
     if (invalidCte) {
       setFormError(
-        'Informe número, série e frete líquido de todos os CT-es. Para Complemento, informe também o CT-e que está sendo complementado.',
+        'Informe número, série e frete líquido de todos os CT-es. Para Complemento e Diária, informe também o CT-e original.',
       );
       return;
     }
@@ -666,9 +666,9 @@ export function TravelFormModal({
                         />
                       </Field>
 
-                      {cte.cteType === 'FREIGHT_COMPLEMENT' ? (
+                      {cte.cteType !== 'NORMAL' ? (
                         <Field>
-                          <Label htmlFor={`travel-complemented-cte-${cte.key}`}>CT-e complementado</Label>
+                          <Label htmlFor={`travel-complemented-cte-${cte.key}`}>CT-e original</Label>
                           <FieldIcon aria-hidden="true"><FileText size={18} /></FieldIcon>
                           <Input
                             id={`travel-complemented-cte-${cte.key}`}

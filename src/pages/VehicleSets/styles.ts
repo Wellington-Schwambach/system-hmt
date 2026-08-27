@@ -437,6 +437,8 @@ export const SecondaryButton = styled.button`
   font-size: 0.74rem;
   font-weight: 820;
   cursor: pointer;
+
+  &:disabled { opacity: 0.48; cursor: not-allowed; }
 `;
 
 export const DangerButton = styled(SecondaryButton)`
@@ -468,6 +470,7 @@ export const PanelHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
+  flex-wrap: wrap;
   padding: 0.8rem 0.95rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
 

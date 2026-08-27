@@ -7,7 +7,7 @@
 - Placa e Embarcador agora usam filtro múltiplo com checkbox, pesquisa e opção de selecionar todos.
 - CT-e `DAILY` passa a seguir a regra operacional do Complemento: isolado não exige motorista e não conta como uma nova viagem no card Total de viagens.
 - Se houver CT-e `NORMAL` no mesmo lançamento, o motorista volta a ser obrigatório e o lançamento conta como uma viagem.
-- O campo `CT-e complementado` continua exclusivo do tipo Complemento.
+- Complemento e Diária exigem o campo **CT-e original**, usando a mesma referência gravada no lançamento.
 
 ### Colaboradores
 - Férias passam a ser calculadas como `Data de admissão + 1 ano`.

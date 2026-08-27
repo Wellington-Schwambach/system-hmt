@@ -187,6 +187,13 @@ export function FuelFormModal({
         </Header>
 
         <Form onSubmit={handleSubmit}>
+          <BillingPeriodPanel>
+            <BillingPeriodCopy>
+              <BillingPeriodTitle>Competência do faturamento</BillingPeriodTitle>
+              <BillingPeriodDescription>
+                Escolha o mês em que este abastecimento deve entrar no faturamento, independentemente de quando a fatura chegou.
+              </BillingPeriodDescription>
+            </BillingPeriodCopy>
             <BillingPeriodField>
               <Label htmlFor="fuel-billing-month">Mês de faturamento</Label>
               <Control icon={<CalendarRange size={18} />}>
@@ -199,6 +206,7 @@ export function FuelFormModal({
                 />
               </Control>
             </BillingPeriodField>
+          </BillingPeriodPanel>
           <FormSection>
             <FormSectionHeader>
               <div>
