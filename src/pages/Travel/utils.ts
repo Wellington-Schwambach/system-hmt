@@ -312,7 +312,7 @@ export function exportTravelsToExcel(
     'Tipo CT-e',
     'Nº CT-e',
     'Série',
-    'CT-e complementado',
+    'CT-e original',
     'Frete líquido',
     'Seguro',
     'Pedágio',

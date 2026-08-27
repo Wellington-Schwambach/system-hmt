@@ -21,6 +21,7 @@ class UpdateVehicleSetDriverRequest extends FormRequest
                 Rule::exists('employees', 'id')->where(fn ($query) => $query->where('status', 'ACTIVE')),
             ],
             'assigned_at' => ['required', 'date'],
+            'slot' => ['nullable', Rule::in(['PRIMARY', 'SECONDARY'])],
         ];
     }
 
@@ -30,6 +31,7 @@ class UpdateVehicleSetDriverRequest extends FormRequest
             'driver_id.required' => 'Selecione o novo motorista.',
             'driver_id.exists' => 'O motorista selecionado não está disponível ou não está ativo.',
             'assigned_at.required' => 'Informe a data e o horário da alteração do motorista.',
+            'slot.in' => 'Informe uma posição de motorista válida.',
         ];
     }
 }

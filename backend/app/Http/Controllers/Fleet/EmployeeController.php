@@ -176,7 +176,12 @@ class EmployeeController extends Controller
         if (Schema::hasTable('vehicle_sets')) {
             $isInActiveSet = DB::table('vehicle_sets')
                 ->where('status', 'ACTIVE')
-                ->where('driver_id', $employee->id)
+                ->where(function ($query) use ($employee): void {
+                    $query->where('driver_id', $employee->id);
+                    if (Schema::hasColumn('vehicle_sets', 'driver_two_id')) {
+                        $query->orWhere('driver_two_id', $employee->id);
+                    }
+                })
                 ->exists();
 
             if ($isInActiveSet) {

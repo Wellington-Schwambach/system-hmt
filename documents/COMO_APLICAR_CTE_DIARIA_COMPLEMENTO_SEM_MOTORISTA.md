@@ -2,7 +2,7 @@
 
 - Total de viagens não contabiliza viagens que tenham somente CT-es de Complemento.
 - Complemento de frete em frota própria não exige motorista; o cavalo continua obrigatório.
-- Complemento exige informar o número do CT-e original em **CT-e complementado**.
+- Complemento e Diária exigem informar o número do **CT-e original**.
 - O tipo **Diária** está disponível no cadastro e no filtro.
 - O Excel inclui o campo **CT-e complementado**.
 

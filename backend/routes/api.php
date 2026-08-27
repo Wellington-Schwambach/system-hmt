@@ -7,6 +7,7 @@ use App\Http\Controllers\Fleet\VehicleController;
 use App\Http\Controllers\Operation\TravelController;
 use App\Http\Controllers\Operation\FuelController;
 use App\Http\Controllers\Operation\VehicleSetController;
+use App\Http\Controllers\Operation\LogisticsController;
 use App\Http\Controllers\Registration\ShipperController;
 use Illuminate\Support\Facades\Route;
 
@@ -93,6 +94,17 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::put('/{fuelRecord}', [FuelController::class, 'update']);
             Route::patch('/{fuelRecord}/invoice', [FuelController::class, 'invoice']);
             Route::delete('/{fuelRecord}', [FuelController::class, 'destroy']);
+        });
+
+    Route::prefix('logistics')
+        ->middleware('permission:logistics')
+        ->group(function (): void {
+            Route::get('/options', [LogisticsController::class, 'options']);
+            Route::get('/', [LogisticsController::class, 'index']);
+            Route::post('/', [LogisticsController::class, 'store']);
+            Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);
+            Route::patch('/{logisticsLoad}/move', [LogisticsController::class, 'move']);
+            Route::patch('/{logisticsLoad}/finish', [LogisticsController::class, 'finish']);
         });
 
     Route::prefix('travels')

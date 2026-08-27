@@ -18,13 +18,16 @@ class VehicleSet extends Model
         'tractor_id',
         'trailer_id',
         'driver_id',
+        'driver_two_id',
         'tractor_plate',
         'tractor_label',
         'trailer_plate',
         'trailer_label',
         'driver_name',
+        'driver_two_name',
         'coupled_at',
         'driver_assigned_at',
+        'driver_two_assigned_at',
         'detached_at',
         'status',
         'created_by',
@@ -36,6 +39,7 @@ class VehicleSet extends Model
         return [
             'coupled_at' => 'immutable_datetime',
             'driver_assigned_at' => 'immutable_datetime',
+            'driver_two_assigned_at' => 'immutable_datetime',
             'detached_at' => 'immutable_datetime',
         ];
     }
@@ -53,6 +57,11 @@ class VehicleSet extends Model
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Employee::class, 'driver_id');
+    }
+
+    public function driverTwo(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'driver_two_id');
     }
 
     public function creator(): BelongsTo

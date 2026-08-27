@@ -13,6 +13,22 @@ import type {
 import { enrichFuelRecords, getFuelSummary } from './utils';
 
 
+function getCurrentMonthRange(): { from: string; to: string } {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const monthNumber = String(month + 1).padStart(2, '0');
+  const lastDay = String(new Date(year, month + 1, 0).getDate()).padStart(2, '0');
+
+  return {
+    from: `${year}-${monthNumber}-01`,
+    to: `${year}-${monthNumber}-${lastDay}`,
+  };
+}
+
+const CURRENT_MONTH_RANGE = getCurrentMonthRange();
+
+
 function readLegacyLocalRecords(): LegacyLocalFuelRecord[] {
   try {
     const raw = window.localStorage.getItem(FUEL_STORAGE_KEY);
@@ -58,6 +74,8 @@ export function useFuelRecords() {
   const [filter, setFilter] = useState<FuelFilter>('ALL');
   const [plateFilter, setPlateFilter] = useState<string[]>([]);
   const [billingMonthFilter, setBillingMonthFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState(CURRENT_MONTH_RANGE.from);
+  const [dateTo, setDateTo] = useState(CURRENT_MONTH_RANGE.to);
   const [searchTerm, setSearchTerm] = useState('');
   const [vehicleOptions, setVehicleOptions] = useState<FuelVehicleOption[]>([]);
   const [driverOptions, setDriverOptions] = useState<FuelDriverOption[]>([]);
@@ -135,6 +153,7 @@ export function useFuelRecords() {
       const matchesFilter = filter === 'ALL' || record.status === filter;
       const matchesPlate = plateFilter.length === 0 || plateFilter.includes(record.plate);
       const matchesBillingMonth = billingMonthFilter === 'ALL' || record.billingMonth === billingMonthFilter;
+      const matchesPeriod = (!dateFrom || record.date >= dateFrom) && (!dateTo || record.date <= dateTo);
       const matchesSearch =
         normalizedSearch.length === 0 ||
         record.station.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
@@ -142,9 +161,9 @@ export function useFuelRecords() {
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         (record.km !== null && record.km > 0 && String(record.km).includes(normalizedSearch));
 
-      return matchesFilter && matchesPlate && matchesBillingMonth && matchesSearch;
+      return matchesFilter && matchesPlate && matchesBillingMonth && matchesPeriod && matchesSearch;
     });
-  }, [billingMonthFilter, enrichedRecords, filter, plateFilter, searchTerm]);
+  }, [billingMonthFilter, dateFrom, dateTo, enrichedRecords, filter, plateFilter, searchTerm]);
 
   const summary = useMemo(() => getFuelSummary(filteredRecords), [filteredRecords]);
 
@@ -193,6 +212,8 @@ export function useFuelRecords() {
     plateOptions,
     billingMonthFilter,
     billingMonthOptions,
+    dateFrom,
+    dateTo,
     vehicleOptions,
     driverOptions,
     searchTerm,
@@ -203,6 +224,8 @@ export function useFuelRecords() {
     setFilter,
     setPlateFilter,
     setBillingMonthFilter,
+    setDateFrom,
+    setDateTo,
     setSearchTerm,
     refresh,
     refreshOptions,

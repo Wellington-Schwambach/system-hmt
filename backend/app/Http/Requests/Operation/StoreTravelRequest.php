@@ -189,7 +189,7 @@ class StoreTravelRequest extends FormRequest
             'ctes.*.cte_type.in' => 'Existe um CT-e com tipo inválido.',
             'ctes.*.cte_number.required' => 'Informe o número de todos os CT-es.',
             'ctes.*.cte_series.required' => 'Informe a série de todos os CT-es.',
-            'ctes.*.complemented_cte_number.max' => 'O número do CT-e complementado deve possuir no máximo 30 caracteres.',
+            'ctes.*.complemented_cte_number.max' => 'O número do CT-e original deve possuir no máximo 30 caracteres.',
             'ctes.*.net_freight.required' => 'Informe o frete líquido de todos os CT-es.',
             'ctes.*.net_freight.numeric' => 'Existe um CT-e com frete líquido inválido.',
             'ctes.*.insurance_amount.numeric' => 'Existe um CT-e com valor de seguro inválido.',
@@ -204,7 +204,7 @@ class StoreTravelRequest extends FormRequest
             'ctes.*.cte_type' => 'tipo do CT-e',
             'ctes.*.cte_number' => 'número do CT-e',
             'ctes.*.cte_series' => 'série do CT-e',
-            'ctes.*.complemented_cte_number' => 'CT-e complementado',
+            'ctes.*.complemented_cte_number' => 'CT-e original',
             'ctes.*.net_freight' => 'frete líquido',
             'ctes.*.insurance_amount' => 'seguro',
             'ctes.*.toll_amount' => 'pedágio',
@@ -313,14 +313,16 @@ class StoreTravelRequest extends FormRequest
         }
 
         foreach ($ctes as $index => $cte) {
-            if (! is_array($cte) || ($cte['cte_type'] ?? null) !== 'FREIGHT_COMPLEMENT') {
+            if (! is_array($cte) || ! in_array(($cte['cte_type'] ?? null), ['FREIGHT_COMPLEMENT', 'DAILY'], true)) {
                 continue;
             }
 
             if (trim((string) ($cte['complemented_cte_number'] ?? '')) === '') {
                 $validator->errors()->add(
                     "ctes.$index.complemented_cte_number",
-                    'Informe o número do CT-e que este complemento está complementando.'
+                    ($cte['cte_type'] ?? null) === 'DAILY'
+                        ? 'Informe o número do CT-e original desta diária.'
+                        : 'Informe o número do CT-e original deste complemento.'
                 );
             }
         }

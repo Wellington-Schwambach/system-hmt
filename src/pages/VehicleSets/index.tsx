@@ -2,6 +2,7 @@ import {
   CalendarClock,
   ChevronLeft,
   ChevronRight,
+  FileSpreadsheet,
   History,
   Info,
   Link2,
@@ -10,6 +11,7 @@ import {
   Search,
   Truck,
   Unlink,
+  UserPlus,
   UserRound,
   X,
 } from 'lucide-react';
@@ -21,6 +23,7 @@ import { SearchableSelect } from '../../components/SearchableSelect';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { vehicleSetService } from './services';
+import { exportVehicleSetHistoryToExcel } from './utils';
 import type {
   VehicleSetDriverOption,
   VehicleSetEventAction,
@@ -203,8 +206,11 @@ export function VehicleSets() {
   const [tractorId, setTractorId] = useState('');
   const [trailerId, setTrailerId] = useState('');
   const [driverId, setDriverId] = useState('');
+  const [driverTwoId, setDriverTwoId] = useState('');
+  const [showSecondDriver, setShowSecondDriver] = useState(false);
   const [coupledAt, setCoupledAt] = useState(nowLocalInput());
   const [driverAssignedAt, setDriverAssignedAt] = useState(nowLocalInput());
+  const [driverTwoAssignedAt, setDriverTwoAssignedAt] = useState(nowLocalInput());
   const [activeSearch, setActiveSearch] = useState('');
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPlateFilter, setHistoryPlateFilter] = useState('');
@@ -213,6 +219,8 @@ export function VehicleSets() {
   const [managingSet, setManagingSet] = useState<VehicleSetRecord | null>(null);
   const [managedDriverId, setManagedDriverId] = useState('');
   const [managedDriverAt, setManagedDriverAt] = useState(nowLocalInput());
+  const [managedSecondDriverId, setManagedSecondDriverId] = useState('');
+  const [managedSecondDriverAt, setManagedSecondDriverAt] = useState(nowLocalInput());
   const [detachedAt, setDetachedAt] = useState(nowLocalInput());
   const [managing, setManaging] = useState(false);
 
@@ -271,6 +279,10 @@ export function VehicleSets() {
     () => options.drivers.find((item) => item.id === Number(driverId)) ?? null,
     [driverId, options.drivers],
   );
+  const selectedDriverTwo = useMemo(
+    () => options.drivers.find((item) => item.id === Number(driverTwoId)) ?? null,
+    [driverTwoId, options.drivers],
+  );
 
   const tractorOptions = useMemo(
     () => options.tractors.filter((item) => item.available).map((item) => ({
@@ -289,21 +301,36 @@ export function VehicleSets() {
     [options.trailers],
   );
   const driverOptions = useMemo(
-    () => options.drivers.filter((item) => item.available).map((item) => ({
-      value: String(item.id),
-      label: item.name,
-      searchText: `${item.name} ${item.employeeCode} ${item.cpf} ${item.cnhNumber ?? ''}`,
-    })),
-    [options.drivers],
+    () => options.drivers
+      .filter((item) => item.available && item.id !== Number(driverTwoId))
+      .map((item) => ({
+        value: String(item.id),
+        label: item.name,
+        searchText: `${item.name} ${item.employeeCode} ${item.cpf} ${item.cnhNumber ?? ''}`,
+      })),
+    [driverTwoId, options.drivers],
+  );
+  const driverTwoOptions = useMemo(
+    () => options.drivers
+      .filter((item) => item.available && item.id !== Number(driverId))
+      .map((item) => ({
+        value: String(item.id),
+        label: item.name,
+        searchText: `${item.name} ${item.employeeCode} ${item.cpf} ${item.cnhNumber ?? ''}`,
+      })),
+    [driverId, options.drivers],
   );
 
-  const ready = Boolean(tractorId && trailerId && driverId && coupledAt && driverAssignedAt);
+  const ready = Boolean(
+    tractorId && trailerId && driverId && coupledAt && driverAssignedAt &&
+    (!driverTwoId || (driverTwoAssignedAt && driverTwoId !== driverId)),
+  );
 
   const filteredActiveSets = useMemo(() => {
     const term = activeSearch.trim().toLocaleLowerCase('pt-BR');
     if (!term) return sets;
     return sets.filter((item) =>
-      `${item.tractorPlate} ${item.trailerPlate} ${item.driverName}`.toLocaleLowerCase('pt-BR').includes(term),
+      `${item.tractorPlate} ${item.trailerPlate} ${item.driverName} ${item.driverTwoName ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
     );
   }, [activeSearch, sets]);
 
@@ -339,9 +366,12 @@ export function VehicleSets() {
     setTractorId('');
     setTrailerId('');
     setDriverId('');
+    setDriverTwoId('');
+    setShowSecondDriver(false);
     const now = nowLocalInput();
     setCoupledAt(now);
     setDriverAssignedAt(now);
+    setDriverTwoAssignedAt(now);
   }
 
   async function handleSave() {
@@ -352,8 +382,10 @@ export function VehicleSets() {
         tractorId: Number(tractorId),
         trailerId: Number(trailerId),
         driverId: Number(driverId),
+        driverTwoId: driverTwoId ? Number(driverTwoId) : null,
         coupledAt,
         driverAssignedAt,
+        driverTwoAssignedAt: driverTwoId ? driverTwoAssignedAt : null,
       });
       notifications.success('Conjunto ativo', result.message);
       resetBuilder();
@@ -371,6 +403,8 @@ export function VehicleSets() {
     setManagingSet(vehicleSet);
     setManagedDriverId(String(vehicleSet.driverId ?? ''));
     setManagedDriverAt(nowLocalInput());
+    setManagedSecondDriverId(String(vehicleSet.driverTwoId ?? ''));
+    setManagedSecondDriverAt(nowLocalInput());
     setDetachedAt(nowLocalInput());
   }
 
@@ -378,7 +412,24 @@ export function VehicleSets() {
     if (!managingSet) return [];
     const ids = new Set<number>();
     return options.drivers
-      .filter((item) => item.available || item.id === managingSet.driverId)
+      .filter((item) => (item.available || item.id === managingSet.driverId) && item.id !== managingSet.driverTwoId)
+      .filter((item) => {
+        if (ids.has(item.id)) return false;
+        ids.add(item.id);
+        return true;
+      })
+      .map((item) => ({
+        value: String(item.id),
+        label: item.name,
+        searchText: `${item.name} ${item.employeeCode} ${item.cpf}`,
+      }));
+  }, [managingSet, options.drivers]);
+
+  const managerSecondDriverOptions = useMemo(() => {
+    if (!managingSet) return [];
+    const ids = new Set<number>();
+    return options.drivers
+      .filter((item) => (item.available || item.id === managingSet.driverTwoId) && item.id !== managingSet.driverId)
       .filter((item) => {
         if (ids.has(item.id)) return false;
         ids.add(item.id);
@@ -395,7 +446,7 @@ export function VehicleSets() {
     if (!managingSet || !managedDriverId || Number(managedDriverId) === managingSet.driverId) return;
     setManaging(true);
     try {
-      const result = await vehicleSetService.changeDriver(managingSet.id, Number(managedDriverId), managedDriverAt);
+      const result = await vehicleSetService.changeDriver(managingSet.id, Number(managedDriverId), managedDriverAt, 'PRIMARY');
       notifications.success('Motorista atualizado', result.message);
       setManagingSet(null);
       setHistoryPage(1);
@@ -408,11 +459,33 @@ export function VehicleSets() {
     }
   }
 
+  async function handleChangeSecondDriver() {
+    if (!managingSet || !managedSecondDriverId || Number(managedSecondDriverId) === managingSet.driverTwoId) return;
+    setManaging(true);
+    try {
+      const result = await vehicleSetService.changeDriver(
+        managingSet.id,
+        Number(managedSecondDriverId),
+        managedSecondDriverAt,
+        'SECONDARY',
+      );
+      notifications.success(managingSet.driverTwoId ? 'Segundo motorista atualizado' : 'Segundo motorista vinculado', result.message);
+      setManagingSet(null);
+      setHistoryPage(1);
+      await loadData(false);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível vincular o segundo motorista.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setManaging(false);
+    }
+  }
+
   async function handleDetach() {
     if (!managingSet) return;
     const confirmed = await notifications.confirm({
       title: 'Desatrelar conjunto?',
-      message: `${managingSet.tractorPlate} / ${managingSet.trailerPlate} será encerrado e os três recursos ficarão disponíveis para novos vínculos.`,
+      message: `${managingSet.tractorPlate} / ${managingSet.trailerPlate} será encerrado e os recursos ficarão disponíveis para novos vínculos.`,
       type: 'error',
       confirmLabel: 'Desatrelar conjunto',
     });
@@ -438,7 +511,7 @@ export function VehicleSets() {
       <PageHeader>
         <div>
           <h1>Vincular carretas</h1>
-          <p>Monte o conjunto, registre o momento do atrelamento e vincule o motorista responsável.</p>
+          <p>Monte o conjunto, registre o momento do atrelamento e vincule um ou dois motoristas responsáveis.</p>
         </div>
         <HeaderStats>
           <StatChip><Link2 size={14} /> {sets.length} conjunto(s) ativo(s)</StatChip>
@@ -525,6 +598,58 @@ export function VehicleSets() {
                   <InfoHint><Info size={16} />Alterações posteriores de motorista também ficam registradas no histórico.</InfoHint>
                 </div>
               </DriverGrid>
+
+              {!showSecondDriver ? (
+                <div>
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => {
+                      setShowSecondDriver(true);
+                      setDriverTwoAssignedAt(nowLocalInput());
+                    }}
+                  >
+                    <UserPlus size={16} /> Vincular 2º motorista
+                  </SecondaryButton>
+                </div>
+              ) : (
+                <>
+                  <InfoHint><UserPlus size={16} />O segundo motorista ficará vinculado ao mesmo cavalo e também será bloqueado para outros conjuntos ativos.</InfoHint>
+                  <SearchableSelect
+                    id="vehicle-set-driver-two"
+                    value={driverTwoId}
+                    options={driverTwoOptions}
+                    onChange={setDriverTwoId}
+                    placeholder="Selecione o segundo motorista"
+                    searchPlaceholder="Buscar por nome, matrícula, CPF ou CNH..."
+                    emptyMessage="Nenhum outro motorista disponível."
+                    ariaLabel="Selecionar segundo motorista"
+                    clearable
+                  />
+                  <DriverGrid>
+                    {selectedDriverTwo ? <DriverDetails driver={selectedDriverTwo} /> : (
+                      <DriverCard>
+                        <DriverAvatar><UserPlus size={28} /></DriverAvatar>
+                        <span>Selecione o segundo motorista para vinculá-lo ao mesmo conjunto.</span>
+                      </DriverCard>
+                    )}
+                    <div style={{ display: 'grid', gap: '0.7rem' }}>
+                      <Field>
+                        Data e horário do vínculo do segundo motorista
+                        <DateTimeInput type="datetime-local" value={driverTwoAssignedAt} onChange={(event) => setDriverTwoAssignedAt(event.target.value)} />
+                      </Field>
+                      <SecondaryButton
+                        type="button"
+                        onClick={() => {
+                          setDriverTwoId('');
+                          setShowSecondDriver(false);
+                        }}
+                      >
+                        Manter apenas 1 motorista
+                      </SecondaryButton>
+                    </div>
+                  </DriverGrid>
+                </>
+              )}
             </WorkflowSection>
           </Workflow>
 
@@ -533,9 +658,11 @@ export function VehicleSets() {
             <SummaryCard>
               <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{selectedTractor ? vehicleLabel(selectedTractor) : 'Não selecionado'}</strong></SummaryRow>
               <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{selectedTrailer ? vehicleLabel(selectedTrailer) : 'Não selecionada'}</strong></SummaryRow>
-              <SummaryRow><UserRound size={15} /><span>Motorista</span><strong>{selectedDriver?.name ?? 'Não selecionado'}</strong></SummaryRow>
+              <SummaryRow><UserRound size={15} /><span>Motorista 1</span><strong>{selectedDriver?.name ?? 'Não selecionado'}</strong></SummaryRow>
+              <SummaryRow><UserPlus size={15} /><span>Motorista 2</span><strong>{selectedDriverTwo?.name ?? 'Não vinculado'}</strong></SummaryRow>
               <SummaryRow><CalendarClock size={15} /><span>Atrelado</span><strong>{coupledAt ? formatDateTime(coupledAt) : '-'}</strong></SummaryRow>
-              <SummaryRow><CalendarClock size={15} /><span>Motorista</span><strong>{driverAssignedAt ? formatDateTime(driverAssignedAt) : '-'}</strong></SummaryRow>
+              <SummaryRow><CalendarClock size={15} /><span>Vínculo 1</span><strong>{driverAssignedAt ? formatDateTime(driverAssignedAt) : '-'}</strong></SummaryRow>
+              {driverTwoId ? <SummaryRow><CalendarClock size={15} /><span>Vínculo 2</span><strong>{driverTwoAssignedAt ? formatDateTime(driverTwoAssignedAt) : '-'}</strong></SummaryRow> : null}
             </SummaryCard>
             <ActiveBanner $ready={ready}>{ready ? 'Pronto para ativar' : 'Preencha os 4 passos'}</ActiveBanner>
           </Summary>
@@ -554,7 +681,20 @@ export function VehicleSets() {
         <Panel>
           <PanelHeader>
             <div><h2>Histórico de alterações do conjunto</h2><span>{filteredHistory.length} de {history.length} evento(s)</span></div>
-            <History size={17} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+              <SecondaryButton
+                type="button"
+                disabled={filteredHistory.length === 0}
+                onClick={() => {
+                  exportVehicleSetHistoryToExcel(filteredHistory);
+                  notifications.success('Excel gerado', `${filteredHistory.length} evento(s) do histórico exportado(s).`);
+                }}
+                title="Exportar o histórico conforme os filtros atuais"
+              >
+                <FileSpreadsheet size={16} /> Exportar Excel
+              </SecondaryButton>
+              <History size={17} />
+            </div>
           </PanelHeader>
           <HistoryFilters>
             <Field>
@@ -629,7 +769,7 @@ export function VehicleSets() {
                 <ActiveIcon><Link2 size={17} /></ActiveIcon>
                 <ActiveText>
                   <strong>{vehicleSet.tractorPlate} / {vehicleSet.trailerPlate}</strong>
-                  <span>{vehicleSet.driverName}</span>
+                  <span>{vehicleSet.driverName}{vehicleSet.driverTwoName ? ` / ${vehicleSet.driverTwoName}` : ''}</span>
                   <span>Desde {formatDateTime(vehicleSet.coupledAt)}</span>
                 </ActiveText>
                 <ChevronRight size={17} />
@@ -645,7 +785,7 @@ export function VehicleSets() {
             <ModalHeader>
               <div>
                 <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate} / {managingSet.trailerPlate}</h3>
-                <p>Troque o motorista ou encerre o conjunto mantendo todo o histórico.</p>
+                <p>Gerencie os motoristas ou encerre o conjunto mantendo todo o histórico.</p>
               </div>
               <CloseButton type="button" disabled={managing} onClick={() => setManagingSet(null)}><X size={17} /></CloseButton>
             </ModalHeader>
@@ -653,12 +793,13 @@ export function VehicleSets() {
               <SummaryCard>
                 <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{managingSet.tractorLabel}</strong></SummaryRow>
                 <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{managingSet.trailerLabel}</strong></SummaryRow>
-                <SummaryRow><UserRound size={15} /><span>Atual</span><strong>{managingSet.driverName}</strong></SummaryRow>
+                <SummaryRow><UserRound size={15} /><span>Motorista 1</span><strong>{managingSet.driverName}</strong></SummaryRow>
+                <SummaryRow><UserPlus size={15} /><span>Motorista 2</span><strong>{managingSet.driverTwoName ?? 'Não vinculado'}</strong></SummaryRow>
                 <SummaryRow><CalendarClock size={15} /><span>Desde</span><strong>{formatDateTime(managingSet.coupledAt)}</strong></SummaryRow>
               </SummaryCard>
 
               <ModalSection>
-                <h4>Alterar motorista</h4>
+                <h4>Alterar motorista principal</h4>
                 <p>O motorista atual será preservado no histórico e o novo vínculo ficará registrado com data, hora e usuário.</p>
                 <SearchableSelect
                   id="manage-set-driver"
@@ -676,14 +817,42 @@ export function VehicleSets() {
                 </Field>
                 <ModalActions>
                   <PrimaryButton type="button" disabled={managing || !managedDriverId || Number(managedDriverId) === managingSet.driverId} onClick={() => void handleChangeDriver()}>
-                    <UserRound size={15} /> Salvar novo motorista
+                    <UserRound size={15} /> Salvar motorista principal
+                  </PrimaryButton>
+                </ModalActions>
+              </ModalSection>
+
+              <ModalSection>
+                <h4>{managingSet.driverTwoId ? 'Alterar segundo motorista' : 'Vincular segundo motorista'}</h4>
+                <p>{managingSet.driverTwoId ? 'O segundo motorista atual será preservado no histórico.' : 'Adicione outro motorista ao mesmo cavalo. O vínculo ficará registrado com data, hora e usuário.'}</p>
+                <SearchableSelect
+                  id="manage-set-second-driver"
+                  value={managedSecondDriverId}
+                  options={managerSecondDriverOptions}
+                  onChange={setManagedSecondDriverId}
+                  placeholder="Selecione o segundo motorista"
+                  searchPlaceholder="Buscar motorista..."
+                  ariaLabel="Segundo motorista do conjunto"
+                  clearable={false}
+                />
+                <Field>
+                  Data e horário do vínculo
+                  <DateTimeInput type="datetime-local" value={managedSecondDriverAt} onChange={(event) => setManagedSecondDriverAt(event.target.value)} />
+                </Field>
+                <ModalActions>
+                  <PrimaryButton
+                    type="button"
+                    disabled={managing || !managedSecondDriverId || Number(managedSecondDriverId) === managingSet.driverTwoId}
+                    onClick={() => void handleChangeSecondDriver()}
+                  >
+                    <UserPlus size={15} /> {managingSet.driverTwoId ? 'Salvar segundo motorista' : 'Vincular segundo motorista'}
                   </PrimaryButton>
                 </ModalActions>
               </ModalSection>
 
               <ModalSection>
                 <h4>Desatrelar conjunto</h4>
-                <p>Encerra o conjunto e libera cavalo, carreta e motorista para novos vínculos. O histórico permanece intacto.</p>
+                <p>Encerra o conjunto e libera cavalo, carreta e todos os motoristas vinculados. O histórico permanece intacto.</p>
                 <Field>
                   Data e horário do desatrelamento
                   <DateTimeInput type="datetime-local" value={detachedAt} onChange={(event) => setDetachedAt(event.target.value)} />

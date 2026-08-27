@@ -4,7 +4,12 @@ import { breakpoints } from '../../../../styles/breakpoints';
 
 export const FiltersBar = styled.section`
   display: grid;
-  grid-template-columns: minmax(13rem, 0.22fr) minmax(11rem, 0.17fr) minmax(25rem, 0.34fr) minmax(18rem, 0.27fr);
+  grid-template-columns:
+    minmax(11rem, 0.17fr)
+    minmax(10rem, 0.15fr)
+    minmax(17rem, 0.24fr)
+    minmax(23rem, 0.27fr)
+    minmax(17rem, 0.17fr);
   align-items: end;
   gap: 0.8rem;
   padding: 0.85rem;
@@ -14,9 +19,8 @@ export const FiltersBar = styled.section`
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
 
   @media (max-width: ${breakpoints.desktop}) {
-    grid-template-columns: minmax(13rem, 1fr) minmax(13rem, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 
-    > div:nth-child(3),
     > label:last-child {
       grid-column: 1 / -1;
     }
@@ -61,6 +65,40 @@ export const Select = styled.select`
     border-color: ${({ theme }) => theme.colors.brandGreen};
     box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
   }
+`;
+
+export const DateRange = styled.div`
+  min-height: 2.75rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+`;
+
+export const DateInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0.58rem 0.65rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.85rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+  color-scheme: ${({ theme }) => (theme.mode === 'dark' ? 'dark' : 'light')};
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+`;
+
+export const DateSeparator = styled.span`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  font-weight: 700;
 `;
 
 export const FilterGroup = styled.div`

@@ -430,7 +430,7 @@ class TravelController extends Controller
                 'cte_type' => $cte['cte_type'],
                 'cte_number' => trim((string) $cte['cte_number']),
                 'cte_series' => trim((string) $cte['cte_series']),
-                'complemented_cte_number' => ($cte['cte_type'] ?? null) === 'FREIGHT_COMPLEMENT'
+                'complemented_cte_number' => ($cte['cte_type'] ?? 'NORMAL') !== 'NORMAL'
                     ? trim((string) ($cte['complemented_cte_number'] ?? ''))
                     : null,
                 'net_freight' => $netFreight,
