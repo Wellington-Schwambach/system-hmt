@@ -51,9 +51,54 @@ export function getFuelStatusLabel(status: FuelStatus): string {
 }
 
 export function parseDecimalInput(value: string): number {
-  const normalizedValue = value.trim().replace(',', '.');
+  let normalizedValue = value
+    .trim()
+    .replace(/\s/g, '')
+    .replace(/R\$/gi, '')
+    .replace(/[^\d,.-]/g, '');
+
+  if (!normalizedValue) return 0;
+
+  const commaIndex = normalizedValue.lastIndexOf(',');
+  const dotIndex = normalizedValue.lastIndexOf('.');
+
+  if (commaIndex >= 0 && dotIndex >= 0) {
+    if (commaIndex > dotIndex) {
+      normalizedValue = normalizedValue.replace(/\./g, '').replace(',', '.');
+    } else {
+      normalizedValue = normalizedValue.replace(/,/g, '');
+    }
+  } else if (commaIndex >= 0) {
+    normalizedValue = normalizedValue.replace(/\./g, '').replace(',', '.');
+  } else if ((normalizedValue.match(/\./g) ?? []).length > 1) {
+    const lastDot = normalizedValue.lastIndexOf('.');
+    normalizedValue = `${normalizedValue.slice(0, lastDot).replace(/\./g, '')}${normalizedValue.slice(lastDot)}`;
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(normalizedValue)) {
+    normalizedValue = normalizedValue.replace(/\./g, '');
+  }
+
   const parsedValue = Number(normalizedValue);
   return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+export function roundExcel(value: number, decimals = 2): number {
+  if (!Number.isFinite(value)) return 0;
+  const factor = 10 ** decimals;
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+export function normalizeDecimalInput(value: string): string {
+  return value
+    .replace(/R\$/gi, '')
+    .replace(/\s/g, '')
+    .replace(/[^\d,.-]/g, '');
+}
+
+export function formatDecimalInput(value: string, decimals = 2): string {
+  if (!value.trim()) return '';
+  const parsed = parseDecimalInput(value);
+  if (!Number.isFinite(parsed)) return '';
+  return roundExcel(parsed, decimals).toFixed(decimals).replace('.', ',');
 }
 
 export function calculateValuePerLiter(totalValue: number, liters: number): number {

@@ -275,7 +275,10 @@ class FuelController extends Controller
         $fuelKm = isset($validated['km']) && $validated['km'] !== null
             ? (int) $validated['km']
             : null;
-        $dieselLiters = (float) $validated['diesel_liters'];
+        $dieselLiters = round((float) $validated['diesel_liters'], 2, PHP_ROUND_HALF_UP);
+        $dieselTotalValue = round((float) $validated['diesel_total_value'], 2, PHP_ROUND_HALF_UP);
+        $arlaLiters = round((float) ($validated['arla_liters'] ?? 0), 2, PHP_ROUND_HALF_UP);
+        $arlaTotalValue = round((float) ($validated['arla_total_value'] ?? 0), 2, PHP_ROUND_HALF_UP);
 
         $hasValidDistance = $fuelKm !== null
             && $vehicleKmReference > 0
@@ -300,10 +303,10 @@ class FuelController extends Controller
             'vehicle_km_reference' => $vehicleKmReference > 0 ? $vehicleKmReference : null,
             'distance_km' => $distanceKm,
             'diesel_average' => $dieselAverage,
-            'diesel_liters' => $validated['diesel_liters'],
-            'diesel_total_value' => $validated['diesel_total_value'],
-            'arla_liters' => $validated['arla_liters'] ?? 0,
-            'arla_total_value' => $validated['arla_total_value'] ?? 0,
+            'diesel_liters' => $dieselLiters,
+            'diesel_total_value' => $dieselTotalValue,
+            'arla_liters' => $arlaLiters,
+            'arla_total_value' => $arlaTotalValue,
         ];
     }
 

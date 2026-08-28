@@ -33,6 +33,9 @@ const Maintenance = lazy(() =>
 const Logistic = lazy(() =>
   import('../pages/Logistic').then((module) => ({ default: module.Logistic })),
 );
+const LogisticsCalendar = lazy(() =>
+  import('../pages/LogisticsCalendar').then((module) => ({ default: module.LogisticsCalendar })),
+);
 const Vehicles = lazy(() =>
   import('../pages/Vehicles').then((module) => ({ default: module.Vehicles })),
 );
@@ -41,6 +44,9 @@ const Employees = lazy(() =>
 );
 const Shippers = lazy(() =>
   import('../pages/Shippers').then((module) => ({ default: module.Shippers })),
+);
+const CompanyProfile = lazy(() =>
+  import('../pages/CompanyProfile').then((module) => ({ default: module.CompanyProfile })),
 );
 const Security = lazy(() =>
   import('../pages/Security').then((module) => ({ default: module.Security })),
@@ -88,6 +94,7 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="logistics" />}>
                 <Route path="/logistic" element={<Logistic />} />
+                <Route path="/logistic/calendar" element={<LogisticsCalendar />} />
               </Route>
               <Route element={<PermissionRoute permission="registrations.vehicles" />}>
                 <Route path="/cadastros/veiculos" element={<Vehicles />} />
@@ -97,6 +104,9 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="registrations.shippers" />}>
                 <Route path="/cadastros/embarcadores" element={<Shippers />} />
+              </Route>
+              <Route element={<PermissionRoute permission="registrations.company" />}>
+                <Route path="/cadastros/empresa" element={<CompanyProfile />} />
               </Route>
 
               <Route element={<AdministratorRoute />}>

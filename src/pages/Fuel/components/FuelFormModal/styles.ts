@@ -89,18 +89,11 @@ export const Form = styled.form`
 `;
 
 export const BillingPeriodPanel = styled.section`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
-  align-items: center;
-  gap: 1rem;
+  width: 100%;
   padding: 0.9rem 1rem;
   border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
   border-radius: 1rem;
   background: ${({ theme }) => theme.colors.brandGreenSoft};
-
-  @media (max-width: ${breakpoints.mobile}) {
-    grid-template-columns: 1fr;
-  }
 `;
 
 export const BillingPeriodCopy = styled.div`
@@ -121,6 +114,7 @@ export const BillingPeriodDescription = styled.p`
 `;
 
 export const BillingPeriodField = styled.div`
+  width: 100%;
   min-width: 0;
 `;
 

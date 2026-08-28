@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 import { DateInput } from '../../../../components/DateInput';
-import { INITIAL_FUEL_FORM } from '../../constants';
+import { getDefaultFuelDate, INITIAL_FUEL_FORM } from '../../constants';
 import type { FuelFormData, FuelRecordWithMetrics } from '../../types';
 import {
   calculateValuePerLiter,
@@ -21,17 +21,17 @@ import {
   formatCurrency,
   formatDecimal,
   formatInteger,
+  formatDecimalInput,
+  normalizeDecimalInput,
   parseDecimalInput,
+  roundExcel,
 } from '../../utils';
 import type { FuelFormModalProps } from './types';
 import {
   Actions,
-  BillingPeriodCopy,
-  BillingPeriodDescription,
+  ArlaToggle,
   BillingPeriodField,
   BillingPeriodPanel,
-  BillingPeriodTitle,
-  ArlaToggle,
   CalculationItem,
   CalculationLabel,
   CalculationPreview,
@@ -65,7 +65,8 @@ function getInitialFormData(editingRecord?: FuelRecordWithMetrics | null): FuelF
   if (!editingRecord) {
     return {
       ...INITIAL_FUEL_FORM,
-      date: new Date().toISOString().slice(0, 10),
+      date: getDefaultFuelDate(),
+      billingMonth: getDefaultFuelDate().slice(0, 7),
     };
   }
 
@@ -128,10 +129,10 @@ export function FuelFormModal({
 
   const calculations = useMemo(() => {
     const fuelKm = formData.km.trim() ? Number(formData.km) : null;
-    const dieselLiters = parseDecimalInput(formData.dieselLiters);
-    const dieselTotalValue = parseDecimalInput(formData.dieselTotalValue);
-    const arlaLiters = formData.hasArla ? parseDecimalInput(formData.arlaLiters) : 0;
-    const arlaTotalValue = formData.hasArla ? parseDecimalInput(formData.arlaTotalValue) : 0;
+    const dieselLiters = roundExcel(parseDecimalInput(formData.dieselLiters));
+    const dieselTotalValue = roundExcel(parseDecimalInput(formData.dieselTotalValue));
+    const arlaLiters = formData.hasArla ? roundExcel(parseDecimalInput(formData.arlaLiters)) : 0;
+    const arlaTotalValue = formData.hasArla ? roundExcel(parseDecimalInput(formData.arlaTotalValue)) : 0;
     const vehicleCurrentKm =
       editingRecord && editingRecord.vehicleId === selectedVehicle?.id && editingRecord.vehicleKmReference !== null
         ? editingRecord.vehicleKmReference
@@ -156,7 +157,24 @@ export function FuelFormModal({
   const isEditing = Boolean(editingRecord);
 
   const handleChange = (field: keyof FuelFormData, value: string | boolean) => {
-    setFormData((currentData) => ({ ...currentData, [field]: value }));
+    setFormData((currentData) => {
+      const nextData = { ...currentData, [field]: value };
+      if (field === 'date' && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        nextData.billingMonth = value.slice(0, 7);
+      }
+      return nextData;
+    });
+  };
+
+  const handleDecimalChange = (field: 'dieselLiters' | 'dieselTotalValue' | 'arlaLiters' | 'arlaTotalValue', value: string) => {
+    handleChange(field, normalizeDecimalInput(value));
+  };
+
+  const handleDecimalBlur = (field: 'dieselLiters' | 'dieselTotalValue' | 'arlaLiters' | 'arlaTotalValue') => {
+    setFormData((currentData) => ({
+      ...currentData,
+      [field]: formatDecimalInput(currentData[field]),
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -187,13 +205,7 @@ export function FuelFormModal({
         </Header>
 
         <Form onSubmit={handleSubmit}>
-          <BillingPeriodPanel>
-            <BillingPeriodCopy>
-              <BillingPeriodTitle>Competência do faturamento</BillingPeriodTitle>
-              <BillingPeriodDescription>
-                Escolha o mês em que este abastecimento deve entrar no faturamento, independentemente de quando a fatura chegou.
-              </BillingPeriodDescription>
-            </BillingPeriodCopy>
+          <BillingPeriodPanel aria-label="Mês de faturamento">
             <BillingPeriodField>
               <Label htmlFor="fuel-billing-month">Mês de faturamento</Label>
               <Control icon={<CalendarRange size={18} />}>
@@ -207,6 +219,7 @@ export function FuelFormModal({
               </Control>
             </BillingPeriodField>
           </BillingPeriodPanel>
+
           <FormSection>
             <FormSectionHeader>
               <div>
@@ -338,11 +351,12 @@ export function FuelFormModal({
                 <Control icon={<Fuel size={18} />}>
                   <Input
                     id="diesel-liters"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
                     value={formData.dieselLiters}
-                    onChange={(event) => handleChange('dieselLiters', event.target.value)}
+                    onChange={(event) => handleDecimalChange('dieselLiters', event.target.value)}
+                    onBlur={() => handleDecimalBlur('dieselLiters')}
                     placeholder="Ex.: 400,00"
                     required
                   />
@@ -353,11 +367,12 @@ export function FuelFormModal({
                 <Control icon={<CircleDollarSign size={18} />}>
                   <Input
                     id="diesel-total-value"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
                     value={formData.dieselTotalValue}
-                    onChange={(event) => handleChange('dieselTotalValue', event.target.value)}
+                    onChange={(event) => handleDecimalChange('dieselTotalValue', event.target.value)}
+                    onBlur={() => handleDecimalBlur('dieselTotalValue')}
                     placeholder="Ex.: 2.180,00"
                     required
                   />
@@ -391,11 +406,12 @@ export function FuelFormModal({
                   <Control icon={<Droplets size={18} />}>
                     <Input
                       id="arla-liters"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
                       value={formData.arlaLiters}
-                      onChange={(event) => handleChange('arlaLiters', event.target.value)}
+                      onChange={(event) => handleDecimalChange('arlaLiters', event.target.value)}
+                      onBlur={() => handleDecimalBlur('arlaLiters')}
                       placeholder="Ex.: 20,00"
                       required
                     />
@@ -406,11 +422,12 @@ export function FuelFormModal({
                   <Control icon={<CircleDollarSign size={18} />}>
                     <Input
                       id="arla-total-value"
-                      type="number"
-                      min="0.01"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
                       value={formData.arlaTotalValue}
-                      onChange={(event) => handleChange('arlaTotalValue', event.target.value)}
+                      onChange={(event) => handleDecimalChange('arlaTotalValue', event.target.value)}
+                      onBlur={() => handleDecimalBlur('arlaTotalValue')}
                       placeholder="Ex.: 109,20"
                       required
                     />

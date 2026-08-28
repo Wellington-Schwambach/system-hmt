@@ -112,6 +112,18 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
   };
 }
 
+
+export const LOGISTICS_SYNC_STORAGE_KEY = 'hmt:logistics:last-change';
+
+function notifyLogisticsChanged(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LOGISTICS_SYNC_STORAGE_KEY, `${Date.now()}:${Math.random()}`);
+  } catch {
+    // O sincronismo entre abas é auxiliar; falhas de storage não impedem salvar a carga.
+  }
+}
+
 function nullableText(value: string): string | null {
   const normalized = value.trim();
   return normalized === '' ? null : normalized;
@@ -178,6 +190,20 @@ export const logisticsService = {
     };
   },
 
+  async calendar(month: string, shipperId = ''): Promise<{ loads: LogisticsLoad[]; counts: Record<string, number> }> {
+    const response = await api.get<{ month: string; counts: Record<string, number>; loads: ApiLoad[] }>('/api/logistics/calendar', {
+      params: {
+        month,
+        shipper_id: shipperId || undefined,
+      },
+    });
+
+    return {
+      loads: response.data.loads.map(mapLoad),
+      counts: response.data.counts ?? {},
+    };
+  },
+
   async list(filters: LogisticsFilters): Promise<LogisticsLoad[]> {
     const params = {
       date_from: filters.dateFrom || undefined,
@@ -196,12 +222,16 @@ export const logisticsService = {
 
   async create(data: LogisticsFormData): Promise<LogisticsLoad> {
     const response = await api.post<{ message: string; load: ApiLoad }>('/api/logistics', formPayload(data));
-    return mapLoad(response.data.load);
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
   },
 
   async update(id: number, data: LogisticsFormData): Promise<LogisticsLoad> {
     const response = await api.put<{ message: string; load: ApiLoad }>(`/api/logistics/${id}`, formPayload(data));
-    return mapLoad(response.data.load);
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
   },
 
   async move(id: number, stage: LogisticsStage, position: number): Promise<LogisticsLoad> {
@@ -209,11 +239,15 @@ export const logisticsService = {
       stage,
       position,
     });
-    return mapLoad(response.data.load);
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
   },
 
   async finish(id: number): Promise<LogisticsLoad> {
     const response = await api.patch<{ message: string; load: ApiLoad }>(`/api/logistics/${id}/finish`);
-    return mapLoad(response.data.load);
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
   },
 };

@@ -11,6 +11,7 @@ import {
   Truck,
   Users,
   Building2,
+  CalendarDays,
   Wrench,
 } from 'lucide-react';
 
@@ -56,6 +57,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
         icon: Building2,
         path: '/cadastros/embarcadores',
         permission: 'registrations.shippers',
+      },
+      {
+        id: 'company-profile',
+        label: 'Empresa',
+        icon: Landmark,
+        path: '/cadastros/empresa',
+        permission: 'registrations.company',
       },
     ],
   },
@@ -114,7 +122,22 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     id: 'logistic',
     label: 'Logística',
     icon: Truck,
-    path: '/logistic',
     permission: 'logistics',
+    children: [
+      {
+        id: 'logistic-panel',
+        label: 'Painel',
+        icon: ClipboardList,
+        path: '/logistic',
+        permission: 'logistics',
+      },
+      {
+        id: 'logistic-calendar',
+        label: 'Calendário de cargas',
+        icon: CalendarDays,
+        path: '/logistic/calendar',
+        permission: 'logistics',
+      },
+    ],
   },
 ];

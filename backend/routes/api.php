@@ -9,6 +9,7 @@ use App\Http\Controllers\Operation\FuelController;
 use App\Http\Controllers\Operation\VehicleSetController;
 use App\Http\Controllers\Operation\LogisticsController;
 use App\Http\Controllers\Registration\ShipperController;
+use App\Http\Controllers\Registration\CompanyProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->group(function (): void {
@@ -74,6 +75,18 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         });
 
 
+    Route::prefix('company-profile')
+        ->middleware('permission:registrations.company')
+        ->group(function (): void {
+            Route::get('/', [CompanyProfileController::class, 'show']);
+            Route::put('/', [CompanyProfileController::class, 'save']);
+            Route::post('/{companyProfile}/documents', [CompanyProfileController::class, 'storeDocument']);
+            Route::put('/{companyProfile}/documents/{document}', [CompanyProfileController::class, 'updateDocument']);
+            Route::delete('/{companyProfile}/documents/{document}', [CompanyProfileController::class, 'destroyDocument']);
+            Route::get('/{companyProfile}/documents/{document}/download', [CompanyProfileController::class, 'downloadDocument']);
+        });
+
+
     Route::prefix('vehicle-sets')
         ->middleware('permission:vehicle_sets')
         ->group(function (): void {
@@ -100,6 +113,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         ->middleware('permission:logistics')
         ->group(function (): void {
             Route::get('/options', [LogisticsController::class, 'options']);
+            Route::get('/calendar', [LogisticsController::class, 'calendar']);
             Route::get('/', [LogisticsController::class, 'index']);
             Route::post('/', [LogisticsController::class, 'store']);
             Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);

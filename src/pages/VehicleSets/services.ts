@@ -32,6 +32,7 @@ interface ApiDriverOption {
   cnh_number: string | null;
   cnh_category: string | null;
   cnh_expiry_date: string | null;
+  birth_date: string | null;
   available: boolean;
 }
 
@@ -44,8 +45,8 @@ interface ApiVehicleSet {
   driver_two_id: number | null;
   tractor_plate: string;
   tractor_label: string;
-  trailer_plate: string;
-  trailer_label: string;
+  trailer_plate: string | null;
+  trailer_label: string | null;
   driver_name: string;
   driver_two_name: string | null;
   coupled_at: string;
@@ -63,7 +64,7 @@ interface ApiVehicleSetEvent {
   vehicle_set_id: number;
   action: VehicleSetEventRecord['action'];
   tractor_plate: string;
-  trailer_plate: string;
+  trailer_plate: string | null;
   driver_name: string | null;
   occurred_at: string;
   user_name: string | null;
@@ -98,6 +99,7 @@ function mapDriver(item: ApiDriverOption): VehicleSetDriverOption {
     cnhNumber: item.cnh_number,
     cnhCategory: item.cnh_category,
     cnhExpiryDate: item.cnh_expiry_date,
+    birthDate: item.birth_date,
     available: Boolean(item.available),
   };
 }
@@ -162,7 +164,7 @@ export const vehicleSetService = {
 
   async create(data: {
     tractorId: number;
-    trailerId: number;
+    trailerId?: number | null;
     driverId: number;
     driverTwoId?: number | null;
     coupledAt: string;
@@ -171,7 +173,7 @@ export const vehicleSetService = {
   }): Promise<{ message: string; set: VehicleSetRecord }> {
     const response = await api.post<{ message: string; set: ApiVehicleSet }>('/api/vehicle-sets', {
       tractor_id: data.tractorId,
-      trailer_id: data.trailerId,
+      trailer_id: data.trailerId ?? null,
       driver_id: data.driverId,
       driver_two_id: data.driverTwoId ?? null,
       coupled_at: data.coupledAt,

@@ -111,6 +111,58 @@ class LogisticsController extends Controller
         return response()->json(['loads' => $loads]);
     }
 
+    public function calendar(Request $request): JsonResponse
+    {
+        $month = trim((string) $request->query('month', now()->format('Y-m')));
+
+        if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
+            throw ValidationException::withMessages([
+                'month' => ['Informe o mês no formato AAAA-MM.'],
+            ]);
+        }
+
+        try {
+            $monthStart = CarbonImmutable::createFromFormat('Y-m-d H:i:s', $month.'-01 00:00:00');
+        } catch (\Throwable) {
+            throw ValidationException::withMessages([
+                'month' => ['Informe um mês válido.'],
+            ]);
+        }
+
+        if ($monthStart === false || $monthStart->format('Y-m') !== $month) {
+            throw ValidationException::withMessages([
+                'month' => ['Informe um mês válido.'],
+            ]);
+        }
+
+        $monthEnd = $monthStart->endOfMonth()->endOfDay();
+        $query = LogisticsLoad::query()
+            ->with($this->relations())
+            ->whereNotNull('loading_at')
+            ->whereBetween('loading_at', [$monthStart, $monthEnd]);
+
+        if ($request->filled('shipper_id')) {
+            $query->where('shipper_id', (int) $request->query('shipper_id'));
+        }
+
+        $loads = $query
+            ->orderBy('loading_at')
+            ->orderBy('shipowner')
+            ->orderBy('id')
+            ->get();
+
+        $counts = $loads
+            ->groupBy(fn (LogisticsLoad $load): string => $load->loading_at?->format('Y-m-d') ?? '')
+            ->filter(fn ($items, string $date): bool => $date !== '')
+            ->map(fn ($items): int => $items->count());
+
+        return response()->json([
+            'month' => $month,
+            'counts' => $counts,
+            'loads' => $loads->map(fn (LogisticsLoad $load): array => $this->loadPayload($load))->values(),
+        ]);
+    }
+
     public function options(): JsonResponse
     {
         $shippers = Shipper::query()
