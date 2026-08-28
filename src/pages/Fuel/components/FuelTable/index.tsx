@@ -20,7 +20,7 @@ import {
   THead,
   TR,
 } from './styles';
-import { formatBillingMonth, formatCurrency, formatDate, formatDecimal, formatInteger } from '../../utils';
+import { formatCurrency, formatDate, formatDecimal, formatInteger } from '../../utils';
 
 export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice, onDelete }: FuelTableProps) {
   if (records.length === 0) {
@@ -33,7 +33,6 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
         <Table>
           <THead>
             <tr>
-              <TH>Mês faturado</TH>
               <TH>Data</TH>
               <TH>Placa</TH>
               <TH>Posto</TH>
@@ -53,7 +52,6 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
           <TBody>
             {records.map((record) => (
               <TR key={record.id}>
-                <TD>{formatBillingMonth(record.billingMonth)}</TD>
                 <TD>{formatDate(record.date)}</TD>
                 <TD>{record.plate}</TD>
                 <TD>{record.station}</TD>

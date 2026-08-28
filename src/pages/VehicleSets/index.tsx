@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
+  FileText,
   History,
   Info,
   Link2,
@@ -23,7 +24,7 @@ import { SearchableSelect } from '../../components/SearchableSelect';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { vehicleSetService } from './services';
-import { exportVehicleSetHistoryToExcel } from './utils';
+import { exportVehicleSetHistoryToExcel, printActiveVehicleSetsPdf } from './utils';
 import type {
   VehicleSetDriverOption,
   VehicleSetEventAction,
@@ -322,7 +323,7 @@ export function VehicleSets() {
   );
 
   const ready = Boolean(
-    tractorId && trailerId && driverId && coupledAt && driverAssignedAt &&
+    tractorId && driverId && coupledAt && driverAssignedAt &&
     (!driverTwoId || (driverTwoAssignedAt && driverTwoId !== driverId)),
   );
 
@@ -330,7 +331,7 @@ export function VehicleSets() {
     const term = activeSearch.trim().toLocaleLowerCase('pt-BR');
     if (!term) return sets;
     return sets.filter((item) =>
-      `${item.tractorPlate} ${item.trailerPlate} ${item.driverName} ${item.driverTwoName ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
+      `${item.tractorPlate} ${item.trailerPlate ?? ''} ${item.driverName} ${item.driverTwoName ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
     );
   }, [activeSearch, sets]);
 
@@ -380,7 +381,7 @@ export function VehicleSets() {
     try {
       const result = await vehicleSetService.create({
         tractorId: Number(tractorId),
-        trailerId: Number(trailerId),
+        trailerId: trailerId ? Number(trailerId) : null,
         driverId: Number(driverId),
         driverTwoId: driverTwoId ? Number(driverTwoId) : null,
         coupledAt,
@@ -485,7 +486,7 @@ export function VehicleSets() {
     if (!managingSet) return;
     const confirmed = await notifications.confirm({
       title: 'Desatrelar conjunto?',
-      message: `${managingSet.tractorPlate} / ${managingSet.trailerPlate} será encerrado e os recursos ficarão disponíveis para novos vínculos.`,
+      message: `${managingSet.tractorPlate}${managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ''} será encerrado e os recursos ficarão disponíveis para novos vínculos.`,
       type: 'error',
       confirmLabel: 'Desatrelar conjunto',
     });
@@ -510,8 +511,8 @@ export function VehicleSets() {
     <Page>
       <PageHeader>
         <div>
-          <h1>Vincular carretas</h1>
-          <p>Monte o conjunto, registre o momento do atrelamento e vincule um ou dois motoristas responsáveis.</p>
+          <h1>Vínculos de veículos</h1>
+          <p>Vincule o cavalo a uma carreta opcional e a um ou dois motoristas responsáveis.</p>
         </div>
         <HeaderStats>
           <StatChip><Link2 size={14} /> {sets.length} conjunto(s) ativo(s)</StatChip>
@@ -541,19 +542,20 @@ export function VehicleSets() {
           <LinkBridge><span><Link2 size={22} /></span></LinkBridge>
 
           <SelectionBlock>
-            <StepTitle><StepNumber>2</StepNumber>Selecione a carreta</StepTitle>
+            <StepTitle><StepNumber>2</StepNumber>Selecione a carreta <small>(opcional)</small></StepTitle>
             <SearchableSelect
               id="vehicle-set-trailer"
               value={trailerId}
               options={trailerOptions}
               onChange={setTrailerId}
-              placeholder="Selecione uma carreta disponível"
+              placeholder="Sem carreta / selecione uma carreta disponível"
               searchPlaceholder="Buscar por placa, frota, marca ou modelo..."
               emptyMessage="Nenhuma carreta disponível."
               ariaLabel="Selecionar carreta"
+              clearable
             />
             {selectedTrailer ? <VehicleDetails vehicle={selectedTrailer} /> : (
-              <VehicleCard $selected={false}><EmptyVehicle>Selecione uma carreta para visualizar tara e capacidade.</EmptyVehicle></VehicleCard>
+              <VehicleCard $selected={false}><EmptyVehicle>A carreta é opcional. Selecione uma para visualizar tara e capacidade.</EmptyVehicle></VehicleCard>
             )}
           </SelectionBlock>
         </BuilderTop>
@@ -561,13 +563,13 @@ export function VehicleSets() {
         <BuilderLower>
           <Workflow>
             <WorkflowSection>
-              <StepTitle><StepNumber>3</StepNumber>Data e horário do atrelamento do conjunto</StepTitle>
+              <StepTitle><StepNumber>3</StepNumber>Data e horário de início do vínculo</StepTitle>
               <DateGrid>
                 <Field>
-                  Momento do atrelamento
+                  Início do vínculo
                   <DateTimeInput type="datetime-local" value={coupledAt} onChange={(event) => setCoupledAt(event.target.value)} />
                 </Field>
-                <InfoHint><Info size={16} />Este registro marca quando o cavalo foi fisicamente atrelado à carreta.</InfoHint>
+                <InfoHint><Info size={16} />Este registro marca quando o vínculo entrou em vigor, com ou sem carreta.</InfoHint>
               </DateGrid>
             </WorkflowSection>
 
@@ -740,7 +742,7 @@ export function VehicleSets() {
                         <Td>{formatDateTime(event.occurredAt)}</Td>
                         <Td><ActionBadge $type={eventColor(event.action)}>{eventLabel(event.action)}</ActionBadge></Td>
                         <Td>{event.tractorPlate}</Td>
-                        <Td>{event.trailerPlate}</Td>
+                        <Td>{event.trailerPlate || '—'}</Td>
                         <Td>{event.driverName || '-'}</Td>
                         <Td>{event.userName || '-'}</Td>
                       </tr>
@@ -758,7 +760,23 @@ export function VehicleSets() {
         </Panel>
 
         <Panel>
-          <PanelHeader><div><h2>Conjuntos ativos</h2><span>Clique para gerenciar</span></div><Link2 size={17} /></PanelHeader>
+          <PanelHeader>
+            <div><h2>Conjuntos ativos</h2><span>Clique para gerenciar</span></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+              <SecondaryButton
+                type="button"
+                disabled={filteredActiveSets.length === 0}
+                onClick={() => {
+                  const opened = printActiveVehicleSetsPdf(filteredActiveSets);
+                  if (!opened) notifications.error('PDF bloqueado', 'Permita pop-ups para abrir o relatório dos conjuntos ativos.');
+                }}
+                title="Gerar PDF dos conjuntos ativos exibidos"
+              >
+                <FileText size={16} /> PDF
+              </SecondaryButton>
+              <Link2 size={17} />
+            </div>
+          </PanelHeader>
           <ActiveList>
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 10, top: 12, opacity: 0.55 }} />
@@ -768,9 +786,9 @@ export function VehicleSets() {
               <ActiveCard key={vehicleSet.id} type="button" onClick={() => openManager(vehicleSet)}>
                 <ActiveIcon><Link2 size={17} /></ActiveIcon>
                 <ActiveText>
-                  <strong>{vehicleSet.tractorPlate} / {vehicleSet.trailerPlate}</strong>
+                  <strong>{vehicleSet.tractorPlate}{vehicleSet.trailerPlate ? ` / ${vehicleSet.trailerPlate}` : ' / Sem carreta'}</strong>
                   <span>{vehicleSet.driverName}{vehicleSet.driverTwoName ? ` / ${vehicleSet.driverTwoName}` : ''}</span>
-                  <span>Desde {formatDateTime(vehicleSet.coupledAt)}</span>
+                  <span>Motorista desde {formatDateTime(vehicleSet.driverAssignedAt)}</span>
                 </ActiveText>
                 <ChevronRight size={17} />
               </ActiveCard>
@@ -784,7 +802,7 @@ export function VehicleSets() {
           <Modal role="dialog" aria-modal="true" aria-labelledby="manage-set-title">
             <ModalHeader>
               <div>
-                <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate} / {managingSet.trailerPlate}</h3>
+                <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate}{managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ' / Sem carreta'}</h3>
                 <p>Gerencie os motoristas ou encerre o conjunto mantendo todo o histórico.</p>
               </div>
               <CloseButton type="button" disabled={managing} onClick={() => setManagingSet(null)}><X size={17} /></CloseButton>
@@ -792,10 +810,12 @@ export function VehicleSets() {
             <ModalBody>
               <SummaryCard>
                 <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{managingSet.tractorLabel}</strong></SummaryRow>
-                <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{managingSet.trailerLabel}</strong></SummaryRow>
+                <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{managingSet.trailerLabel || 'Não vinculada'}</strong></SummaryRow>
                 <SummaryRow><UserRound size={15} /><span>Motorista 1</span><strong>{managingSet.driverName}</strong></SummaryRow>
                 <SummaryRow><UserPlus size={15} /><span>Motorista 2</span><strong>{managingSet.driverTwoName ?? 'Não vinculado'}</strong></SummaryRow>
-                <SummaryRow><CalendarClock size={15} /><span>Desde</span><strong>{formatDateTime(managingSet.coupledAt)}</strong></SummaryRow>
+                <SummaryRow><CalendarClock size={15} /><span>Motorista 1 desde</span><strong>{formatDateTime(managingSet.driverAssignedAt)}</strong></SummaryRow>
+                {managingSet.driverTwoAssignedAt ? <SummaryRow><CalendarClock size={15} /><span>Motorista 2 desde</span><strong>{formatDateTime(managingSet.driverTwoAssignedAt)}</strong></SummaryRow> : null}
+                <SummaryRow><CalendarClock size={15} /><span>Conjunto desde</span><strong>{formatDateTime(managingSet.coupledAt)}</strong></SummaryRow>
               </SummaryCard>
 
               <ModalSection>
@@ -852,7 +872,7 @@ export function VehicleSets() {
 
               <ModalSection>
                 <h4>Desatrelar conjunto</h4>
-                <p>Encerra o conjunto e libera cavalo, carreta e todos os motoristas vinculados. O histórico permanece intacto.</p>
+                <p>Encerra o conjunto e libera o cavalo, a carreta quando houver e todos os motoristas vinculados. O histórico permanece intacto.</p>
                 <Field>
                   Data e horário do desatrelamento
                   <DateTimeInput type="datetime-local" value={detachedAt} onChange={(event) => setDetachedAt(event.target.value)} />

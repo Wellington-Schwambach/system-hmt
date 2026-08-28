@@ -6,7 +6,7 @@ import type {
   FuelRecord,
   FuelVehicleOption,
 } from './types';
-import { parseDecimalInput } from './utils';
+import { parseDecimalInput, roundExcel } from './utils';
 
 
 export interface LegacyLocalFuelRecord {
@@ -99,13 +99,13 @@ function payload(data: FuelFormData) {
     vehicle_id: Number(data.vehicleId),
     driver_id: Number(data.driverId),
     fuel_date: data.date,
-    billing_month: data.billingMonth,
+    billing_month: data.billingMonth || data.date.slice(0, 7),
     station: data.station.trim(),
     km: data.km.trim() === '' ? null : Number(data.km),
-    diesel_liters: parseDecimalInput(data.dieselLiters),
-    diesel_total_value: parseDecimalInput(data.dieselTotalValue),
-    arla_liters: data.hasArla ? parseDecimalInput(data.arlaLiters) : 0,
-    arla_total_value: data.hasArla ? parseDecimalInput(data.arlaTotalValue) : 0,
+    diesel_liters: roundExcel(parseDecimalInput(data.dieselLiters)),
+    diesel_total_value: roundExcel(parseDecimalInput(data.dieselTotalValue)),
+    arla_liters: data.hasArla ? roundExcel(parseDecimalInput(data.arlaLiters)) : 0,
+    arla_total_value: data.hasArla ? roundExcel(parseDecimalInput(data.arlaTotalValue)) : 0,
   };
 }
 

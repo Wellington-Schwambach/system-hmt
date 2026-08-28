@@ -84,6 +84,7 @@ class VehicleSetController extends Controller
                 'cnh_number' => $employee->cnh_number,
                 'cnh_category' => $employee->cnh_category,
                 'cnh_expiry_date' => $employee->cnh_expiry_date?->format('Y-m-d'),
+                'birth_date' => $employee->birth_date?->format('Y-m-d'),
                 'available' => ! in_array($employee->id, $usedDrivers, true),
             ]);
 
@@ -101,7 +102,9 @@ class VehicleSetController extends Controller
         try {
             $vehicleSet = DB::transaction(function () use ($request, $validated): VehicleSet {
                 $tractor = Vehicle::query()->findOrFail((int) $validated['tractor_id']);
-                $trailer = Vehicle::query()->findOrFail((int) $validated['trailer_id']);
+                $trailer = ! empty($validated['trailer_id'])
+                    ? Vehicle::query()->findOrFail((int) $validated['trailer_id'])
+                    : null;
                 $driver = Employee::query()->findOrFail((int) $validated['driver_id']);
                 $driverTwo = ! empty($validated['driver_two_id'])
                     ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
@@ -118,7 +121,9 @@ class VehicleSetController extends Controller
                 }
 
                 $this->ensureAvailable('tractor_id', $tractor->id, 'Este cavalo já está vinculado a outro conjunto ativo.');
-                $this->ensureAvailable('trailer_id', $trailer->id, 'Esta carreta já está vinculada a outro conjunto ativo.');
+                if ($trailer !== null) {
+                    $this->ensureAvailable('trailer_id', $trailer->id, 'Esta carreta já está vinculada a outro conjunto ativo.');
+                }
                 $this->ensureDriverAvailable($driver->id, 'driver_id');
                 if ($driverTwo !== null) {
                     $this->ensureDriverAvailable($driverTwo->id, 'driver_two_id');
@@ -132,13 +137,13 @@ class VehicleSetController extends Controller
 
                 $vehicleSet = VehicleSet::query()->create([
                     'tractor_id' => $tractor->id,
-                    'trailer_id' => $trailer->id,
+                    'trailer_id' => $trailer?->id,
                     'driver_id' => $driver->id,
                     'driver_two_id' => $driverTwo?->id,
                     'tractor_plate' => $tractor->plate,
                     'tractor_label' => $this->vehicleLabel($tractor),
-                    'trailer_plate' => $trailer->plate,
-                    'trailer_label' => $this->vehicleLabel($trailer),
+                    'trailer_plate' => $trailer?->plate,
+                    'trailer_label' => $trailer !== null ? $this->vehicleLabel($trailer) : null,
                     'driver_name' => $driver->full_name,
                     'driver_two_name' => $driverTwo?->full_name,
                     'coupled_at' => $coupledAt,
@@ -155,7 +160,9 @@ class VehicleSetController extends Controller
                     $coupledAt,
                     $request,
                     $driver,
-                    ['message' => 'Cavalo e carreta foram atrelados para formar o conjunto.']
+                    ['message' => $trailer !== null
+                        ? 'Cavalo e carreta foram atrelados para formar o conjunto.'
+                        : 'Conjunto criado sem carreta vinculada.']
                 );
 
                 $this->recordEvent(
@@ -190,10 +197,17 @@ class VehicleSetController extends Controller
             throw $exception;
         }
 
+        $hasTrailer = ! empty($validated['trailer_id']);
+        $hasSecondDriver = ! empty($validated['driver_two_id']);
+
         return response()->json([
-            'message' => isset($validated['driver_two_id']) && $validated['driver_two_id']
-                ? 'Conjunto montado e dois motoristas vinculados com sucesso.'
-                : 'Conjunto montado e motorista vinculado com sucesso.',
+            'message' => $hasTrailer
+                ? ($hasSecondDriver
+                    ? 'Conjunto montado e dois motoristas vinculados com sucesso.'
+                    : 'Conjunto montado e motorista vinculado com sucesso.')
+                : ($hasSecondDriver
+                    ? 'Cavalo vinculado a dois motoristas, sem carreta, com sucesso.'
+                    : 'Cavalo e motorista vinculados sem carreta com sucesso.'),
             'set' => $this->setPayload($vehicleSet),
         ], 201);
     }
@@ -323,7 +337,7 @@ class VehicleSetController extends Controller
         });
 
         return response()->json([
-            'message' => 'Conjunto desatrelado com sucesso. Cavalo, carreta e motoristas estão disponíveis novamente.',
+            'message' => 'Conjunto encerrado com sucesso. Os veículos e motoristas vinculados estão disponíveis novamente.',
         ]);
     }
 
@@ -437,6 +451,7 @@ class VehicleSetController extends Controller
             'cnh_number' => $employee->cnh_number,
             'cnh_category' => $employee->cnh_category,
             'cnh_expiry_date' => $employee->cnh_expiry_date?->format('Y-m-d'),
+            'birth_date' => $employee->birth_date?->format('Y-m-d'),
             'available' => $available,
         ];
     }

@@ -17,6 +17,9 @@ class SaveFuelRecordRequest extends FormRequest
     {
         $this->merge([
             'station' => trim((string) $this->input('station')),
+            'billing_month' => $this->filled('billing_month')
+                ? $this->input('billing_month')
+                : substr((string) $this->input('fuel_date'), 0, 7),
             'km' => $this->filled('km') ? $this->input('km') : null,
             'arla_liters' => $this->filled('arla_liters') ? $this->input('arla_liters') : 0,
             'arla_total_value' => $this->filled('arla_total_value') ? $this->input('arla_total_value') : 0,

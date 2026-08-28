@@ -21,7 +21,7 @@ class StoreVehicleSetRequest extends FormRequest
                 Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRACTOR')->where('status', 'ACTIVE')),
             ],
             'trailer_id' => [
-                'required',
+                'nullable',
                 'integer',
                 Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRAILER')->where('status', 'ACTIVE')),
             ],
@@ -47,7 +47,6 @@ class StoreVehicleSetRequest extends FormRequest
         return [
             'tractor_id.required' => 'Selecione o cavalo do conjunto.',
             'tractor_id.exists' => 'O cavalo selecionado não está disponível ou não está ativo.',
-            'trailer_id.required' => 'Selecione a carreta do conjunto.',
             'trailer_id.exists' => 'A carreta selecionada não está disponível ou não está ativa.',
             'driver_id.required' => 'Selecione o motorista que ficará vinculado ao conjunto.',
             'driver_id.exists' => 'O motorista selecionado não está disponível ou não está ativo.',

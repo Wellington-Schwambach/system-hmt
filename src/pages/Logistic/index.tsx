@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SearchableSelect } from '../../components/SearchableSelect';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
-import { logisticsService } from './services';
+import { LOGISTICS_SYNC_STORAGE_KEY, logisticsService } from './services';
 import type {
   LogisticsFilters,
   LogisticsFormData,
@@ -340,6 +340,31 @@ export function Logistic() {
   useEffect(() => {
     const timer = window.setTimeout(() => void loadBoard(), 220);
     return () => window.clearTimeout(timer);
+  }, [loadBoard]);
+
+  useEffect(() => {
+    let refreshTimer: number | null = null;
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadBoard(), 80);
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === LOGISTICS_SYNC_STORAGE_KEY) scheduleRefresh();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') scheduleRefresh();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', scheduleRefresh);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', scheduleRefresh);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [loadBoard]);
 
   useEffect(() => {

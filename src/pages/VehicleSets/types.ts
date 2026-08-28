@@ -23,6 +23,7 @@ export interface VehicleSetDriverOption {
   cnhNumber: string | null;
   cnhCategory: string | null;
   cnhExpiryDate: string | null;
+  birthDate: string | null;
   available: boolean;
 }
 
@@ -35,8 +36,8 @@ export interface VehicleSetRecord {
   driverTwoId: number | null;
   tractorPlate: string;
   tractorLabel: string;
-  trailerPlate: string;
-  trailerLabel: string;
+  trailerPlate: string | null;
+  trailerLabel: string | null;
   driverName: string;
   driverTwoName: string | null;
   coupledAt: string;
@@ -60,7 +61,7 @@ export interface VehicleSetEventRecord {
   vehicleSetId: number;
   action: VehicleSetEventAction;
   tractorPlate: string;
-  trailerPlate: string;
+  trailerPlate: string | null;
   driverName: string | null;
   occurredAt: string;
   userName: string | null;
