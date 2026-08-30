@@ -11,6 +11,7 @@ import {
   Save,
   Ship,
   Truck,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react';
@@ -43,6 +44,7 @@ import {
   ColumnHeader,
   CompletedBadge,
   CountBadge,
+  DangerButton,
   DetailPanel,
   EmptyColumn,
   Field,
@@ -243,6 +245,7 @@ export function Logistic() {
   const [saving, setSaving] = useState(false);
   const [movingId, setMovingId] = useState<number | null>(null);
   const [finishingId, setFinishingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [dragOverStage, setDragOverStage] = useState<LogisticsStage | null>(null);
   const [panelMode, setPanelMode] = useState<'create' | 'edit' | null>(null);
@@ -522,6 +525,30 @@ export function Logistic() {
     }
   }
 
+  async function deleteLoad(load: LogisticsLoad) {
+    const confirmed = await notifications.confirm({
+      title: 'Excluir carga?',
+      message: `A carga ${load.referenceCode} sairá do Painel e do Calendário.`,
+      details: ['A exclusão continuará registrada no banco de dados para auditoria.'],
+      type: 'error',
+      confirmLabel: 'Excluir carga',
+      cancelLabel: 'Cancelar',
+    });
+    if (!confirmed) return;
+    setDeletingId(load.id);
+    try {
+      await logisticsService.remove(load.id);
+      notifications.success('Carga excluída', `${load.referenceCode} foi removida das telas operacionais.`);
+      closePanel();
+      await loadBoard();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível excluir a carga.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   function clearFilters() {
     setFilters(defaultFilters());
   }
@@ -692,7 +719,7 @@ export function Logistic() {
                           <div><Icon size={18} /><strong>{meta.label}</strong><CountBadge $accent={meta.accent}>{cards.length}</CountBadge></div>
                           <IconButton type="button" title={`Nova carga em ${meta.label}`} onClick={() => openCreate(stage)}><Plus size={15} /></IconButton>
                         </ColumnHeader>
-                        <ColumnBody $scrollable={cards.length > 5}>
+                        <ColumnBody $scrollable={cards.length > 5} $mobileScrollable={cards.length > 2}>
                           {cards.length === 0 ? <EmptyColumn>Arraste uma carga para esta etapa</EmptyColumn> : cards.map((load, index) => renderCard(load, index, stage))}
                         </ColumnBody>
                       </Column>
@@ -753,57 +780,57 @@ export function Logistic() {
                     Booking
                     <Input value={form.bookingNumber} onChange={(e) => setForm((f) => ({ ...f, bookingNumber: e.target.value }))} placeholder="Booking" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Cliente / Embarcador
                     <SearchableSelect id="log-form-shipper" value={form.shipperId} options={shipperSelectOptions} onChange={(value) => setForm((f) => ({ ...f, shipperId: value }))} placeholder="Selecione" clearable={false} />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Etapa
                     <Select disabled={Boolean(selectedLoad?.completedAt)} value={form.stage} onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value as LogisticsStage }))}>
                       {STAGE_ORDER.map((stage) => <option key={stage} value={stage}>{STAGES[stage].label}</option>)}
                     </Select>
                   </Field>
 
-                  <Field className="full">
+                  <Field className="half">
                     Terminal de coleta
                     <Input value={form.collectionTerminal} onChange={(e) => setForm((f) => ({ ...f, collectionTerminal: e.target.value }))} placeholder="Campo livre" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Data / hora da coleta
                     <Input type="datetime-local" value={form.collectionAt} onChange={(e) => setForm((f) => ({ ...f, collectionAt: e.target.value }))} />
                   </Field>
 
-                  <Field className="full">
+                  <Field className="half">
                     Carregamento
                     <Input value={form.loadingLocation} onChange={(e) => setForm((f) => ({ ...f, loadingLocation: e.target.value }))} placeholder="Local de carregamento - campo livre" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Data / hora do carregamento
                     <Input type="datetime-local" value={form.loadingAt} onChange={(e) => setForm((f) => ({ ...f, loadingAt: e.target.value }))} />
                   </Field>
 
-                  <Field className="full">
+                  <Field className="half">
                     Baixa / Entrega
                     <Input value={form.deliveryLocation} onChange={(e) => setForm((f) => ({ ...f, deliveryLocation: e.target.value }))} placeholder="Local da baixa/entrega - campo livre" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Data / hora da baixa / entrega
                     <Input type="datetime-local" value={form.deliveryAt} onChange={(e) => setForm((f) => ({ ...f, deliveryAt: e.target.value }))} />
                   </Field>
 
-                  <Field className="full">
+                  <Field className="half">
                     Placa (cavalo)
                     <SearchableSelect id="log-form-tractor" value={form.tractorId} options={tractorSelectOptions} onChange={handleTractorChange} placeholder="Selecione o cavalo" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Carreta
                     <SearchableSelect id="log-form-trailer" value={form.trailerId} options={trailerSelectOptions} onChange={(value) => setForm((f) => ({ ...f, trailerId: value }))} placeholder="Selecione a carreta" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Motorista principal
                     <SearchableSelect id="log-form-driver" value={form.driverId} options={driverSelectOptions} onChange={(value) => setForm((f) => ({ ...f, driverId: value }))} placeholder="Selecione o motorista" />
                   </Field>
-                  <Field className="full">
+                  <Field className="half">
                     Segundo motorista
                     <SearchableSelect id="log-form-driver-two" value={form.driverTwoId} options={driverSelectOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => setForm((f) => ({ ...f, driverTwoId: value }))} placeholder="Opcional" />
                   </Field>
@@ -838,6 +865,7 @@ export function Logistic() {
               </PanelBody>
               <PanelActions>
                 <SecondaryButton type="button" onClick={closePanel}>Cancelar</SecondaryButton>
+                {panelMode === 'edit' && selectedLoad ? <DangerButton type="button" disabled={deletingId === selectedLoad.id} onClick={() => void deleteLoad(selectedLoad)}><Trash2 size={15} /> {deletingId === selectedLoad.id ? 'Excluindo...' : 'Excluir'}</DangerButton> : null}
                 {panelMode === 'edit' && selectedLoad && !selectedLoad.completedAt && selectedLoad.stage === 'DELIVERY' ? (
                   <FinalizeButton type="button" disabled={finishingId === selectedLoad.id} onClick={() => void finishLoad(selectedLoad)}>
                     <CheckCircle2 size={16} /> {finishingId === selectedLoad.id ? 'Finalizando...' : 'Finalizar'}

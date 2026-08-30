@@ -42,7 +42,8 @@ export const SettingsButton = styled.button<SettingsButtonProps>`
   }
 
   @media (max-width: 36rem) {
-    width: 2.8rem;
+    width: 2.65rem;
+    min-height: 2.65rem;
     padding: 0;
 
     > span:not([aria-hidden='true']) {

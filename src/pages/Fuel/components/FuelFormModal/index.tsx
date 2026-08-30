@@ -73,6 +73,7 @@ function getInitialFormData(editingRecord?: FuelRecordWithMetrics | null): FuelF
   return {
     station: editingRecord.station,
     vehicleId: editingRecord.vehicleId ? String(editingRecord.vehicleId) : '',
+    trailerId: editingRecord.trailerId ? String(editingRecord.trailerId) : '',
     date: editingRecord.date,
     billingMonth: editingRecord.billingMonth || editingRecord.date.slice(0, 7),
     km: editingRecord.km !== null && editingRecord.km > 0 ? String(editingRecord.km) : '',
@@ -98,6 +99,8 @@ export function FuelFormModal({
   isOpen,
   editingRecord,
   vehicleOptions,
+  trailerOptions,
+  activeSets,
   driverOptions,
   saving = false,
   onClose,
@@ -164,6 +167,16 @@ export function FuelFormModal({
       }
       return nextData;
     });
+  };
+
+  const handleVehicleChange = (vehicleId: string) => {
+    const activeSet = activeSets.find((set) => String(set.tractorId ?? '') === vehicleId);
+    setFormData((currentData) => ({
+      ...currentData,
+      vehicleId,
+      trailerId: activeSet?.trailerId ? String(activeSet.trailerId) : '',
+      driverId: activeSet?.driverId ? String(activeSet.driverId) : '',
+    }));
   };
 
   const handleDecimalChange = (field: 'dieselLiters' | 'dieselTotalValue' | 'arlaLiters' | 'arlaTotalValue', value: string) => {
@@ -237,7 +250,7 @@ export function FuelFormModal({
                   <Select
                     id="fuel-plate"
                     value={formData.vehicleId}
-                    onChange={(event) => handleChange('vehicleId', event.target.value)}
+                    onChange={(event) => handleVehicleChange(event.target.value)}
                     required
                   >
                     <option value="" disabled>Selecione um cavalo</option>
@@ -278,6 +291,22 @@ export function FuelFormModal({
                     <option value="" disabled>Selecione um motorista</option>
                     {driverOptions.map((driver) => (
                       <option key={driver.id} value={driver.id}>{driver.name}</option>
+                    ))}
+                  </Select>
+                </Control>
+              </Field>
+
+              <Field>
+                <Label htmlFor="fuel-trailer">Carreta (opcional)</Label>
+                <Control icon={<Truck size={18} />}>
+                  <Select
+                    id="fuel-trailer"
+                    value={formData.trailerId}
+                    onChange={(event) => handleChange('trailerId', event.target.value)}
+                  >
+                    <option value="">Sem carreta</option>
+                    {trailerOptions.map((trailer) => (
+                      <option key={trailer.id} value={trailer.id}>{trailer.plate}</option>
                     ))}
                   </Select>
                 </Control>

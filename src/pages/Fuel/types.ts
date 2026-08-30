@@ -9,6 +9,20 @@ export interface FuelVehicleOption {
   currentKm: number;
 }
 
+export interface FuelTrailerOption {
+  id: number;
+  plate: string;
+  fleetNumber: string | null;
+}
+
+export interface FuelActiveSetOption {
+  id: number;
+  tractorId: number | null;
+  trailerId: number | null;
+  driverId: number | null;
+  driverTwoId: number | null;
+}
+
 export interface FuelDriverOption {
   id: number;
   employeeCode: string | null;
@@ -19,6 +33,8 @@ export interface FuelRecord {
   id: number;
   vehicleId: number | null;
   driverId: number | null;
+  trailerId: number | null;
+  trailerPlate: string | null;
   date: string;
   billingMonth: string;
   station: string;
@@ -46,6 +62,7 @@ export interface FuelRecordWithMetrics extends FuelRecord {
 export interface FuelFormData {
   station: string;
   vehicleId: string;
+  trailerId: string;
   date: string;
   billingMonth: string;
   km: string;
@@ -67,3 +84,15 @@ export interface FuelSummary {
 }
 
 export type PersistedFuelRecord = FuelRecord;
+
+
+export interface FuelHistoryEvent {
+  id: number;
+  recordId: number;
+  action: 'UPDATED' | 'DELETED' | 'RESTORED';
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  userName: string | null;
+  occurredAt: string;
+  inactive: boolean;
+}

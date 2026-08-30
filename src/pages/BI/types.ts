@@ -1,11 +1,3 @@
-import type { FuelRecord } from '../Fuel/types';
-import type { Shipper, TravelRecord } from '../Travel/types';
-
-export interface BIDataSet {
-  fuelRecords: FuelRecord[];
-  travelRecords: TravelRecord[];
-}
-
 export interface BIPeriod {
   year: number;
   month: number;
@@ -23,6 +15,13 @@ export interface BIMetrics {
   operationalResult: number;
   averageFreight: number;
   averageFuelTicket: number;
+}
+
+export interface BIComparisons {
+  fuelInvestment: number | null;
+  trips: number | null;
+  netFreight: number | null;
+  operationalResult: number | null;
 }
 
 export interface MonthlyPerformanceItem {
@@ -45,7 +44,7 @@ export interface VehiclePerformanceItem {
 }
 
 export interface ShipperPerformanceItem {
-  shipper: Shipper;
+  shipper: string;
   label: string;
   trips: number;
   netFreight: number;
@@ -62,4 +61,15 @@ export interface BIActivityItem {
   description: string;
   value: number;
   plate: string;
+}
+
+export interface BIOperationalData {
+  period: BIPeriod;
+  availableYears: number[];
+  metrics: BIMetrics;
+  comparisons: BIComparisons;
+  monthlyPerformance: MonthlyPerformanceItem[];
+  vehiclePerformance: VehiclePerformanceItem[];
+  shipperPerformance: ShipperPerformanceItem[];
+  recentActivities: BIActivityItem[];
 }

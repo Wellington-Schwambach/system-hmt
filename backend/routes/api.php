@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\SecurityController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Fleet\EmployeeController;
 use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
@@ -8,16 +9,17 @@ use App\Http\Controllers\Operation\TravelController;
 use App\Http\Controllers\Operation\FuelController;
 use App\Http\Controllers\Operation\VehicleSetController;
 use App\Http\Controllers\Operation\LogisticsController;
+use App\Http\Controllers\Operation\OperationalBIController;
 use App\Http\Controllers\Registration\ShipperController;
 use App\Http\Controllers\Registration\CompanyProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->group(function (): void {
-    Route::get('/dashboard', function () {
-        return response()->json([
-            'message' => 'Usuário autenticado, autorizado e dentro do horário permitido.',
-        ]);
-    })->middleware('permission:dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])
+        ->middleware('permission:dashboard');
+
+    Route::get('/bi/operational', [OperationalBIController::class, 'index'])
+        ->middleware('permission:bi');
 
     Route::prefix('admin/security')
         ->middleware('admin')
@@ -102,6 +104,8 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         ->group(function (): void {
             Route::get('/options', [FuelController::class, 'options']);
             Route::get('/', [FuelController::class, 'index']);
+            Route::get('/history', [FuelController::class, 'history']);
+            Route::patch('/{fuelRecord}/restore', [FuelController::class, 'restore'])->whereNumber('fuelRecord');
             Route::post('/import-legacy', [FuelController::class, 'importLegacy']);
             Route::post('/', [FuelController::class, 'store']);
             Route::put('/{fuelRecord}', [FuelController::class, 'update']);
@@ -119,6 +123,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);
             Route::patch('/{logisticsLoad}/move', [LogisticsController::class, 'move']);
             Route::patch('/{logisticsLoad}/finish', [LogisticsController::class, 'finish']);
+            Route::delete('/{logisticsLoad}', [LogisticsController::class, 'destroy']);
         });
 
     Route::prefix('travels')
@@ -128,6 +133,8 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::get('/cities', [TravelController::class, 'cities']);
             Route::post('/shippers', [TravelController::class, 'storeShipper']);
             Route::get('/', [TravelController::class, 'index']);
+            Route::get('/history', [TravelController::class, 'history']);
+            Route::patch('/{travel}/restore', [TravelController::class, 'restore'])->whereNumber('travel');
             Route::post('/', [TravelController::class, 'store']);
             Route::put('/{travel}', [TravelController::class, 'update']);
             Route::delete('/{travel}', [TravelController::class, 'destroy']);

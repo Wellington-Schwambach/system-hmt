@@ -241,6 +241,7 @@ export const DocumentsGrid = styled.div`
 `;
 
 export const DocumentCard = styled.article<{ $removed?: boolean }>`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

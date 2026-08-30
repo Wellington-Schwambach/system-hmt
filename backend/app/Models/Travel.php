@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Travel extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     /**
      * `travel` é uma palavra incontável para o pluralizador do Laravel.
@@ -49,6 +51,7 @@ class Travel extends Model
         'gross_freight',
         'created_by',
         'updated_by',
+        'deleted_by',
     ];
 
     protected function casts(): array

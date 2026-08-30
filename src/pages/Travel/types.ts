@@ -28,6 +28,15 @@ export interface TravelCityOption {
   stateAbbreviation: string;
 }
 
+
+export interface TravelActiveSetOption {
+  id: number;
+  tractorId: number | null;
+  trailerId: number | null;
+  driverId: number | null;
+  driverTwoId: number | null;
+}
+
 export interface TravelOptions {
   tractors: TravelOptionVehicle[];
   trailers: TravelOptionVehicle[];
@@ -35,6 +44,7 @@ export interface TravelOptions {
   shippers: TravelOptionShipper[];
   filterShippers: TravelOptionShipper[];
   filterPlates: string[];
+  activeSets: TravelActiveSetOption[];
   warnings: string[];
 }
 
@@ -141,4 +151,16 @@ export interface TravelSummary {
 export interface TravelOperationResult {
   success: boolean;
   error?: string;
+}
+
+
+export interface TravelHistoryEvent {
+  id: number;
+  travelId: number;
+  action: 'UPDATED' | 'DELETED' | 'RESTORED';
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  userName: string | null;
+  occurredAt: string;
+  inactive: boolean;
 }

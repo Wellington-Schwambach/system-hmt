@@ -25,6 +25,7 @@ const control = css`
 `;
 
 export const Page = styled.main`
+  min-width: 0;
   display: grid;
   gap: 1rem;
   padding-bottom: 3rem;
@@ -94,6 +95,7 @@ export const BuilderTop = styled.div`
 `;
 
 export const SelectionBlock = styled.div`
+  min-width: 0;
   display: grid;
   gap: 0.7rem;
 `;
@@ -283,6 +285,7 @@ export const DateGrid = styled.div`
 `;
 
 export const Field = styled.label`
+  min-width: 0;
   display: grid;
   gap: 0.38rem;
   color: ${({ theme }) => theme.colors.dashboardText};
@@ -307,6 +310,7 @@ export const DriverGrid = styled.div`
 `;
 
 export const DriverCard = styled.div`
+  min-width: 0;
   min-height: 8.1rem;
   display: grid;
   grid-template-columns: 4rem 1fr;
@@ -401,6 +405,13 @@ export const BuilderActions = styled.div`
   justify-content: flex-end;
   gap: 0.6rem;
   padding: 0 1rem 1rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    > button { width: 100%; }
+  }
 `;
 
 export const PrimaryButton = styled.button`
@@ -539,10 +550,23 @@ export const ActionBadge = styled.span<{ $type: 'green' | 'blue' | 'orange' | 'r
           : theme.colors.brandGreenSoft};
 `;
 
-export const ActiveList = styled.div`
+export const ActiveList = styled.div<{ $scrollable?: boolean }>`
   display: grid;
   gap: 0.65rem;
   padding: 0.8rem;
+  max-height: ${({ $scrollable }) => ($scrollable ? '35rem' : 'none')};
+  overflow-y: ${({ $scrollable }) => ($scrollable ? 'auto' : 'visible')};
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+
+  &::-webkit-scrollbar {
+    width: 0.45rem;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
 `;
 
 export const SearchInput = styled.input`
@@ -640,6 +664,10 @@ export const ModalBackdrop = styled.div`
   padding: 1rem;
   background: ${({ theme }) => theme.colors.overlay};
   backdrop-filter: blur(0.18rem);
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.45rem;
+  }
 `;
 
 export const Modal = styled.div`
@@ -698,6 +726,13 @@ export const ModalActions = styled.div`
   justify-content: flex-end;
   gap: 0.55rem;
   flex-wrap: wrap;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    > button { width: 100%; }
+  }
 `;
 
 export const HistoryFilters = styled.div`

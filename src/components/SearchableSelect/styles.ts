@@ -1,5 +1,7 @@
 import styled from 'styled-components';
 
+import { breakpoints } from '../../styles/breakpoints';
+
 export const Root = styled.div`
   position: relative;
   min-width: 0;
@@ -110,11 +112,16 @@ export const Dropdown = styled.div`
   top: calc(100% + 0.42rem);
   left: 0;
   right: 0;
+  min-width: 0;
   padding: 0.42rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
   border-radius: 0.9rem;
   background: ${({ theme }) => theme.colors.surfaceElevated};
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    max-width: calc(100vw - 2rem);
+  }
 `;
 
 export const ResultsMeta = styled.div`

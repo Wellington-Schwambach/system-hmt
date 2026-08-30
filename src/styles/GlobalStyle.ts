@@ -16,8 +16,11 @@ export const GlobalStyle = createGlobalStyle`
 
   body {
     margin: 0;
+    width: 100%;
     min-width: 20rem;
+    max-width: 100%;
     min-height: 100vh;
+    overflow-x: hidden;
     font-family:
       Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
       sans-serif;
@@ -34,7 +37,19 @@ export const GlobalStyle = createGlobalStyle`
   input,
   textarea,
   select {
+    min-width: 0;
+    max-width: 100%;
     font: inherit;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='color']):not([type='range']),
+  textarea,
+  select {
+    width: 100%;
+  }
+
+  fieldset {
+    min-width: 0;
   }
 
   button,
@@ -56,6 +71,15 @@ export const GlobalStyle = createGlobalStyle`
   }
 
   #root {
+    width: 100%;
+    min-width: 0;
     min-height: 100vh;
+    overflow-x: clip;
+  }
+
+  @media (max-width: 36rem) {
+    body {
+      min-width: 0;
+    }
   }
 `;

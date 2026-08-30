@@ -36,6 +36,7 @@ const EMPTY_OPTIONS: TravelOptions = {
   shippers: [],
   filterShippers: [],
   filterPlates: [],
+  activeSets: [],
   warnings: [],
 };
 
@@ -244,8 +245,8 @@ export function useTravelRecords() {
         });
         void refreshOptions(false);
         notifications.success(
-          'Viagem excluída',
-          `O CT-e ${record.cteNumber}, série ${record.cteSeries}, foi removido.`,
+          'Viagem inativada',
+          `O CT-e ${record.cteNumber}, série ${record.cteSeries}, saiu da listagem ativa e foi preservado no histórico.`,
         );
         return true;
       } catch (error) {

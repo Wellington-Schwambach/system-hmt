@@ -777,7 +777,7 @@ export function VehicleSets() {
               <Link2 size={17} />
             </div>
           </PanelHeader>
-          <ActiveList>
+          <ActiveList $scrollable={filteredActiveSets.length > 6}>
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 10, top: 12, opacity: 0.55 }} />
               <SearchInput value={activeSearch} onChange={(event) => setActiveSearch(event.target.value)} placeholder="Buscar conjunto..." style={{ paddingLeft: 32 }} />

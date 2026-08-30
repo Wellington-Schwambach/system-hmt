@@ -101,9 +101,15 @@ export const RouteArrow = styled.span`
 
 export const ActionsCell = styled(TD)`
   width: 1%;
-  display: flex;
+  white-space: nowrap;
+`;
+
+export const ActionsGroup = styled.div`
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.4rem;
+  min-width: max-content;
 `;
 
 export const EditButton = styled.button`

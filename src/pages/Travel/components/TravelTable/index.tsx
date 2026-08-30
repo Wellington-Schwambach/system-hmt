@@ -4,6 +4,7 @@ import { ShipperBadge } from '../ShipperBadge';
 import type { TravelTableProps } from './types';
 import {
   ActionsCell,
+  ActionsGroup,
   DeleteButton,
   EditButton,
   EmptyState,
@@ -70,6 +71,7 @@ export function TravelTable({
                 </TD>
                 <TD>{record.receivedDate ? formatDate(record.receivedDate) : 'Pendente'}</TD>
                 <ActionsCell>
+                  <ActionsGroup>
                   <EditButton
                     type="button"
                     onClick={() => onEdit(record)}
@@ -83,11 +85,12 @@ export function TravelTable({
                     type="button"
                     onClick={() => onDelete(record)}
                     disabled={deletingId === record.id}
-                    aria-label={`Excluir viagem do CT-e ${record.cteNumber}`}
-                    title="Excluir viagem"
+                    aria-label={`Inativar viagem do CT-e ${record.cteNumber}`}
+                    title="Inativar viagem"
                   >
                     <Trash2 size={16} aria-hidden="true" />
                   </DeleteButton>
+                  </ActionsGroup>
                 </ActionsCell>
               </TR>
             ))}

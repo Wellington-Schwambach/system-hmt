@@ -446,6 +446,32 @@ class LogisticsController extends Controller
         ]);
     }
 
+    public function destroy(Request $request, LogisticsLoad $logisticsLoad): JsonResponse
+    {
+        DB::transaction(function () use ($request, $logisticsLoad): void {
+            /** @var LogisticsLoad $locked */
+            $locked = LogisticsLoad::query()->lockForUpdate()->findOrFail($logisticsLoad->id);
+            $snapshot = $this->loadPayload($locked->fresh($this->relations()));
+
+            $this->recordEvent(
+                $locked,
+                LogisticsLoadEvent::ACTION_DELETED,
+                $locked->stage,
+                $locked->stage,
+                ['message' => 'Carga excluída da operação.', 'snapshot' => $snapshot],
+                $request
+            );
+
+            $locked->forceFill([
+                'deleted_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
+            ])->save();
+            $locked->delete();
+        });
+
+        return response()->json(['message' => 'Carga excluída com sucesso.']);
+    }
+
     /** @return array<string, mixed> */
     private function attributes(array $validated): array
     {

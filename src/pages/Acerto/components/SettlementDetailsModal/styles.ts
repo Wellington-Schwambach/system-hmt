@@ -73,6 +73,10 @@ export const SummaryGrid = styled.div`
   @media (max-width: ${breakpoints.tablet}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 export const SummaryItem = styled.div<{ $highlight?: boolean }>`
@@ -122,6 +126,10 @@ export const DetailGrid = styled.div`
   @media (max-width: ${breakpoints.tablet}) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 export const DetailItem = styled.div`
@@ -153,7 +161,9 @@ export const VehicleList = styled.div`
 `;
 
 export const VehicleRow = styled.div`
+  max-width: 100%;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.55rem;
   padding: 0.5rem 0.65rem;
@@ -226,6 +236,11 @@ export const Total = styled.div`
   strong {
     font-size: 1.15rem;
   }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 `;
 
 export const Actions = styled.footer`
@@ -234,6 +249,14 @@ export const Actions = styled.footer`
   gap: 0.55rem;
   padding: 0.85rem 1.1rem;
   border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+
+    > button { width: 100%; }
+  }
 `;
 
 export const Button = styled.button<{ $primary?: boolean }>`

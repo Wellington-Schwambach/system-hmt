@@ -7,6 +7,8 @@ use App\Http\Requests\Operation\InvoiceFuelRecordRequest;
 use App\Http\Requests\Operation\SaveFuelRecordRequest;
 use App\Models\Employee;
 use App\Models\FuelRecord;
+use App\Models\FuelRecordEvent;
+use App\Models\VehicleSet;
 use App\Models\Vehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +48,8 @@ class FuelController extends Controller
     {
         $tractors = collect();
         $drivers = collect();
+        $trailers = collect();
+        $activeSets = collect();
         $filterPlates = collect();
 
         if (Schema::hasTable('vehicles')) {
@@ -69,6 +73,18 @@ class FuelController extends Controller
                 ->map(fn ($plate): string => strtoupper((string) $plate))
                 ->unique()
                 ->values();
+
+
+            $trailers = Vehicle::query()
+                ->where('type', 'TRAILER')
+                ->where('status', 'ACTIVE')
+                ->orderBy('plate')
+                ->get(['id', 'plate', 'fleet_number'])
+                ->map(fn (Vehicle $vehicle): array => [
+                    'id' => $vehicle->id,
+                    'plate' => $vehicle->plate,
+                    'fleet_number' => $vehicle->fleet_number,
+                ]);
         }
 
         if (Schema::hasTable('employees')) {
@@ -84,9 +100,24 @@ class FuelController extends Controller
                 ]);
         }
 
+        if (Schema::hasTable('vehicle_sets')) {
+            $activeSets = VehicleSet::query()
+                ->where('status', VehicleSet::STATUS_ACTIVE)
+                ->get(['id', 'tractor_id', 'trailer_id', 'driver_id', 'driver_two_id'])
+                ->map(fn (VehicleSet $set): array => [
+                    'id' => (int) $set->id,
+                    'tractor_id' => $set->tractor_id ? (int) $set->tractor_id : null,
+                    'trailer_id' => $set->trailer_id ? (int) $set->trailer_id : null,
+                    'driver_id' => $set->driver_id ? (int) $set->driver_id : null,
+                    'driver_two_id' => $set->driver_two_id ? (int) $set->driver_two_id : null,
+                ]);
+        }
+
         return response()->json([
             'tractors' => $tractors->values(),
+            'trailers' => $trailers->values(),
             'drivers' => $drivers->values(),
+            'active_sets' => $activeSets->values(),
             'filter_plates' => $filterPlates->values(),
         ]);
     }
@@ -167,8 +198,9 @@ class FuelController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
             $driver = Employee::query()->findOrFail((int) $request->integer('driver_id'));
+            $trailer = $request->filled('trailer_id') ? Vehicle::query()->findOrFail((int) $request->integer('trailer_id')) : null;
             $vehicleKmReference = (int) $vehicle->current_km;
-            $attributes = $this->attributes($request, $vehicle, $driver, $vehicleKmReference);
+            $attributes = $this->attributes($request, $vehicle, $driver, $trailer, $vehicleKmReference);
 
             $record = FuelRecord::query()->create([
                 ...$attributes,
@@ -195,11 +227,12 @@ class FuelController extends Controller
                 ->lockForUpdate()
                 ->firstOrFail();
             $driver = Employee::query()->findOrFail((int) $request->integer('driver_id'));
+            $trailer = $request->filled('trailer_id') ? Vehicle::query()->findOrFail((int) $request->integer('trailer_id')) : null;
             $sameVehicle = (int) $fuelRecord->vehicle_id === (int) $vehicle->id;
             $vehicleKmReference = $sameVehicle && $fuelRecord->vehicle_km_reference !== null
                 ? (int) $fuelRecord->vehicle_km_reference
                 : (int) $vehicle->current_km;
-            $attributes = $this->attributes($request, $vehicle, $driver, $vehicleKmReference);
+            $attributes = $this->attributes($request, $vehicle, $driver, $trailer, $vehicleKmReference);
             $attributes['updated_by'] = $request->user()?->id;
 
             if ((float) $attributes['arla_liters'] <= 0 || (float) $attributes['arla_total_value'] <= 0) {
@@ -210,7 +243,9 @@ class FuelController extends Controller
                 $attributes['arla_invoiced_by'] = null;
             }
 
+            $before = $this->auditSnapshot($fuelRecord);
             $fuelRecord->fill($attributes)->save();
+            $this->recordAuditEvent($fuelRecord, FuelRecordEvent::ACTION_UPDATED, $before, $this->auditSnapshot($fuelRecord->fresh()), $request);
             $this->updateVehicleCurrentKm($vehicle, $attributes['km'], $request->user()?->id);
         });
 
@@ -256,12 +291,43 @@ class FuelController extends Controller
 
     public function destroy(Request $request, FuelRecord $fuelRecord): Response
     {
-        $fuelRecord->forceFill([
-            'deleted_by' => $request->user()?->id,
-        ])->save();
+        $before = $this->auditSnapshot($fuelRecord);
+        $fuelRecord->forceFill(['deleted_by' => $request->user()?->id])->save();
         $fuelRecord->delete();
-
+        $this->recordAuditEvent($fuelRecord, FuelRecordEvent::ACTION_DELETED, $before, null, $request);
         return response()->noContent();
+    }
+
+    public function history(): JsonResponse
+    {
+        $events = FuelRecordEvent::query()->with('user:id,name,username')
+            ->latest('occurred_at')->latest('id')->limit(500)->get()
+            ->map(function (FuelRecordEvent $event): array {
+                $record = FuelRecord::withTrashed()->find($event->fuel_record_id);
+                return [
+                    'id' => $event->id,
+                    'record_id' => (int) $event->fuel_record_id,
+                    'action' => $event->action,
+                    'before' => $event->before_data,
+                    'after' => $event->after_data,
+                    'user_name' => $event->user?->name ?? $event->user?->username,
+                    'occurred_at' => $event->occurred_at?->toIso8601String(),
+                    'inactive' => $record?->trashed() ?? false,
+                ];
+            });
+        return response()->json(['events' => $events]);
+    }
+
+    public function restore(Request $request, int $fuelRecord): JsonResponse
+    {
+        $record = FuelRecord::withTrashed()->findOrFail($fuelRecord);
+        if ($record->trashed()) {
+            $before = $this->auditSnapshot($record);
+            $record->restore();
+            $record->forceFill(['deleted_by' => null, 'updated_by' => $request->user()?->id])->save();
+            $this->recordAuditEvent($record, FuelRecordEvent::ACTION_RESTORED, $before, $this->auditSnapshot($record), $request);
+        }
+        return response()->json(['message' => 'Abastecimento reativado com sucesso.', 'record' => $this->payload($record->fresh())]);
     }
 
     /** @return array<string, mixed> */
@@ -269,6 +335,7 @@ class FuelController extends Controller
         SaveFuelRecordRequest $request,
         Vehicle $vehicle,
         Employee $driver,
+        ?Vehicle $trailer,
         int $vehicleKmReference,
     ): array {
         $validated = $request->validated();
@@ -293,8 +360,10 @@ class FuelController extends Controller
 
         return [
             'vehicle_id' => $vehicle->id,
+            'trailer_id' => $trailer?->id,
             'driver_id' => $driver->id,
             'plate' => strtoupper($vehicle->plate),
+            'trailer_plate_snapshot' => $trailer?->plate ? strtoupper($trailer->plate) : null,
             'driver_name' => $driver->full_name,
             'fuel_date' => $validated['fuel_date'],
             'billing_month' => $validated['billing_month'] . '-01',
@@ -328,6 +397,37 @@ class FuelController extends Controller
     }
 
     /** @return array<string, mixed> */
+    private function auditSnapshot(FuelRecord $record): array
+    {
+        return [
+            'id' => $record->id,
+            'date' => $record->fuel_date?->format('Y-m-d'),
+            'billing_month' => $record->billing_month?->format('Y-m'),
+            'plate' => $record->plate,
+            'trailer_plate' => $record->trailer_plate_snapshot,
+            'driver' => $record->driver_name,
+            'station' => $record->station,
+            'km' => $record->km,
+            'diesel_liters' => (float) $record->diesel_liters,
+            'diesel_total_value' => (float) $record->diesel_total_value,
+            'arla_liters' => (float) $record->arla_liters,
+            'arla_total_value' => (float) $record->arla_total_value,
+        ];
+    }
+
+    private function recordAuditEvent(FuelRecord $record, string $action, ?array $before, ?array $after, Request $request): void
+    {
+        FuelRecordEvent::query()->create([
+            'fuel_record_id' => $record->id,
+            'action' => $action,
+            'before_data' => $before,
+            'after_data' => $after,
+            'user_id' => $request->user()?->id,
+            'occurred_at' => now(),
+        ]);
+    }
+
+    /** @return array<string, mixed> */
     private function payload(FuelRecord $record): array
     {
         $hasArla = (float) $record->arla_liters > 0 || (float) $record->arla_total_value > 0;
@@ -338,6 +438,8 @@ class FuelController extends Controller
         return [
             'id' => $record->id,
             'vehicle_id' => $record->vehicle_id,
+            'trailer_id' => $record->trailer_id,
+            'trailer_plate' => $record->trailer_plate_snapshot,
             'driver_id' => $record->driver_id,
             'date' => $record->fuel_date?->format('Y-m-d'),
             'billing_month' => $record->billing_month?->format('Y-m') ?? $record->fuel_date?->format('Y-m'),

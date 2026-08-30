@@ -11,12 +11,18 @@ export const FormCard = styled.section`
 `;
 
 export const FormIntro = styled.div`
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   padding: 1.15rem 1.25rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    flex-direction: column;
+    padding: 1rem;
+  }
 `;
 
 export const FormTitle = styled.h2`
@@ -44,6 +50,8 @@ export const EditingBadge = styled.span`
 `;
 
 export const Form = styled.form`
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -81,13 +89,20 @@ export const Grid = styled.div`
 `;
 
 export const NotesDocumentGrid = styled.div`
+  min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
   gap: 0.9rem;
   margin-top: 0.9rem;
 
   @media (max-width: ${breakpoints.tablet}) {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  > * {
+    min-width: 0;
+    max-width: 100%;
   }
 `;
 
@@ -106,6 +121,7 @@ export const Label = styled.label`
 
 export const InputShell = styled.div`
   position: relative;
+  min-width: 0;
 `;
 
 export const FieldIcon = styled.span`
@@ -166,6 +182,8 @@ export const Select = styled.select<{ $withIcon?: boolean }>`
 
 export const Textarea = styled.textarea`
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 9.2rem;
   resize: vertical;
   padding: 0.8rem;
@@ -183,7 +201,11 @@ export const Textarea = styled.textarea`
 `;
 
 export const DocumentCard = styled.div`
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
   min-height: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -203,7 +225,11 @@ export const DocumentTitle = styled.div`
 `;
 
 export const FileInput = styled.input`
+  display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   color: ${({ theme }) => theme.colors.dashboardTextMuted};
   font-size: 0.72rem;
 
@@ -218,9 +244,22 @@ export const FileInput = styled.input`
     font-weight: 800;
     cursor: pointer;
   }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    font-size: 0;
+
+    &::file-selector-button {
+      width: 100%;
+      max-width: 100%;
+      margin-right: 0;
+      font-size: 0.72rem;
+    }
+  }
 `;
 
 export const ExistingFile = styled.div`
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -231,10 +270,16 @@ export const ExistingFile = styled.div`
   color: ${({ theme }) => theme.colors.dashboardText};
   background: ${({ theme }) => theme.colors.dashboardSurface};
   font-size: 0.72rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    align-items: stretch;
+    flex-direction: column;
+  }
 `;
 
 export const FileName = styled.span`
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -242,6 +287,7 @@ export const FileName = styled.span`
 
 export const RemoveFileButton = styled.button`
   flex: 0 0 auto;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;

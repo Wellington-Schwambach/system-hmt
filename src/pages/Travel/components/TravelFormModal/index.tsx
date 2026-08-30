@@ -340,6 +340,17 @@ export function TravelFormModal({
   function handleChange(field: Exclude<keyof TravelFormData, 'ctes'>, value: string) {
     setFormError('');
     setFormData((current) => {
+      if (field === 'vehicleId') {
+        const activeSet = options.activeSets.find((set) => String(set.tractorId ?? '') === value);
+        return {
+          ...current,
+          vehicleId: value,
+          detachedTrailerId: activeSet?.trailerId ? String(activeSet.trailerId) : '',
+          driverOneId: supplementaryOnly ? '' : activeSet?.driverId ? String(activeSet.driverId) : '',
+          driverTwoId: supplementaryOnly ? '' : activeSet?.driverTwoId ? String(activeSet.driverTwoId) : '',
+        };
+      }
+
       if (field === 'operationType') {
         return {
           ...current,
@@ -834,7 +845,7 @@ export function TravelFormModal({
               <div>
                 <FormSectionTitle>Execução da viagem</FormSectionTitle>
                 <FormSectionDescription>
-                  Escolha entre frota própria ou frete contratado de terceiro. O desengate é opcional.
+                  Escolha entre frota própria ou frete contratado de terceiro. A carreta é opcional e pode vir do conjunto ativo.
                 </FormSectionDescription>
               </div>
             </FormSectionHeader>
@@ -975,14 +986,14 @@ export function TravelFormModal({
               ) : null}
 
               <Field $fullWidth>
-                <Label htmlFor="travel-trailer">Carreta do desengate (opcional)</Label>
+                <Label htmlFor="travel-trailer">Carreta (opcional)</Label>
                 <FieldIcon aria-hidden="true"><Truck size={18} /></FieldIcon>
                 <Select
                   id="travel-trailer"
                   value={formData.detachedTrailerId}
                   onChange={(event) => handleChange('detachedTrailerId', event.target.value)}
                 >
-                  <option value="">Sem carreta de desengate</option>
+                  <option value="">Sem carreta</option>
                   {trailers.map((trailer) => (
                     <option key={trailer.id} value={trailer.id}>
                       {trailer.plate}{trailer.fleetNumber ? ` · Frota ${trailer.fleetNumber}` : ''}

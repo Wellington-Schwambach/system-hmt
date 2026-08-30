@@ -82,10 +82,15 @@ export const CloseButton = styled.button`
 `;
 
 export const Form = styled.form`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.8rem;
+  }
 `;
 
 export const FormSection = styled.section`
@@ -251,6 +256,7 @@ export const FieldGrid = styled.div`
 
 export const Field = styled.div<{ $fullWidth?: boolean }>`
   position: relative;
+  min-width: 0;
   grid-column: ${({ $fullWidth }) => ($fullWidth ? '1 / -1' : 'auto')};
 
   @media (max-width: ${breakpoints.mobile}) {

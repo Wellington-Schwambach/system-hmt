@@ -279,6 +279,11 @@ export const MobileGrid = styled.div`
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.65rem;
   margin-top: 0.8rem;
+
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
 `;
 
 export const MobileItem = styled.div`

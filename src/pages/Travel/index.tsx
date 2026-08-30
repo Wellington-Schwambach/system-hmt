@@ -7,7 +7,9 @@ import {
   Eye,
   EyeOff,
   FileSpreadsheet,
+  History,
   Map,
+  RotateCcw,
   TrendingUp,
 } from 'lucide-react';
 
@@ -21,6 +23,11 @@ import { TravelTable } from './components/TravelTable';
 import { useTravelRecords } from './hooks';
 import {
   ExportButton,
+  HistoryCard,
+  HistoryItem,
+  HistoryList,
+  ModuleTab,
+  ModuleTabs,
   PageButton,
   PageInfo,
   PageSizeSelect,
@@ -28,13 +35,15 @@ import {
   PaginationActions,
   PaginationSummary,
   RecordsSection,
+  RestoreButton,
   SectionActions,
   SectionHeader,
   SectionMeta,
   SectionTitle,
   SummaryGrid,
 } from './styles';
-import type { TravelFormData, TravelRecordWithMetrics } from './types';
+import type { TravelFormData, TravelHistoryEvent, TravelRecordWithMetrics } from './types';
+import { travelService } from './services';
 import { exportTravelsToExcel, formatCurrency } from './utils';
 
 export function Travel() {
@@ -44,6 +53,9 @@ export function Travel() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showFinancialValues, setShowFinancialValues] = useState(false);
+  const [activeTab, setActiveTab] = useState<'records' | 'history'>('records');
+  const [historyEvents, setHistoryEvents] = useState<TravelHistoryEvent[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const {
     records,
     summary,
@@ -137,14 +149,14 @@ export function Travel() {
   const handleDelete = useCallback(
     async (record: TravelRecordWithMetrics) => {
       const confirmed = await notifications.confirm({
-        title: 'Excluir viagem?',
-        message: `O CT-e ${record.cteNumber}, série ${record.cteSeries}, será removido permanentemente.`,
+        title: 'Inativar viagem?',
+        message: `O CT-e ${record.cteNumber}, série ${record.cteSeries}, será retirada da listagem ativa, mas continuará salva no histórico.`,
         details: [
           `${record.origin} → ${record.destination}`,
           `Frete bruto: ${formatCurrency(record.grossFreight)}`,
         ],
         type: 'error',
-        confirmLabel: 'Excluir viagem',
+        confirmLabel: 'Inativar viagem',
       });
 
       if (confirmed) await deleteRecord(record);
@@ -152,10 +164,46 @@ export function Travel() {
     [deleteRecord, notifications],
   );
 
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      setHistoryEvents(await travelService.history());
+    } catch {
+      notifications.error('Histórico indisponível', 'Não foi possível carregar o histórico de viagens.');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [notifications]);
+
+  const changeTab = useCallback((tab: 'records' | 'history') => {
+    setActiveTab(tab);
+    if (tab === 'history') void loadHistory();
+  }, [loadHistory]);
+
+  const restoreTravel = useCallback(async (id: number) => {
+    const confirmed = await notifications.confirm({ title: 'Reativar viagem?', message: 'A viagem voltará para a listagem ativa.', type: 'info', confirmLabel: 'Reativar' });
+    if (!confirmed) return;
+    try {
+      await travelService.restore(id);
+      notifications.success('Viagem reativada', 'O registro voltou para a listagem ativa.');
+      await loadHistory();
+      window.location.reload();
+    } catch {
+      notifications.error('Não foi possível reativar', 'Tente novamente em alguns instantes.');
+    }
+  }, [loadHistory, notifications]);
+
+  const formatHistoryDateTime = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+
   const hiddenMoney = '••••••';
 
   return (
     <>
+      <ModuleTabs aria-label="Abas de viagens">
+        <ModuleTab type="button" $active={activeTab === 'records'} onClick={() => changeTab('records')}>Viagens</ModuleTab>
+        <ModuleTab type="button" $active={activeTab === 'history'} onClick={() => changeTab('history')}><History size={15} /> Histórico</ModuleTab>
+      </ModuleTabs>
+      {activeTab === 'records' ? <>
       <SummaryGrid aria-label="Resumo das viagens">
         <TravelSummaryCard label="Total de viagens" value={String(summary.totalTrips)} icon={Map} />
         <TravelSummaryCard
@@ -291,8 +339,27 @@ export function Travel() {
           </Pagination>
         ) : null}
       </RecordsSection>
+      </> : (
+        <RecordsSection>
+          <SectionHeader><SectionTitle>Histórico de edições e exclusões</SectionTitle><SectionMeta>{historyLoading ? 'Carregando...' : `${historyEvents.length} evento(s)`}</SectionMeta></SectionHeader>
+          <HistoryList>
+            {historyLoading ? <SectionMeta>Carregando histórico...</SectionMeta> : historyEvents.length === 0 ? <SectionMeta>Nenhuma edição ou exclusão registrada ainda.</SectionMeta> : historyEvents.map((event) => {
+              const data = (event.after ?? event.before ?? {}) as Record<string, unknown>;
+              const ctes = Array.isArray(data.ctes) ? data.ctes as Array<Record<string, unknown>> : [];
+              const cte = ctes.map((item) => String(item.cte_number ?? '')).filter(Boolean).join(' / ') || `#${event.travelId}`;
+              const actionLabel = event.action === 'UPDATED' ? 'Editada' : event.action === 'DELETED' ? 'Inativada' : 'Reativada';
+              return <HistoryCard key={event.id}>
+                <HistoryItem><strong>{actionLabel}</strong>{formatHistoryDateTime(event.occurredAt)}</HistoryItem>
+                <HistoryItem><strong>CT-e {cte}</strong>{String(data.plate ?? 'Sem placa')}</HistoryItem>
+                <HistoryItem><strong>{event.userName || 'Usuário não informado'}</strong>{String(data.origin ?? '—')} → {String(data.destination ?? '—')}</HistoryItem>
+                {event.action === 'DELETED' && event.inactive ? <RestoreButton type="button" onClick={() => void restoreTravel(event.travelId)}><RotateCcw size={14} /> Reativar</RestoreButton> : <span />}
+              </HistoryCard>;
+            })}
+          </HistoryList>
+        </RecordsSection>
+      )}
 
-      <FloatingAddButton onClick={handleOpenCreateModal} />
+      {activeTab === 'records' ? <FloatingAddButton onClick={handleOpenCreateModal} /> : null}
 
       {isFormModalOpen && (
         <TravelFormModal

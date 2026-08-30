@@ -4,6 +4,11 @@ export const UserButton = styled.button<{ $open: boolean }>`
   position: relative;
   width: 2.9rem;
   height: 2.9rem;
+
+  @media (max-width: 36rem) {
+    width: 2.65rem;
+    height: 2.65rem;
+  }
   display: grid;
   place-items: center;
   padding: 0;

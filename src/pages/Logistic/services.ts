@@ -250,4 +250,9 @@ export const logisticsService = {
     notifyLogisticsChanged();
     return load;
   },
+
+  async remove(id: number): Promise<void> {
+    await api.delete(`/api/logistics/${id}`);
+    notifyLogisticsChanged();
+  },
 };
