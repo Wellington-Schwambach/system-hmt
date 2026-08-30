@@ -14,8 +14,10 @@ class FuelRecord extends Model
 
     protected $fillable = [
         'vehicle_id',
+        'trailer_id',
         'driver_id',
         'plate',
+        'trailer_plate_snapshot',
         'driver_name',
         'fuel_date',
         'billing_month',
@@ -62,6 +64,11 @@ class FuelRecord extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function trailer(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class, 'trailer_id');
     }
 
     public function driver(): BelongsTo

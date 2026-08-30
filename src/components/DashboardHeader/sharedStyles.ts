@@ -1,5 +1,7 @@
 import styled, { keyframes } from 'styled-components';
 
+import { breakpoints } from '../../styles/breakpoints';
+
 interface DropdownItemProps {
   $danger?: boolean;
 }
@@ -32,10 +34,32 @@ export const DropdownPanel = styled.div`
   backdrop-filter: blur(1rem);
   transform-origin: top right;
   animation: ${dropdownEnter} 160ms ease-out;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0.15rem;
+    bottom: auto;
+    left: 0.15rem;
+    width: auto;
+    max-width: none;
+    max-height: min(28rem, calc(100dvh - 5.25rem));
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 0.6rem;
+    border-radius: 1rem;
+    box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.2);
+    transform-origin: top center;
+  }
 `;
 
 export const DropdownHeader = styled.div`
   padding: 0.75rem 0.8rem 0.65rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.65rem 0.7rem 0.55rem;
+  }
 `;
 
 export const DropdownTitle = styled.strong`
@@ -73,6 +97,12 @@ export const DropdownItem = styled.button<DropdownItemProps>`
   background: transparent;
   text-align: left;
   cursor: pointer;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    min-height: 3.35rem;
+    padding: 0.75rem;
+  }
+
   transition:
     color 160ms ease,
     background 160ms ease,

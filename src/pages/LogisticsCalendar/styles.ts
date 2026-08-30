@@ -86,8 +86,9 @@ export const MonthControls = styled.div`
 
   @media (max-width: ${breakpoints.mobile}) {
     display: grid;
-    grid-template-columns: auto auto auto minmax(0, 1fr);
+    grid-template-columns: repeat(3, auto) minmax(0, 1fr);
     width: 100%;
+    gap: 0.35rem;
   }
 `;
 
@@ -115,6 +116,13 @@ export const MonthTitle = styled.strong`
     margin-left: 0.2rem;
     font-size: 0.9rem;
     text-align: right;
+  }
+
+  @media (max-width: 24rem) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    margin-left: 0;
+    text-align: left;
   }
 `;
 
@@ -374,6 +382,7 @@ export const LoadCardHeader = styled.div<{ $accent: string }>`
 
   @media (max-width: ${breakpoints.mobile}) {
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 0.55rem;
   }
 `;
@@ -435,6 +444,8 @@ export const CardActions = styled.div`
   gap: 0.6rem;
 
   @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+    justify-content: space-between;
     gap: 0.4rem;
   }
 `;
@@ -534,21 +545,41 @@ export const DrawerBackdrop = styled.div`
   position: fixed;
   inset: 0;
   z-index: 2200;
-  background: rgba(7, 19, 12, 0.44);
-  backdrop-filter: blur(2px);
+  background: rgba(7, 19, 12, 0.52);
+  backdrop-filter: blur(4px);
 `;
 
 export const Drawer = styled.aside`
   position: fixed;
-  inset: 0 0 0 auto;
+  top: 50%;
+  left: 50%;
   z-index: 2210;
-  width: min(34rem, 100vw);
-  height: 100dvh;
+  width: min(76rem, calc(100vw - 2.5rem));
+  max-width: 96vw;
+  height: min(50rem, calc(100dvh - 3rem));
+  max-height: calc(100dvh - 3rem);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  border-left: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  overflow: hidden;
+  transform: translate(-50%, -50%);
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 1.25rem;
   background: ${({ theme }) => theme.colors.surfaceElevated};
-  box-shadow: -1.5rem 0 4rem rgba(5, 20, 12, 0.2);
+  box-shadow: 0 1.75rem 5rem rgba(5, 20, 12, 0.32);
+
+  @media (max-width: 900px) {
+    width: min(48rem, calc(100vw - 1.5rem));
+    height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: calc(100vw - 0.75rem);
+    height: calc(100dvh - 0.75rem);
+    max-width: none;
+    max-height: none;
+    border-radius: 0.95rem;
+  }
 `;
 
 export const DrawerHeader = styled.header`
@@ -556,25 +587,40 @@ export const DrawerHeader = styled.header`
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.1rem;
+  padding: 1.1rem 1.35rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
-  h2 { margin: 0; color: ${({ theme }) => theme.colors.dashboardText}; font-size: 1.1rem; }
-  p { margin: 0.25rem 0 0; color: ${({ theme }) => theme.colors.dashboardTextMuted}; font-size: 0.76rem; }
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  h2 { margin: 0; color: ${({ theme }) => theme.colors.dashboardText}; font-size: 1.25rem; }
+  p { margin: 0.3rem 0 0; color: ${({ theme }) => theme.colors.dashboardTextMuted}; font-size: 0.78rem; }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.9rem;
+    h2 { font-size: 1.08rem; }
+    p { display: none; }
+  }
 `;
 
 export const DrawerBody = styled.div`
+  min-width: 0;
   min-height: 0;
-  padding: 1rem 1.1rem 1.3rem;
+  padding: 1.15rem 1.35rem 1.4rem;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.8rem;
+  }
 `;
 
 export const DrawerFooter = styled.footer`
   display: flex;
   justify-content: flex-end;
   gap: 0.6rem;
-  padding: 0.85rem 1.1rem;
+  padding: 0.9rem 1.35rem;
   border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   background: ${({ theme }) => theme.colors.surfaceElevated};
+  box-shadow: 0 -0.5rem 1.25rem rgba(16, 45, 27, 0.04);
 
   @media (max-width: ${breakpoints.mobile}) {
     display: grid;
@@ -602,13 +648,26 @@ export const AccentPreview = styled.div<{ $accent: string }>`
 
 export const FormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+
   .full { grid-column: 1 / -1; }
-  @media (max-width: ${breakpoints.mobile}) { grid-template-columns: 1fr; .full { grid-column: auto; } }
+  .half { grid-column: span 2; }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    .full { grid-column: 1 / -1; }
+    .half { grid-column: span 1; }
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+    .full, .half { grid-column: auto; }
+  }
 `;
 
 export const Field = styled.label`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -677,4 +736,23 @@ export const FinalizedBadge = styled.span`
     padding: 0.27rem 0.44rem;
     font-size: 0.64rem;
   }
+`;
+
+
+export const DangerButton = styled.button`
+  min-height: 2.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  border-radius: 0.7rem;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  &:disabled { opacity: 0.5; cursor: wait; }
 `;

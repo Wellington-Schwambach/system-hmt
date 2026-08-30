@@ -11,12 +11,18 @@ export const FormCard = styled.section`
 `;
 
 export const FormIntro = styled.div`
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
   padding: 1.15rem 1.25rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    flex-direction: column;
+    padding: 1rem;
+  }
 `;
 
 export const FormTitle = styled.h2`
@@ -100,6 +106,7 @@ export const Label = styled.label`
 
 export const InputShell = styled.div`
   position: relative;
+  min-width: 0;
 `;
 
 export const FieldIcon = styled.span`

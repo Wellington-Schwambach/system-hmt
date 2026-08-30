@@ -6,6 +6,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Trash2,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,6 +31,7 @@ import {
   CompactCalendarList,
   CompactDateButton,
   DataItem,
+  DangerButton,
   DayCell,
   DayCount,
   DetailsHeader,
@@ -237,6 +239,7 @@ export function LogisticsCalendar() {
   const [form, setForm] = useState<LogisticsFormData>(() => emptyForm(localDateString(today)));
   const [saving, setSaving] = useState(false);
   const [finishingId, setFinishingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const month = monthKey(visibleMonth);
 
@@ -487,6 +490,30 @@ export function LogisticsCalendar() {
     }
   }
 
+  async function deleteLoad(load: LogisticsLoad) {
+    const confirmed = await notifications.confirm({
+      title: 'Excluir carga?',
+      message: `A carga ${load.referenceCode} sairá do Painel e do Calendário.`,
+      details: ['A exclusão ficará registrada no banco de dados para auditoria.'],
+      type: 'error',
+      confirmLabel: 'Excluir carga',
+      cancelLabel: 'Cancelar',
+    });
+    if (!confirmed) return;
+    setDeletingId(load.id);
+    try {
+      await logisticsService.remove(load.id);
+      notifications.success('Carga excluída', `${load.referenceCode} foi removida das telas operacionais.`);
+      closeDrawer();
+      await loadCalendar();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível excluir a carga.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   function renderCalendarCell(date: Date, compact = false) {
     const key = localDateString(date);
     const count = counts[key] ?? 0;
@@ -655,26 +682,27 @@ export function LogisticsCalendar() {
                 <Field>Load<Input value={form.loadNumber} onChange={(event) => setForm((current) => ({ ...current, loadNumber: event.target.value }))} placeholder="Em branco" /></Field>
                 <Field>Armador<Input value={form.shipowner} onChange={(event) => setForm((current) => ({ ...current, shipowner: event.target.value }))} placeholder="Armador" /></Field>
                 <Field>Booking<Input value={form.bookingNumber} onChange={(event) => setForm((current) => ({ ...current, bookingNumber: event.target.value }))} placeholder="Booking" /></Field>
-                <Field className="full">Cliente / Embarcador<SearchableSelect id="cal-form-shipper" value={form.shipperId} options={shipperSelectOptions} onChange={(value) => setForm((current) => ({ ...current, shipperId: value }))} placeholder="Selecione" clearable={false} /></Field>
-                <Field className="full">Etapa<Select disabled={Boolean(selectedLoad?.completedAt)} value={form.stage} onChange={(event) => setForm((current) => ({ ...current, stage: event.target.value as LogisticsStage }))}>{STAGES.map((stage) => <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</Select></Field>
+                <Field className="half">Cliente / Embarcador<SearchableSelect id="cal-form-shipper" value={form.shipperId} options={shipperSelectOptions} onChange={(value) => setForm((current) => ({ ...current, shipperId: value }))} placeholder="Selecione" clearable={false} /></Field>
+                <Field className="half">Etapa<Select disabled={Boolean(selectedLoad?.completedAt)} value={form.stage} onChange={(event) => setForm((current) => ({ ...current, stage: event.target.value as LogisticsStage }))}>{STAGES.map((stage) => <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</Select></Field>
 
-                <Field className="full">Terminal de coleta<Input value={form.collectionTerminal} onChange={(event) => setForm((current) => ({ ...current, collectionTerminal: event.target.value }))} placeholder="Campo livre" /></Field>
-                <Field className="full">Data / hora da coleta<Input type="datetime-local" value={form.collectionAt} onChange={(event) => setForm((current) => ({ ...current, collectionAt: event.target.value }))} /></Field>
-                <Field className="full">Carregamento<Input value={form.loadingLocation} onChange={(event) => setForm((current) => ({ ...current, loadingLocation: event.target.value }))} placeholder="Local de carregamento" /></Field>
-                <Field className="full">Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(event) => setForm((current) => ({ ...current, loadingAt: event.target.value }))} /></Field>
-                <Field className="full">Baixa / Entrega<Input value={form.deliveryLocation} onChange={(event) => setForm((current) => ({ ...current, deliveryLocation: event.target.value }))} placeholder="Local da baixa/entrega" /></Field>
-                <Field className="full">Data / hora da baixa / entrega<Input type="datetime-local" value={form.deliveryAt} onChange={(event) => setForm((current) => ({ ...current, deliveryAt: event.target.value }))} /></Field>
+                <Field className="half">Terminal de coleta<Input value={form.collectionTerminal} onChange={(event) => setForm((current) => ({ ...current, collectionTerminal: event.target.value }))} placeholder="Campo livre" /></Field>
+                <Field className="half">Data / hora da coleta<Input type="datetime-local" value={form.collectionAt} onChange={(event) => setForm((current) => ({ ...current, collectionAt: event.target.value }))} /></Field>
+                <Field className="half">Carregamento<Input value={form.loadingLocation} onChange={(event) => setForm((current) => ({ ...current, loadingLocation: event.target.value }))} placeholder="Local de carregamento" /></Field>
+                <Field className="half">Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(event) => setForm((current) => ({ ...current, loadingAt: event.target.value }))} /></Field>
+                <Field className="half">Baixa / Entrega<Input value={form.deliveryLocation} onChange={(event) => setForm((current) => ({ ...current, deliveryLocation: event.target.value }))} placeholder="Local da baixa/entrega" /></Field>
+                <Field className="half">Data / hora da baixa / entrega<Input type="datetime-local" value={form.deliveryAt} onChange={(event) => setForm((current) => ({ ...current, deliveryAt: event.target.value }))} /></Field>
 
-                <Field className="full">Placa (cavalo)<SearchableSelect id="cal-form-tractor" value={form.tractorId} options={tractorSelectOptions} onChange={handleTractorChange} placeholder="Selecione o cavalo" /></Field>
-                <Field className="full">Carreta<SearchableSelect id="cal-form-trailer" value={form.trailerId} options={trailerSelectOptions} onChange={(value) => setForm((current) => ({ ...current, trailerId: value }))} placeholder="Selecione a carreta" /></Field>
-                <Field className="full">Motorista principal<SearchableSelect id="cal-form-driver" value={form.driverId} options={driverSelectOptions} onChange={(value) => setForm((current) => ({ ...current, driverId: value }))} placeholder="Selecione o motorista" /></Field>
-                <Field className="full">Segundo motorista<SearchableSelect id="cal-form-driver-two" value={form.driverTwoId} options={driverSelectOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => setForm((current) => ({ ...current, driverTwoId: value }))} placeholder="Opcional" /></Field>
+                <Field className="half">Placa (cavalo)<SearchableSelect id="cal-form-tractor" value={form.tractorId} options={tractorSelectOptions} onChange={handleTractorChange} placeholder="Selecione o cavalo" /></Field>
+                <Field className="half">Carreta<SearchableSelect id="cal-form-trailer" value={form.trailerId} options={trailerSelectOptions} onChange={(value) => setForm((current) => ({ ...current, trailerId: value }))} placeholder="Selecione a carreta" /></Field>
+                <Field className="half">Motorista principal<SearchableSelect id="cal-form-driver" value={form.driverId} options={driverSelectOptions} onChange={(value) => setForm((current) => ({ ...current, driverId: value }))} placeholder="Selecione o motorista" /></Field>
+                <Field className="half">Segundo motorista<SearchableSelect id="cal-form-driver-two" value={form.driverTwoId} options={driverSelectOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => setForm((current) => ({ ...current, driverTwoId: value }))} placeholder="Opcional" /></Field>
                 <Field className="full">Observações<Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Instruções, janela, contato, particularidades da carga..." /></Field>
               </FormGrid>
             </DrawerBody>
 
             <DrawerFooter>
               <SecondaryButton type="button" onClick={closeDrawer}>Cancelar</SecondaryButton>
+              {drawerMode === 'edit' && selectedLoad ? <DangerButton type="button" disabled={deletingId === selectedLoad.id} onClick={() => void deleteLoad(selectedLoad)}><Trash2 size={15} /> {deletingId === selectedLoad.id ? 'Excluindo...' : 'Excluir'}</DangerButton> : null}
               {drawerMode === 'edit' && selectedLoad && !selectedLoad.completedAt && selectedLoad.stage === 'DELIVERY' ? (
                 <FinalizeButton type="button" disabled={finishingId === selectedLoad.id} onClick={() => void finishLoad(selectedLoad)}>
                   <CheckCircle2 size={16} /> {finishingId === selectedLoad.id ? 'Finalizando...' : 'Finalizar'}

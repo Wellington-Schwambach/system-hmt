@@ -9,6 +9,8 @@ import type {
   FuelInvoiceTarget,
   FuelRecord,
   FuelVehicleOption,
+  FuelTrailerOption,
+  FuelActiveSetOption,
 } from './types';
 import { enrichFuelRecords, getFuelSummary } from './utils';
 
@@ -79,6 +81,8 @@ export function useFuelRecords() {
   const [searchTerm, setSearchTerm] = useState('');
   const [vehicleOptions, setVehicleOptions] = useState<FuelVehicleOption[]>([]);
   const [driverOptions, setDriverOptions] = useState<FuelDriverOption[]>([]);
+  const [trailerOptions, setTrailerOptions] = useState<FuelTrailerOption[]>([]);
+  const [activeSets, setActiveSets] = useState<FuelActiveSetOption[]>([]);
   const [plateOptions, setPlateOptions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [databaseReady, setDatabaseReady] = useState(false);
@@ -87,10 +91,14 @@ export function useFuelRecords() {
   const [invoicingKey, setInvoicingKey] = useState<string | null>(null);
   const applyOptions = useCallback((options: {
     vehicles: FuelVehicleOption[];
+    trailers: FuelTrailerOption[];
+    activeSets: FuelActiveSetOption[];
     filterPlates: string[];
     drivers: FuelDriverOption[];
   }) => {
     setVehicleOptions(options.vehicles);
+    setTrailerOptions(options.trailers);
+    setActiveSets(options.activeSets);
     setPlateOptions(options.filterPlates);
     setDriverOptions(options.drivers);
   }, []);
@@ -123,6 +131,8 @@ export function useFuelRecords() {
         setVehicleOptions([]);
         setPlateOptions([]);
         setDriverOptions([]);
+        setTrailerOptions([]);
+        setActiveSets([]);
         setDatabaseReady(false);
       })
       .finally(() => {
@@ -215,6 +225,8 @@ export function useFuelRecords() {
     dateFrom,
     dateTo,
     vehicleOptions,
+    trailerOptions,
+    activeSets,
     driverOptions,
     searchTerm,
     loading,

@@ -42,6 +42,13 @@ class SaveFuelRecordRequest extends FormRequest
                 Rule::exists('employees', 'id')->where(fn ($query) => $query
                     ->where('status', 'ACTIVE')),
             ],
+            'trailer_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('vehicles', 'id')->where(fn ($query) => $query
+                    ->where('type', 'TRAILER')
+                    ->where('status', 'ACTIVE')),
+            ],
             'fuel_date' => ['required', 'date_format:Y-m-d'],
             'billing_month' => ['required', 'date_format:Y-m'],
             'station' => ['required', 'string', 'max:120'],
@@ -60,6 +67,7 @@ class SaveFuelRecordRequest extends FormRequest
             'vehicle_id.exists' => 'O cavalo selecionado não está mais disponível.',
             'driver_id.required' => 'Selecione um motorista.',
             'driver_id.exists' => 'O motorista selecionado não está mais disponível.',
+            'trailer_id.exists' => 'A carreta selecionada não está mais disponível.',
             'fuel_date.required' => 'Informe a data do abastecimento.',
             'billing_month.required' => 'Informe o mês de faturamento.',
             'billing_month.date_format' => 'Informe um mês de faturamento válido.',

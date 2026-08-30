@@ -18,9 +18,11 @@ export const Header = styled.header`
 
   @media (max-width: ${breakpoints.mobile}) {
     min-height: auto;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    border-radius: 1.35rem;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    padding: 0.7rem;
+    border-radius: 1.15rem;
   }
 `;
 
@@ -61,6 +63,10 @@ export const MenuButton = styled.button`
 export const HeaderCopy = styled.div`
   min-width: 0;
   flex: 1;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: none;
+  }
 `;
 
 export const Eyebrow = styled.span`
@@ -92,15 +98,25 @@ export const Actions = styled.div`
   position: relative;
   z-index: 1010;
 
+  min-width: 0;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 0.65rem;
   margin-left: auto;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    position: static;
+    gap: 0.35rem;
+  }
 `;
 
 export const MenuSlot = styled.div`
   position: relative;
   z-index: 1020;
   overflow: visible;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    position: static;
+  }
 `;

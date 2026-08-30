@@ -158,6 +158,8 @@ export function BI() {
     vehiclePerformance,
     shipperPerformance,
     recentActivities,
+    loading,
+    error,
     selectYear,
     selectMonth,
     refreshData,
@@ -178,7 +180,7 @@ export function BI() {
         <PeriodHeading>
           <PeriodTitle>
             <h2>Período de análise</h2>
-            <p>Escolha o ano e o mês para recalcular todos os indicadores do painel.</p>
+            <p>{error || 'Dados carregados diretamente de Viagens e Combustível cadastrados no banco.'}</p>
           </PeriodTitle>
 
           <PeriodActions>
@@ -187,9 +189,9 @@ export function BI() {
               {formatPeriodLabel(period)}
             </ActivePeriodBadge>
 
-            <RefreshButton type="button" onClick={refreshData}>
+            <RefreshButton type="button" onClick={refreshData} disabled={loading}>
               <RefreshCw size={16} aria-hidden="true" />
-              Atualizar dados
+              {loading ? 'Atualizando...' : 'Atualizar dados'}
             </RefreshButton>
           </PeriodActions>
         </PeriodHeading>
@@ -317,7 +319,7 @@ export function BI() {
           </PanelHeading>
 
           {shipperPerformance.length > 0 ? (
-            <ShipperList>
+            <ShipperList $scrollable={shipperPerformance.length > 10}>
               {shipperPerformance.map((item) => (
                 <ShipperItem key={item.shipper}>
                   <ShipperHeader>
@@ -348,7 +350,7 @@ export function BI() {
           </PanelHeading>
 
           {vehiclePerformance.length > 0 ? (
-            <VehicleList>
+            <VehicleList $scrollable={vehiclePerformance.length > 10}>
               {vehiclePerformance.map((vehicle) => (
                 <VehicleRow key={vehicle.plate}>
                   <VehicleIdentity>
@@ -392,7 +394,7 @@ export function BI() {
           </PanelHeading>
 
           {recentActivities.length > 0 ? (
-            <ActivityList>
+            <ActivityList $scrollable={recentActivities.length > 10}>
               {recentActivities.map((activity) => {
                 const Icon = getActivityIcon(activity.type);
 

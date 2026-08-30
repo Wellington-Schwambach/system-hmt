@@ -191,49 +191,55 @@ export function printActiveVehicleSetsPdf(records: VehicleSetRecord[]): boolean 
     return a.tractorPlate.localeCompare(b.tractorPlate, 'pt-BR');
   });
 
-  const generatedAt = new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date());
+  const displaySequence = (index: number): string => {
+    const sequence = index + 1;
+    return sequence === 13 ? '12+1' : String(sequence);
+  };
 
   const rows = ordered.map((record, index) => {
-    const fleet = record.tractor?.fleetNumber || '-';
-    const plates = record.trailerPlate ? `${record.tractorPlate} / ${record.trailerPlate}` : `${record.tractorPlate} / Sem carreta`;
-    const driverNames = [record.driverName, record.driverTwoName].filter(Boolean) as string[];
-    const driverData = [record.driver, record.driverTwo].filter(Boolean);
-    const driverDates = [record.driverAssignedAt, record.driverTwoAssignedAt].filter(Boolean) as string[];
+    const fleet = record.tractor?.fleetNumber?.trim() || '';
+    const hasTrailer = Boolean(record.trailerPlate?.trim());
+    const plates = hasTrailer
+      ? `${record.tractorPlate} / ${record.trailerPlate}`
+      : record.tractorPlate;
 
-    const namesHtml = driverNames.length > 0
-      ? driverNames.map((name) => `<div class="stack-line">${escapeXml(name)}</div>`).join('')
-      : '<div class="stack-line">-</div>';
+    const drivers = [
+      record.driver
+        ? { name: record.driverName, driver: record.driver }
+        : record.driverName
+          ? { name: record.driverName, driver: null }
+          : null,
+      record.driverTwo
+        ? { name: record.driverTwoName ?? '', driver: record.driverTwo }
+        : record.driverTwoName
+          ? { name: record.driverTwoName, driver: null }
+          : null,
+    ].filter(Boolean) as Array<{ name: string; driver: VehicleSetRecord['driver'] }>;
 
-    const cpfHtml = driverData.length > 0
-      ? driverData.map((driver) => {
-          if (!driver) return '';
-          const cpf = driver.cpf ? driver.cpf.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : '-';
-          return `<div class="stack-line">${escapeXml(cpf)}</div>`;
+    const driverLines = drivers.length > 0
+      ? drivers.map(({ name }) => `<div class="driver-line">${escapeXml(name || '-')}</div>`).join('')
+      : '<div class="driver-line">-</div>';
+
+    const cpfLines = drivers.length > 0
+      ? drivers.map(({ driver }) => {
+          const cpf = driver?.cpf
+            ? driver.cpf.replace(/\D/g, '').replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+            : '-';
+          const birth = driver?.birthDate ? formatBirthDay(driver.birthDate) : '';
+          return `<div class="cpf-line"><span>${escapeXml(cpf)}</span>${birth ? `<span class="birth">${escapeXml(birth)}</span>` : ''}</div>`;
         }).join('')
-      : '<div class="stack-line">-</div>';
+      : '<div class="cpf-line"><span>-</span></div>';
 
-    const entryHtml = driverDates.length > 0
-      ? driverDates.map((date) => `<div class="stack-line">${escapeXml(formatDateTime(date))}</div>`).join('')
-      : '<div class="stack-line">-</div>';
-
-    const birthdaysHtml = driverData.length > 0
-      ? driverData.map((driver) => `<div class="stack-line birth">${escapeXml(formatBirthDay(driver?.birthDate ?? null))}</div>`).join('')
-      : '<div class="stack-line birth">-</div>';
+    const fleetHtml = hasTrailer
+      ? `<strong>${escapeXml(fleet || '-')}</strong>`
+      : `<div class="desengate">DESENGATE</div>${fleet ? `<strong>${escapeXml(fleet)}</strong>` : ''}`;
 
     return `<tr>
-      <td class="sequence">${index + 1}</td>
-      <td class="fleet">${record.trailerPlate ? `<strong>${escapeXml(fleet)}</strong>` : `<div class="detached">DESENGATE</div><strong>${escapeXml(fleet)}</strong>`}</td>
-      <td class="plates"><strong>${escapeXml(plates)}</strong></td>
-      <td>${namesHtml}</td>
-      <td>${cpfHtml}</td>
-      <td>${entryHtml}</td>
-      <td>${birthdaysHtml}</td>
+      <td class="fleet">${fleetHtml}</td>
+      <td class="plates">${escapeXml(plates)}</td>
+      <td class="driver">${driverLines}</td>
+      <td class="cpf">${cpfLines}</td>
+      <td class="sequence">${displaySequence(index)}</td>
     </tr>`;
   }).join('');
 
@@ -241,105 +247,241 @@ export function printActiveVehicleSetsPdf(records: VehicleSetRecord[]): boolean 
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<title>Conjuntos ativos - Henrique Transportes</title>
+<title>Dados veículos ativos container</title>
 <style>
-  @page { size: A4 portrait; margin: 11mm 10mm 12mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; color: #163322; font-family: Arial, Helvetica, sans-serif; background: #f4f7f5; }
-  .page { width: 100%; }
-  .sheet { background: #fff; border: 1px solid #d8e5dc; border-radius: 16px; overflow: hidden; }
-  .topbar { padding: 16px 20px 12px; background: linear-gradient(135deg, #0f7a3e, #16924b); color: #fff; }
-  .eyebrow { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .9; }
-  .title-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; margin-top: 8px; }
-  h1 { margin: 0; font-size: 24px; line-height: 1.1; }
-  .subtitle { margin: 4px 0 0; font-size: 12px; opacity: .95; }
-  .meta { text-align: right; font-size: 12px; line-height: 1.45; }
-  .org { padding: 14px 20px 6px; display: grid; gap: 4px; color: #355244; font-size: 11px; }
-  .org strong { color: #173524; }
-  .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px 20px 16px; }
-  .summary-card { border: 1px solid #d7e6dc; border-radius: 12px; padding: 10px 12px; background: #f7fbf8; }
-  .summary-card .label { display: block; color: #567362; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-  .summary-card .value { display: block; margin-top: 4px; color: #173524; font-size: 14px; font-weight: 800; }
-  .table-wrap { padding: 0 20px 20px; }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10.5px; }
-  thead { display: table-header-group; }
-  th { padding: 9px 8px; border: 1px solid #cfe0d5; background: #ecf5ef; color: #214130; text-align: left; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; }
-  td { padding: 8px; border: 1px solid #d8e5dc; vertical-align: top; color: #183726; }
-  tbody tr:nth-child(even) td { background: #fbfdfb; }
-  th:nth-child(1), td:nth-child(1) { width: 6%; text-align: center; }
-  th:nth-child(2), td:nth-child(2) { width: 10%; }
-  th:nth-child(3), td:nth-child(3) { width: 23%; }
-  th:nth-child(4), td:nth-child(4) { width: 25%; }
-  th:nth-child(5), td:nth-child(5) { width: 15%; }
-  th:nth-child(6), td:nth-child(6) { width: 13%; }
-  th:nth-child(7), td:nth-child(7) { width: 8%; }
-  .sequence { text-align: center; font-weight: 800; }
-  .fleet strong, .plates strong { font-size: 11px; }
-  .detached { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; padding: 2px 6px; border-radius: 999px; background: #fff4d9; color: #8a6116; font-size: 9px; font-weight: 800; }
-  .stack-line + .stack-line { margin-top: 4px; }
-  .birth { color: #c0392b; font-weight: 700; }
-  .empty { text-align: center; padding: 28px 16px; color: #6a8676; }
-  .footer { padding: 0 20px 18px; color: #587463; font-size: 10px; }
-  tr { break-inside: avoid; page-break-inside: avoid; }
-  .actions { position: fixed; right: 18px; bottom: 18px; display: flex; gap: 8px; }
-  button { border: 0; border-radius: 10px; padding: 11px 16px; font: 700 13px Arial; cursor: pointer; }
-  .primary { background: #15803d; color: #fff; }
+  @page {
+    size: A4 portrait;
+    margin: 12.7mm;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  body {
+    font-size: 12pt;
+    overflow-x: hidden;
+  }
+
+  .page {
+    width: calc(100% - 32px);
+    max-width: 1120px;
+    margin: 16px auto 0;
+  }
+
+  .company-header {
+    margin: 0;
+    padding: 0;
+  }
+
+  .company-line {
+    margin: 0 0 3.8mm;
+    padding: 0;
+    font-size: 12pt;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+
+  .company-line.company {
+    margin-bottom: 4.3mm;
+    font-weight: 700;
+  }
+
+  .table-wrap {
+    width: 100%;
+    margin: 0;
+    overflow: visible;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid #000;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  col.fleet-col { width: 12.6%; }
+  col.plates-col { width: 22%; }
+  col.driver-col { width: 36%; }
+  col.cpf-col { width: 24%; }
+  col.sequence-col { width: 5.4%; }
+
+  thead {
+    display: table-header-group;
+  }
+
+  th,
+  td {
+    border: 1px solid #000;
+    padding: 0.65mm 2mm;
+    vertical-align: middle;
+  }
+
+  th {
+    height: 5.6mm;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 12pt;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+  }
+
+  td {
+    min-height: 7.4mm;
+    font-size: 12pt;
+    line-height: 1.08;
+    text-align: left;
+  }
+
+  tbody tr {
+    min-height: 7.4mm;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  td.fleet {
+    font-weight: 700;
+  }
+
+  td.plates,
+  td.driver {
+    text-transform: uppercase;
+  }
+
+  .driver-line,
+  .cpf-line {
+    min-height: 5.1mm;
+    display: flex;
+    align-items: center;
+  }
+
+  .driver-line + .driver-line,
+  .cpf-line + .cpf-line {
+    margin-top: 0.25mm;
+  }
+
+  .cpf-line {
+    gap: 1mm;
+    white-space: nowrap;
+  }
+
+  .birth {
+    color: #ff0000;
+    font-size: 10pt;
+    font-weight: 400;
+  }
+
+  .desengate {
+    display: block;
+    width: 100%;
+    font-size: 8pt;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+    margin-bottom: 0.35mm;
+  }
+
+  td.sequence {
+    padding-left: 1.6mm;
+    padding-right: 1mm;
+    font-size: 8pt;
+    font-weight: 700;
+    vertical-align: top;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .empty {
+    height: 12mm;
+    text-align: center;
+    font-size: 11pt;
+  }
+
+  .actions {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .actions button {
+    border: 0;
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: #15803d;
+    color: #fff;
+    font: 700 13px Arial, Helvetica, sans-serif;
+    cursor: pointer;
+  }
+
   @media print {
-    body { background: #fff; }
-    .sheet { border: 0; border-radius: 0; }
-    .actions { display: none; }
+    body {
+      overflow: visible;
+    }
+
+    .page {
+      width: 100%;
+      max-width: none;
+      margin: 0;
+    }
+
+    .table-wrap {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .actions {
+      display: none;
+    }
   }
 </style>
 </head>
 <body>
-<div class="page">
-  <div class="sheet">
-    <div class="topbar">
-      <p class="eyebrow">Henrique Transportes</p>
-      <div class="title-row">
-        <div>
-          <h1>Conjuntos ativos</h1>
-          <p class="subtitle">Relatório operacional para conferência dos cavalos, placas e motoristas vinculados.</p>
-        </div>
-        <div class="meta">
-          <div><strong>Gerado em:</strong> ${escapeXml(generatedAt)}</div>
-          <div><strong>Total de conjuntos:</strong> ${ordered.length}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="org">
-      <div><strong>CNPJ EXPORTADOR:</strong> AURORA 83.310.441/0032-13 &nbsp;&nbsp; BRF 01.838.723/0169-88 &nbsp;&nbsp; <strong>ANTT 045829170</strong></div>
-      <div><strong>CNPJ HENRIQUE TRANSPORTES:</strong> 15.323.201/0001-05</div>
-    </div>
-
-    <div class="summary">
-      <div class="summary-card"><span class="label">Cavalos ativos</span><span class="value">${ordered.length}</span></div>
-      <div class="summary-card"><span class="label">Com carreta</span><span class="value">${ordered.filter((item) => item.trailerPlate).length}</span></div>
-      <div class="summary-card"><span class="label">Sem carreta</span><span class="value">${ordered.filter((item) => !item.trailerPlate).length}</span></div>
+  <div class="page">
+    <div class="company-header">
+      <p class="company-line">CNPJ EXPORTADOR: AURORA 83.310.441/0032-13 BRF 01.838.723/0169-88 <strong>ANTT 045829170</strong></p>
+      <p class="company-line company">CNPJ HENRIQUE TRANSPORTES 15.323.201/0001-05</p>
     </div>
 
     <div class="table-wrap">
       <table>
+        <colgroup>
+          <col class="fleet-col" />
+          <col class="plates-col" />
+          <col class="driver-col" />
+          <col class="cpf-col" />
+          <col class="sequence-col" />
+        </colgroup>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Frota</th>
-            <th>Placas</th>
-            <th>Motorista</th>
+            <th>FROTA</th>
+            <th>PLACAS</th>
+            <th>MOTORISTA</th>
             <th>CPF</th>
-            <th>Entrada no veículo</th>
-            <th>Nasc.</th>
+            <th></th>
           </tr>
         </thead>
-        <tbody>${rows || '<tr><td class="empty" colspan="7">Nenhum conjunto ativo.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td class="empty" colspan="5">Nenhum conjunto ativo.</td></tr>'}</tbody>
       </table>
     </div>
-    <div class="footer">As placas foram mantidas no padrão operacional utilizado pela empresa. A coluna <strong>Entrada no veículo</strong> considera a data do vínculo do motorista ao cavalo, e não a data do atrelamento do conjunto.</div>
   </div>
-</div>
-<div class="actions"><button class="primary" type="button" onclick="window.print()">Imprimir / Salvar PDF</button></div>
-<script>window.addEventListener('load', () => setTimeout(() => window.print(), 250));</script>
+
+  <div class="actions">
+    <button type="button" onclick="window.print()">Imprimir / Salvar PDF</button>
+  </div>
+
+  <script>window.addEventListener('load', () => setTimeout(() => window.print(), 250));</script>
 </body>
 </html>`;
 

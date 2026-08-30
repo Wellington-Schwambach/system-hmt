@@ -5,9 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class LogisticsLoad extends Model
 {
+    use SoftDeletes;
     public const STAGE_PROGRAMMING = 'PROGRAMMING';
     public const STAGE_COLLECTION = 'COLLECTION';
     public const STAGE_LOADING = 'LOADING';
@@ -49,6 +51,7 @@ class LogisticsLoad extends Model
         'completed_by',
         'created_by',
         'updated_by',
+        'deleted_by',
     ];
 
     protected function casts(): array

@@ -11,6 +11,8 @@ use App\Models\Employee;
 use App\Models\Shipper;
 use App\Models\Travel;
 use App\Models\TravelCte;
+use App\Models\TravelEvent;
+use App\Models\VehicleSet;
 use App\Models\Vehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -160,6 +162,20 @@ class TravelController extends Controller
             $warnings
         );
 
+        $activeSets = collect();
+        if (Schema::hasTable('vehicle_sets')) {
+            $activeSets = VehicleSet::query()
+                ->where('status', VehicleSet::STATUS_ACTIVE)
+                ->get(['id', 'tractor_id', 'trailer_id', 'driver_id', 'driver_two_id'])
+                ->map(fn (VehicleSet $set): array => [
+                    'id' => (int) $set->id,
+                    'tractor_id' => $set->tractor_id ? (int) $set->tractor_id : null,
+                    'trailer_id' => $set->trailer_id ? (int) $set->trailer_id : null,
+                    'driver_id' => $set->driver_id ? (int) $set->driver_id : null,
+                    'driver_two_id' => $set->driver_two_id ? (int) $set->driver_two_id : null,
+                ]);
+        }
+
         return response()->json([
             'tractors' => $tractors,
             'trailers' => $trailers,
@@ -167,6 +183,7 @@ class TravelController extends Controller
             'shippers' => $shippers,
             'filter_shippers' => $filterShippers,
             'filter_plates' => $filterPlates,
+            'active_sets' => $activeSets->values(),
             'warnings' => array_values(array_unique($warnings)),
         ]);
     }
@@ -290,6 +307,8 @@ class TravelController extends Controller
 
         try {
             $travel = DB::transaction(function () use ($request, $travel): Travel {
+                $travel->loadMissing('ctes');
+                $before = $this->auditSnapshot($travel);
                 $cteRows = $this->cteAttributes($request);
 
                 $travel->fill([
@@ -300,8 +319,10 @@ class TravelController extends Controller
 
                 $travel->ctes()->delete();
                 $travel->ctes()->createMany($cteRows);
+                $updated = $travel->fresh()->loadMissing('ctes');
+                $this->recordAuditEvent($updated, TravelEvent::ACTION_UPDATED, $before, $this->auditSnapshot($updated), $request);
 
-                return $travel->fresh()->loadMissing('ctes');
+                return $updated;
             });
         } catch (QueryException $exception) {
             return $this->travelDatabaseError($exception);
@@ -313,40 +334,46 @@ class TravelController extends Controller
         ]);
     }
 
-    public function destroy(Travel $travel): Response
+    public function destroy(Request $request, Travel $travel): Response
     {
+        $travel->loadMissing('ctes');
+        $before = $this->auditSnapshot($travel);
+        $travel->forceFill(['deleted_by' => $request->user()?->id])->save();
         $travel->delete();
+        $this->recordAuditEvent($travel, TravelEvent::ACTION_DELETED, $before, null, $request);
         return response()->noContent();
     }
 
-    private function travelDatabaseError(QueryException $exception): JsonResponse
+    public function history(): JsonResponse
     {
-        report($exception);
+        $events = TravelEvent::query()->with('user:id,name,username')
+            ->latest('occurred_at')->latest('id')->limit(500)->get()
+            ->map(function (TravelEvent $event): array {
+                $travel = Travel::withTrashed()->find($event->travel_id);
+                return [
+                    'id' => $event->id,
+                    'travel_id' => (int) $event->travel_id,
+                    'action' => $event->action,
+                    'before' => $event->before_data,
+                    'after' => $event->after_data,
+                    'user_name' => $event->user?->name ?? $event->user?->username,
+                    'occurred_at' => $event->occurred_at?->toIso8601String(),
+                    'inactive' => $travel?->trashed() ?? false,
+                ];
+            });
+        return response()->json(['events' => $events]);
+    }
 
-        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
-
-        return match ($sqlState) {
-            '23505' => response()->json([
-                'message' => 'Já existe uma viagem com um dos números e séries de CT-e informados.',
-                'code' => 'TRAVEL_CTE_DUPLICATE',
-            ], 409),
-            '23503' => response()->json([
-                'message' => 'Um dos cadastros selecionados foi removido ou alterado. Atualize as opções e tente novamente.',
-                'code' => 'TRAVEL_RELATED_RECORD_CHANGED',
-            ], 409),
-            '22001' => response()->json([
-                'message' => 'Um dos textos informados ultrapassa o tamanho permitido. Revise embarcador, origem, destino e terceiro.',
-                'code' => 'TRAVEL_VALUE_TOO_LONG',
-            ], 422),
-            '23502', '42703', '42P01' => response()->json([
-                'message' => 'A estrutura do banco de viagens precisa ser atualizada. Execute as migrations do backend e tente novamente.',
-                'code' => 'TRAVEL_SCHEMA_INCOMPATIBLE',
-            ], 503),
-            default => response()->json([
-                'message' => 'Não foi possível gravar a viagem no banco de dados. Tente novamente ou consulte o administrador.',
-                'code' => 'TRAVEL_DATABASE_WRITE_FAILED',
-            ], 500),
-        };
+    public function restore(Request $request, int $travel): JsonResponse
+    {
+        $record = Travel::withTrashed()->with('ctes')->findOrFail($travel);
+        if ($record->trashed()) {
+            $before = $this->auditSnapshot($record);
+            $record->restore();
+            $record->forceFill(['deleted_by' => null, 'updated_by' => $request->user()?->id])->save();
+            $this->recordAuditEvent($record, TravelEvent::ACTION_RESTORED, $before, $this->auditSnapshot($record), $request);
+        }
+        return response()->json(['message' => 'Viagem reativada com sucesso.', 'travel' => $this->payload($record->fresh()->loadMissing('ctes'))]);
     }
 
     /** @return array<string, mixed> */
@@ -465,6 +492,43 @@ class TravelController extends Controller
             'bonus_amount' => 0,
             'gross_freight' => round((float) collect($cteRows)->sum('gross_freight'), 2),
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function auditSnapshot(Travel $travel): array
+    {
+        $travel->loadMissing('ctes');
+        return [
+            'id' => $travel->id,
+            'date' => $travel->travel_date?->format('Y-m-d'),
+            'plate' => $travel->plate_snapshot,
+            'trailer_plate' => $travel->detached_trailer_plate_snapshot,
+            'origin' => $travel->origin,
+            'destination' => $travel->destination,
+            'shipper' => $travel->shipper,
+            'driver_one' => $travel->driver_one_name,
+            'driver_two' => $travel->driver_two_name,
+            'gross_freight' => (float) $travel->gross_freight,
+            'net_freight' => (float) $travel->net_freight,
+            'ctes' => $travel->ctes->map(fn (TravelCte $cte): array => [
+                'cte_type' => $cte->cte_type,
+                'cte_number' => $cte->cte_number,
+                'cte_series' => $cte->cte_series,
+                'complemented_cte_number' => $cte->complemented_cte_number,
+            ])->values()->all(),
+        ];
+    }
+
+    private function recordAuditEvent(Travel $travel, string $action, ?array $before, ?array $after, Request $request): void
+    {
+        TravelEvent::query()->create([
+            'travel_id' => $travel->id,
+            'action' => $action,
+            'before_data' => $before,
+            'after_data' => $after,
+            'user_id' => $request->user()?->id,
+            'occurred_at' => now(),
+        ]);
     }
 
     /** @return array<string, mixed> */

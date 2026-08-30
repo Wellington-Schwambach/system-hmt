@@ -14,6 +14,7 @@ const defaultFuelDate = getDefaultFuelDate();
 export const INITIAL_FUEL_FORM: FuelFormData = {
   station: '',
   vehicleId: '',
+  trailerId: '',
   date: defaultFuelDate,
   billingMonth: defaultFuelDate.slice(0, 7),
   km: '',

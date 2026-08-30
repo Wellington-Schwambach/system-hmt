@@ -1,5 +1,7 @@
 import styled, { keyframes } from 'styled-components';
 
+import { breakpoints } from '../../../../styles/breakpoints';
+
 const enter = keyframes`
   from { opacity: 0; transform: translateY(0.65rem) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -14,6 +16,10 @@ export const Overlay = styled.div`
   padding: 1rem;
   background: rgba(8, 20, 14, 0.62);
   backdrop-filter: blur(0.45rem);
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.45rem;
+  }
 `;
 
 export const Modal = styled.section`
@@ -24,6 +30,13 @@ export const Modal = styled.section`
   background: ${({ theme }) => theme.colors.surfaceElevated};
   box-shadow: 0 2rem 5rem rgba(8, 20, 14, 0.34);
   animation: ${enter} 160ms ease-out;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+    max-height: calc(100dvh - 0.9rem);
+    overflow-y: auto;
+    border-radius: 1rem;
+  }
 `;
 
 export const Header = styled.header`
@@ -67,6 +80,7 @@ export const Form = styled.form`
 `;
 
 export const Label = styled.label`
+  min-width: 0;
   display: grid;
   gap: 0.45rem;
   color: ${({ theme }) => theme.colors.dashboardText};
@@ -102,6 +116,12 @@ export const Actions = styled.div`
   justify-content: flex-end;
   gap: 0.65rem;
   padding-top: 0.25rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    flex-direction: column-reverse;
+
+    > button { width: 100%; }
+  }
 `;
 
 export const CancelButton = styled.button`

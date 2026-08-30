@@ -427,10 +427,22 @@ export const Bar = styled.span<{ $height: number; $variant: 'freight' | 'fuel' }
   transition: height 260ms ease;
 `;
 
-export const ShipperList = styled.div`
+export const ShipperList = styled.div<{ $scrollable?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
+  min-height: 0;
+  max-height: ${({ $scrollable }) => ($scrollable ? '35.5rem' : 'none')};
+  overflow-y: ${({ $scrollable }) => ($scrollable ? 'auto' : 'visible')};
+  padding-right: ${({ $scrollable }) => ($scrollable ? '0.35rem' : '0')};
+  scrollbar-gutter: ${({ $scrollable }) => ($scrollable ? 'stable' : 'auto')};
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar { width: 0.42rem; }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
 `;
 
 export const ShipperItem = styled.div`
@@ -487,10 +499,22 @@ export const EmptyState = styled.div`
   text-align: center;
 `;
 
-export const VehicleList = styled.div`
+export const VehicleList = styled.div<{ $scrollable?: boolean }>`
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+  min-height: 0;
+  max-height: ${({ $scrollable }) => ($scrollable ? '47rem' : 'none')};
+  overflow-y: ${({ $scrollable }) => ($scrollable ? 'auto' : 'visible')};
+  padding-right: ${({ $scrollable }) => ($scrollable ? '0.35rem' : '0')};
+  scrollbar-gutter: ${({ $scrollable }) => ($scrollable ? 'stable' : 'auto')};
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar { width: 0.42rem; }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
 `;
 
 export const VehicleRow = styled.div`
@@ -551,9 +575,21 @@ export const VehicleResult = styled.strong<{ $isPositive: boolean }>`
   white-space: nowrap;
 `;
 
-export const ActivityList = styled.div`
+export const ActivityList = styled.div<{ $scrollable?: boolean }>`
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  max-height: ${({ $scrollable }) => ($scrollable ? '41rem' : 'none')};
+  overflow-y: ${({ $scrollable }) => ($scrollable ? 'auto' : 'visible')};
+  padding-right: ${({ $scrollable }) => ($scrollable ? '0.35rem' : '0')};
+  scrollbar-gutter: ${({ $scrollable }) => ($scrollable ? 'stable' : 'auto')};
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar { width: 0.42rem; }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
 `;
 
 export const ActivityItem = styled.div`

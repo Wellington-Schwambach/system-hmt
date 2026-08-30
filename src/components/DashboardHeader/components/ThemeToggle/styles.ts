@@ -50,6 +50,11 @@ export const ThemeButton = styled.button<{ $isDarkMode: boolean }>`
     width: 2.8rem;
     padding: 0;
   }
+
+  @media (max-width: 36rem) {
+    width: 2.65rem;
+    min-height: 2.65rem;
+  }
 `;
 
 export const ThemeButtonLabel = styled.span`

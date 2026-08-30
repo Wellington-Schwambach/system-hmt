@@ -39,7 +39,7 @@ export interface LogisticsOptions {
 
 export interface LogisticsLoadEvent {
   id: number;
-  action: 'CREATED' | 'UPDATED' | 'STAGE_CHANGED' | 'FINALIZED';
+  action: 'CREATED' | 'UPDATED' | 'STAGE_CHANGED' | 'FINALIZED' | 'DELETED';
   fromStage: LogisticsStage | null;
   toStage: LogisticsStage | null;
   details: Record<string, unknown>;

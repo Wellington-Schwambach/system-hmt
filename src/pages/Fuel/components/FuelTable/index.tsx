@@ -115,8 +115,8 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
                       type="button"
                       onClick={() => onDelete(record)}
                       disabled={deletingId === record.id}
-                      aria-label={`Excluir abastecimento de ${formatDate(record.date)}`}
-                      title="Excluir abastecimento"
+                      aria-label={`Inativar abastecimento de ${formatDate(record.date)}`}
+                      title="Inativar abastecimento"
                     >
                       <Trash2 size={16} aria-hidden="true" />
                     </DeleteButton>

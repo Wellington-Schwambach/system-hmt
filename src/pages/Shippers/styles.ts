@@ -326,6 +326,7 @@ export const DocumentGrid = styled.div`
 `;
 
 export const DocumentRow = styled.div`
+  min-width: 0;
   display: grid;
   grid-template-columns: minmax(13rem, 1.2fr) minmax(13rem, 1fr) auto;
   gap: 0.65rem;

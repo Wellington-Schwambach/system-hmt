@@ -5,6 +5,9 @@ import type {
   FuelInvoiceTarget,
   FuelRecord,
   FuelVehicleOption,
+  FuelTrailerOption,
+  FuelActiveSetOption,
+  FuelHistoryEvent,
 } from './types';
 import { parseDecimalInput, roundExcel } from './utils';
 
@@ -31,6 +34,8 @@ interface FuelOptionsResponse {
     current_km: number;
   }>;
   filter_plates: string[];
+  trailers: Array<{ id: number; plate: string; fleet_number: string | null }>;
+  active_sets: Array<{ id: number; tractor_id: number | null; trailer_id: number | null; driver_id: number | null; driver_two_id: number | null }>;
   drivers: Array<{
     id: number;
     employee_code: string | null;
@@ -41,6 +46,8 @@ interface FuelOptionsResponse {
 interface FuelApiRecord {
   id: number;
   vehicle_id: number | null;
+  trailer_id: number | null;
+  trailer_plate: string | null;
   driver_id: number | null;
   date: string;
   billing_month: string;
@@ -74,6 +81,8 @@ function mapRecord(record: FuelApiRecord): FuelRecord {
   return {
     id: record.id,
     vehicleId: record.vehicle_id,
+    trailerId: record.trailer_id,
+    trailerPlate: record.trailer_plate,
     driverId: record.driver_id,
     date: record.date,
     billingMonth: record.billing_month || record.date.slice(0, 7),
@@ -97,6 +106,7 @@ function mapRecord(record: FuelApiRecord): FuelRecord {
 function payload(data: FuelFormData) {
   return {
     vehicle_id: Number(data.vehicleId),
+    trailer_id: data.trailerId ? Number(data.trailerId) : null,
     driver_id: Number(data.driverId),
     fuel_date: data.date,
     billing_month: data.billingMonth || data.date.slice(0, 7),
@@ -119,6 +129,8 @@ export const fuelService = {
 
   async options(): Promise<{
     vehicles: FuelVehicleOption[];
+    trailers: FuelTrailerOption[];
+    activeSets: FuelActiveSetOption[];
     filterPlates: string[];
     drivers: FuelDriverOption[];
   }> {
@@ -130,6 +142,8 @@ export const fuelService = {
         plate: vehicle.plate,
         currentKm: Number(vehicle.current_km) || 0,
       })),
+      trailers: response.data.trailers.map((trailer) => ({ id: trailer.id, plate: trailer.plate, fleetNumber: trailer.fleet_number })),
+      activeSets: response.data.active_sets.map((set) => ({ id: set.id, tractorId: set.tractor_id, trailerId: set.trailer_id, driverId: set.driver_id, driverTwoId: set.driver_two_id })),
       filterPlates: response.data.filter_plates,
       drivers: response.data.drivers.map((driver) => ({
         id: driver.id,
@@ -156,6 +170,16 @@ export const fuelService = {
 
   async invoice(id: number, target: FuelInvoiceTarget): Promise<FuelRecord> {
     const response = await api.patch<FuelRecordResponse>(`/api/fuel/${id}/invoice`, { target });
+    return mapRecord(response.data.record);
+  },
+
+  async history(): Promise<FuelHistoryEvent[]> {
+    const response = await api.get<{ events: Array<{ id: number; record_id: number; action: FuelHistoryEvent['action']; before: Record<string, unknown> | null; after: Record<string, unknown> | null; user_name: string | null; occurred_at: string; inactive: boolean }> }>('/api/fuel/history');
+    return response.data.events.map((event) => ({ id: event.id, recordId: event.record_id, action: event.action, before: event.before, after: event.after, userName: event.user_name, occurredAt: event.occurred_at, inactive: event.inactive }));
+  },
+
+  async restore(id: number): Promise<FuelRecord> {
+    const response = await api.patch<FuelRecordResponse>(`/api/fuel/${id}/restore`);
     return mapRecord(response.data.record);
   },
 

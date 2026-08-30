@@ -6,6 +6,7 @@ import type {
   TravelOptionShipper,
   TravelOptions,
   TravelRecord,
+  TravelHistoryEvent,
 } from './types';
 import { parseDecimalInput } from './utils';
 
@@ -77,6 +78,7 @@ interface ApiOptions {
   shippers: ApiShipper[];
   filter_shippers: ApiShipper[];
   filter_plates: string[];
+  active_sets?: Array<{ id: number; tractor_id: number | null; trailer_id: number | null; driver_id: number | null; driver_two_id: number | null }>;
   warnings?: string[];
 }
 
@@ -225,6 +227,7 @@ export const travelService = {
       shippers: response.data.shippers.map(mapShipper),
       filterShippers: response.data.filter_shippers.map(mapShipper),
       filterPlates: response.data.filter_plates,
+      activeSets: (response.data.active_sets ?? []).map((set) => ({ id: set.id, tractorId: set.tractor_id, trailerId: set.trailer_id, driverId: set.driver_id, driverTwoId: set.driver_two_id })),
       warnings: response.data.warnings ?? [],
     };
   },
@@ -261,6 +264,16 @@ export const travelService = {
       `/api/travels/${id}`,
       buildPayload(data),
     );
+    return { message: response.data.message, travel: mapTravel(response.data.travel) };
+  },
+
+  async history(): Promise<TravelHistoryEvent[]> {
+    const response = await api.get<{ events: Array<{ id: number; travel_id: number; action: TravelHistoryEvent['action']; before: Record<string, unknown> | null; after: Record<string, unknown> | null; user_name: string | null; occurred_at: string; inactive: boolean }> }>('/api/travels/history');
+    return response.data.events.map((event) => ({ id: event.id, travelId: event.travel_id, action: event.action, before: event.before, after: event.after, userName: event.user_name, occurredAt: event.occurred_at, inactive: event.inactive }));
+  },
+
+  async restore(id: number): Promise<{ message: string; travel: TravelRecord }> {
+    const response = await api.patch<{ message: string; travel: ApiTravel }>(`/api/travels/${id}/restore`);
     return { message: response.data.message, travel: mapTravel(response.data.travel) };
   },
 

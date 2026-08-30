@@ -1,5 +1,7 @@
 import styled from 'styled-components';
 
+import { breakpoints } from '../../styles/breakpoints';
+
 export const Backdrop = styled.div`
   position: fixed;
   inset: 0;
@@ -10,6 +12,10 @@ export const Backdrop = styled.div`
   background: ${({ theme }) => theme.colors.overlay};
   backdrop-filter: blur(0.16rem);
   overscroll-behavior: contain;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.45rem;
+  }
 `;
 
 export const Modal = styled.form`
@@ -22,6 +28,12 @@ export const Modal = styled.form`
   border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.colors.dashboardSurface};
   box-shadow: ${({ theme }) => theme.shadow.card};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+    max-height: calc(100dvh - 0.9rem);
+    border-radius: 1rem;
+  }
 `;
 
 export const Header = styled.header`
@@ -78,6 +90,7 @@ export const Body = styled.div`
 `;
 
 export const Field = styled.label`
+  min-width: 0;
   display: grid;
   gap: 0.38rem;
   color: ${({ theme }) => theme.colors.dashboardTextMuted};
@@ -87,6 +100,7 @@ export const Field = styled.label`
 
 export const PasswordField = styled.div`
   position: relative;
+  min-width: 0;
 `;
 
 export const Input = styled.input`
@@ -163,6 +177,14 @@ export const Footer = styled.footer`
   gap: 0.65rem;
   padding: 1rem 1.1rem;
   border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+
+    > button { width: 100%; }
+  }
 `;
 
 export const SecondaryButton = styled.button`

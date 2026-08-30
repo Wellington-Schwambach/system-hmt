@@ -33,10 +33,15 @@ export const Header = styled.div`
 `;
 
 export const HeaderActions = styled.div`
+  min-width: 0;
   display: flex;
   gap: 0.65rem;
   align-items: center;
   flex-wrap: wrap;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+  }
 `;
 
 export const RangeBadge = styled.div`
@@ -178,9 +183,35 @@ export const MainGrid = styled.div<{ $panelOpen: boolean }>`
 `;
 
 export const BoardScroll = styled.div`
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
-  padding-bottom: 0.35rem;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  padding-bottom: 0.45rem;
+  scrollbar-width: thin;
+
+  &::-webkit-scrollbar {
+    height: 0.48rem;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    overflow-x: hidden;
+    overflow-y: visible;
+    padding-bottom: 0;
+  }
 `;
 
 export const Board = styled.div`
@@ -189,6 +220,16 @@ export const Board = styled.div`
   grid-template-columns: repeat(4, minmax(14rem, 1fr));
   gap: 0.75rem;
   align-items: start;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 0.85rem;
+    padding-right: 0;
+  }
 `;
 
 export const Column = styled.section<{ $dragOver: boolean }>`
@@ -201,6 +242,12 @@ export const Column = styled.section<{ $dragOver: boolean }>`
   background: ${({ $dragOver, theme }) => ($dragOver ? theme.colors.brandGreenSoft : theme.colors.dashboardSurface)};
   overflow: hidden;
   transition: ${({ theme }) => theme.transition};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
 `;
 
 export const ColumnHeader = styled.div<{ $accent: string }>`
@@ -243,7 +290,7 @@ export const CountBadge = styled.span<{ $accent: string }>`
   font-weight: 800;
 `;
 
-export const ColumnBody = styled.div<{ $scrollable: boolean }>`
+export const ColumnBody = styled.div<{ $scrollable: boolean; $mobileScrollable: boolean }>`
   flex: 1 1 auto;
   min-height: 0;
   max-height: ${({ $scrollable }) => ($scrollable ? '50rem' : 'none')};
@@ -272,6 +319,15 @@ export const ColumnBody = styled.div<{ $scrollable: boolean }>`
 
   &::-webkit-scrollbar-thumb:hover {
     background: ${({ theme }) => theme.colors.dashboardTextSoft};
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    /* No celular cada etapa mostra até dois tickets. Do terceiro em diante,
+       somente a lista daquela etapa passa a rolar verticalmente. */
+    max-height: ${({ $mobileScrollable }) => ($mobileScrollable ? '28rem' : 'none')};
+    overflow-y: ${({ $mobileScrollable }) => ($mobileScrollable ? 'auto' : 'visible')};
+    scrollbar-gutter: ${({ $mobileScrollable }) => ($mobileScrollable ? 'stable' : 'auto')};
+    scrollbar-width: ${({ $mobileScrollable }) => ($mobileScrollable ? 'thin' : 'none')};
   }
 `;
 
@@ -454,6 +510,12 @@ export const FinalizedGrid = styled.div`
   &::-webkit-scrollbar-thumb:hover {
     background: ${({ theme }) => theme.colors.dashboardTextSoft};
   }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: minmax(0, 1fr);
+    max-height: 28rem;
+    padding-right: 0.2rem;
+  }
 `;
 
 export const CardRows = styled.div`
@@ -524,26 +586,34 @@ export const EmptyColumn = styled.div`
 
 export const DetailPanel = styled.aside`
   position: fixed;
-  top: 1rem;
-  right: 1rem;
-  bottom: 1rem;
+  top: 50%;
+  left: 50%;
   z-index: 1600;
-  width: min(29rem, calc(100vw - 2rem));
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  width: min(76rem, calc(100vw - 2.5rem));
+  max-width: 96vw;
+  height: min(50rem, calc(100dvh - 3rem));
+  max-height: calc(100dvh - 3rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
+  transform: translate(-50%, -50%);
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
-  border-radius: 0.9rem;
-  background: ${({ theme }) => theme.colors.dashboardSurface};
-  box-shadow: -1rem 0 3rem rgba(0, 0, 0, 0.35);
+  border-radius: 1.25rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  box-shadow: 0 1.75rem 5rem rgba(5, 20, 12, 0.32);
 
-  @media (max-width: 1180px) {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(28rem, 94vw);
-    border-radius: 0;
+  @media (max-width: 900px) {
+    width: min(48rem, calc(100vw - 1.5rem));
+    height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    width: calc(100vw - 0.75rem);
+    height: calc(100dvh - 0.75rem);
+    max-width: none;
+    max-height: none;
+    border-radius: 0.95rem;
   }
 `;
 
@@ -633,16 +703,21 @@ export const AccentPreview = styled.div<{ $accent: string }>`
 
 export const FormGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.72rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
 
-  .full {
-    grid-column: 1 / -1;
+  .full { grid-column: 1 / -1; }
+  .half { grid-column: span 2; }
+
+  @media (max-width: 900px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    .full { grid-column: 1 / -1; }
+    .half { grid-column: span 1; }
   }
 
-  @media (max-width: 390px) {
+  @media (max-width: ${breakpoints.mobile}) {
     grid-template-columns: 1fr;
-    .full { grid-column: auto; }
+    .full, .half { grid-column: auto; }
   }
 `;
 
@@ -731,4 +806,23 @@ export const MobileBackdrop = styled.div`
   inset: 0;
   z-index: 1590;
   background: ${({ theme }) => theme.colors.overlay};
+`;
+
+
+export const DangerButton = styled.button`
+  min-height: 2.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  border-radius: 0.68rem;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+  &:disabled { opacity: 0.5; cursor: wait; }
 `;

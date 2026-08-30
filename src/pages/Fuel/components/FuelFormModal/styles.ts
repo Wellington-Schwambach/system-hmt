@@ -36,11 +36,14 @@ export const Modal = styled.section`
   animation: ${modalEnter} 180ms ease-out;
 
   @media (max-width: ${breakpoints.mobile}) {
-    border-radius: 1.25rem;
+    width: 100%;
+    max-height: calc(100dvh - 0.75rem);
+    border-radius: 1rem;
   }
 `;
 
 export const Header = styled.header`
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -82,10 +85,15 @@ export const CloseButton = styled.button`
 `;
 
 export const Form = styled.form`
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 1rem;
   padding: 1.25rem;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    padding: 0.8rem;
+  }
 `;
 
 export const BillingPeriodPanel = styled.section`
@@ -157,6 +165,7 @@ export const FieldGrid = styled.div`
 `;
 
 export const Field = styled.div<{ $fullWidth?: boolean }>`
+  min-width: 0;
   grid-column: ${({ $fullWidth }) => ($fullWidth ? '1 / -1' : 'auto')};
 
   @media (max-width: ${breakpoints.mobile}) {

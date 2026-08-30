@@ -183,3 +183,66 @@ export const PageInfo = styled.span`
     color: ${({ theme }) => theme.colors.dashboardText};
   }
 `;
+
+export const ModuleTabs = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.3rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.85rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const ModuleTab = styled.button<{ $active: boolean }>`
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-radius: 0.65rem;
+  color: ${({ theme, $active }) => ($active ? theme.colors.brandGreenDark : theme.colors.dashboardTextMuted)};
+  background: ${({ theme, $active }) => ($active ? theme.colors.brandGreenSoft : 'transparent')};
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+`;
+
+export const HistoryList = styled.div`display: grid; gap: 0.7rem;`;
+export const HistoryCard = styled.article`
+  display: grid;
+  grid-template-columns: minmax(8rem, .8fr) minmax(12rem, 1.2fr) minmax(12rem, 1.4fr) auto;
+  align-items: center;
+  gap: .8rem;
+  padding: .85rem 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: .9rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  @media (max-width: ${breakpoints.mobile}) { grid-template-columns: 1fr; }
+`;
+export const HistoryItem = styled.div`
+  min-width: 0;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: .73rem;
+  strong { display: block; margin-bottom: .15rem; color: ${({ theme }) => theme.colors.dashboardText}; font-size: .8rem; }
+`;
+export const RestoreButton = styled.button`
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  padding: .5rem .75rem;
+  border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+  border-radius: .7rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+  font: inherit;
+  font-size: .74rem;
+  font-weight: 800;
+  cursor: pointer;
+`;

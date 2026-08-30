@@ -11,6 +11,7 @@ class LogisticsLoadEvent extends Model
     public const ACTION_UPDATED = 'UPDATED';
     public const ACTION_STAGE_CHANGED = 'STAGE_CHANGED';
     public const ACTION_FINALIZED = 'FINALIZED';
+    public const ACTION_DELETED = 'DELETED';
 
     protected $fillable = [
         'logistics_load_id',
