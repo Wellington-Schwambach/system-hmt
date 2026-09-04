@@ -74,6 +74,8 @@ class StoreTravelRequest extends FormRequest
         $this->merge([
             'ctes' => $normalizedCtes,
             'operation_type' => $operationType,
+            'freight_type' => strtoupper(trim((string) $this->input('freight_type', ''))),
+            'cst' => trim((string) $this->input('cst', '')),
             'origin' => trim((string) $this->input('origin')),
             'destination' => trim((string) $this->input('destination')),
             ...$modeFields,
@@ -93,6 +95,8 @@ class StoreTravelRequest extends FormRequest
             'destination' => ['bail', 'required', 'string', 'max:150'],
             'shipper_id' => ['bail', 'required', 'integer', 'exists:shippers,id'],
             'operation_type' => ['bail', 'required', Rule::in(['FLEET', 'THIRD_PARTY'])],
+            'freight_type' => ['bail', 'required', Rule::in(['CABOTAGE', 'EXPORT_PORT', 'OTHER'])],
+            'cst' => ['bail', 'required', Rule::in(['00', '90', '60', '41', '40', '51', '20'])],
 
             'vehicle_id' => [
                 Rule::excludeIf(fn (): bool => ! $isFleet()),
@@ -166,6 +170,10 @@ class StoreTravelRequest extends FormRequest
             'shipper_id.required' => 'Selecione o embarcador.',
             'shipper_id.exists' => 'O embarcador selecionado não existe mais. Atualize as opções e tente novamente.',
             'operation_type.in' => 'Selecione Frota própria ou Terceiro contratado.',
+            'freight_type.required' => 'Selecione o tipo de frete.',
+            'freight_type.in' => 'Selecione Cabotagem, Exportação Porto ou Outros.',
+            'cst.required' => 'Selecione a CST da viagem.',
+            'cst.in' => 'Selecione uma CST válida.',
             'vehicle_id.required' => 'Selecione o cavalo utilizado na viagem.',
             'vehicle_id.exists' => 'O cavalo selecionado não existe mais no cadastro.',
             'driver_one_id.required' => 'Selecione pelo menos um motorista para a viagem da frota.',

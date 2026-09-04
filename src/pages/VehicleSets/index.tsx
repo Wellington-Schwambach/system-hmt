@@ -76,6 +76,8 @@ import {
   PrimaryButton,
   SearchInput,
   SecondaryButton,
+  SecondaryTrailerHeader,
+  SecondaryTrailerPanel,
   SelectionBlock,
   StatChip,
   StepNumber,
@@ -206,6 +208,8 @@ export function VehicleSets() {
   const [saving, setSaving] = useState(false);
   const [tractorId, setTractorId] = useState('');
   const [trailerId, setTrailerId] = useState('');
+  const [trailerTwoId, setTrailerTwoId] = useState('');
+  const [showSecondTrailer, setShowSecondTrailer] = useState(false);
   const [driverId, setDriverId] = useState('');
   const [driverTwoId, setDriverTwoId] = useState('');
   const [showSecondDriver, setShowSecondDriver] = useState(false);
@@ -276,6 +280,10 @@ export function VehicleSets() {
     () => options.trailers.find((item) => item.id === Number(trailerId)) ?? null,
     [options.trailers, trailerId],
   );
+  const selectedTrailerTwo = useMemo(
+    () => options.trailers.find((item) => item.id === Number(trailerTwoId)) ?? null,
+    [options.trailers, trailerTwoId],
+  );
   const selectedDriver = useMemo(
     () => options.drivers.find((item) => item.id === Number(driverId)) ?? null,
     [driverId, options.drivers],
@@ -294,12 +302,20 @@ export function VehicleSets() {
     [options.tractors],
   );
   const trailerOptions = useMemo(
-    () => options.trailers.filter((item) => item.available).map((item) => ({
+    () => options.trailers.filter((item) => item.available && item.id !== Number(trailerTwoId)).map((item) => ({
       value: String(item.id),
       label: vehicleLabel(item),
       searchText: `${item.plate} ${item.fleetNumber ?? ''} ${item.brand} ${item.model}`,
     })),
-    [options.trailers],
+    [options.trailers, trailerTwoId],
+  );
+  const trailerTwoOptions = useMemo(
+    () => options.trailers.filter((item) => item.available && item.id !== Number(trailerId)).map((item) => ({
+      value: String(item.id),
+      label: vehicleLabel(item),
+      searchText: `${item.plate} ${item.fleetNumber ?? ''} ${item.brand} ${item.model}`,
+    })),
+    [options.trailers, trailerId],
   );
   const driverOptions = useMemo(
     () => options.drivers
@@ -324,6 +340,7 @@ export function VehicleSets() {
 
   const ready = Boolean(
     tractorId && driverId && coupledAt && driverAssignedAt &&
+    (!trailerTwoId || (trailerId && trailerTwoId !== trailerId)) &&
     (!driverTwoId || (driverTwoAssignedAt && driverTwoId !== driverId)),
   );
 
@@ -331,7 +348,7 @@ export function VehicleSets() {
     const term = activeSearch.trim().toLocaleLowerCase('pt-BR');
     if (!term) return sets;
     return sets.filter((item) =>
-      `${item.tractorPlate} ${item.trailerPlate ?? ''} ${item.driverName} ${item.driverTwoName ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
+      `${item.tractorPlate} ${item.trailerPlate ?? ''} ${item.trailerTwoPlate ?? ''} ${item.driverName} ${item.driverTwoName ?? ''}`.toLocaleLowerCase('pt-BR').includes(term),
     );
   }, [activeSearch, sets]);
 
@@ -366,6 +383,8 @@ export function VehicleSets() {
   function resetBuilder() {
     setTractorId('');
     setTrailerId('');
+    setTrailerTwoId('');
+    setShowSecondTrailer(false);
     setDriverId('');
     setDriverTwoId('');
     setShowSecondDriver(false);
@@ -382,6 +401,7 @@ export function VehicleSets() {
       const result = await vehicleSetService.create({
         tractorId: Number(tractorId),
         trailerId: trailerId ? Number(trailerId) : null,
+        trailerTwoId: trailerTwoId ? Number(trailerTwoId) : null,
         driverId: Number(driverId),
         driverTwoId: driverTwoId ? Number(driverTwoId) : null,
         coupledAt,
@@ -486,7 +506,7 @@ export function VehicleSets() {
     if (!managingSet) return;
     const confirmed = await notifications.confirm({
       title: 'Desatrelar conjunto?',
-      message: `${managingSet.tractorPlate}${managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ''} será encerrado e os recursos ficarão disponíveis para novos vínculos.`,
+      message: `${managingSet.tractorPlate}${managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ''}${managingSet.trailerTwoPlate ? ` / ${managingSet.trailerTwoPlate}` : ''} será encerrado e os recursos ficarão disponíveis para novos vínculos.`,
       type: 'error',
       confirmLabel: 'Desatrelar conjunto',
     });
@@ -512,7 +532,7 @@ export function VehicleSets() {
       <PageHeader>
         <div>
           <h1>Vínculos de veículos</h1>
-          <p>Vincule o cavalo a uma carreta opcional e a um ou dois motoristas responsáveis.</p>
+          <p>Vincule o cavalo a uma ou duas carretas opcionais e a um ou dois motoristas responsáveis.</p>
         </div>
         <HeaderStats>
           <StatChip><Link2 size={14} /> {sets.length} conjunto(s) ativo(s)</StatChip>
@@ -547,7 +567,13 @@ export function VehicleSets() {
               id="vehicle-set-trailer"
               value={trailerId}
               options={trailerOptions}
-              onChange={setTrailerId}
+              onChange={(value) => {
+                setTrailerId(value);
+                if (!value) {
+                  setTrailerTwoId('');
+                  setShowSecondTrailer(false);
+                }
+              }}
               placeholder="Sem carreta / selecione uma carreta disponível"
               searchPlaceholder="Buscar por placa, frota, marca ou modelo..."
               emptyMessage="Nenhuma carreta disponível."
@@ -557,6 +583,60 @@ export function VehicleSets() {
             {selectedTrailer ? <VehicleDetails vehicle={selectedTrailer} /> : (
               <VehicleCard $selected={false}><EmptyVehicle>A carreta é opcional. Selecione uma para visualizar tara e capacidade.</EmptyVehicle></VehicleCard>
             )}
+
+            {trailerId && !showSecondTrailer ? (
+              <SecondaryTrailerPanel>
+                <SecondaryTrailerHeader>
+                  <div>
+                    <strong>Precisa vincular outra carreta?</strong><br />
+                    <small>A segunda carreta é opcional e não precisa de outra imagem.</small>
+                  </div>
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => {
+                      setShowSecondTrailer(true);
+                      setTrailerTwoId('');
+                    }}
+                  >
+                    <Link2 size={16} /> Adicionar 2ª carreta
+                  </SecondaryButton>
+                </SecondaryTrailerHeader>
+              </SecondaryTrailerPanel>
+            ) : null}
+
+            {showSecondTrailer ? (
+              <SecondaryTrailerPanel>
+                <SecondaryTrailerHeader>
+                  <div>
+                    <strong>2ª carreta</strong><br />
+                    <small>Opcional</small>
+                  </div>
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => {
+                      setTrailerTwoId('');
+                      setShowSecondTrailer(false);
+                    }}
+                  >
+                    <X size={15} /> Remover
+                  </SecondaryButton>
+                </SecondaryTrailerHeader>
+                <SearchableSelect
+                  id="vehicle-set-trailer-two"
+                  value={trailerTwoId}
+                  options={trailerTwoOptions}
+                  onChange={setTrailerTwoId}
+                  placeholder="Selecione a segunda carreta"
+                  searchPlaceholder="Buscar por placa, frota, marca ou modelo..."
+                  emptyMessage="Nenhuma outra carreta disponível."
+                  ariaLabel="Selecionar segunda carreta"
+                  clearable
+                />
+                {selectedTrailerTwo ? (
+                  <InfoHint><Link2 size={16} />2ª carreta selecionada: <strong>{vehicleLabel(selectedTrailerTwo)}</strong></InfoHint>
+                ) : null}
+              </SecondaryTrailerPanel>
+            ) : null}
           </SelectionBlock>
         </BuilderTop>
 
@@ -735,14 +815,14 @@ export function VehicleSets() {
             <>
               <TableWrap>
                 <Table>
-                  <thead><tr><Th>Data/Hora</Th><Th>Ação</Th><Th>Cavalo</Th><Th>Carreta</Th><Th>Motorista</Th><Th>Usuário</Th></tr></thead>
+                  <thead><tr><Th>Data/Hora</Th><Th>Ação</Th><Th>Cavalo</Th><Th>Carreta(s)</Th><Th>Motorista</Th><Th>Usuário</Th></tr></thead>
                   <tbody>
                     {visibleHistory.map((event) => (
                       <tr key={event.id}>
                         <Td>{formatDateTime(event.occurredAt)}</Td>
                         <Td><ActionBadge $type={eventColor(event.action)}>{eventLabel(event.action)}</ActionBadge></Td>
                         <Td>{event.tractorPlate}</Td>
-                        <Td>{event.trailerPlate || '—'}</Td>
+                        <Td>{[event.trailerPlate, event.trailerTwoPlate].filter(Boolean).join(' / ') || '—'}</Td>
                         <Td>{event.driverName || '-'}</Td>
                         <Td>{event.userName || '-'}</Td>
                       </tr>
@@ -786,7 +866,7 @@ export function VehicleSets() {
               <ActiveCard key={vehicleSet.id} type="button" onClick={() => openManager(vehicleSet)}>
                 <ActiveIcon><Link2 size={17} /></ActiveIcon>
                 <ActiveText>
-                  <strong>{vehicleSet.tractorPlate}{vehicleSet.trailerPlate ? ` / ${vehicleSet.trailerPlate}` : ' / Sem carreta'}</strong>
+                  <strong>{vehicleSet.tractorPlate}{vehicleSet.trailerPlate ? ` / ${vehicleSet.trailerPlate}` : ' / Sem carreta'}{vehicleSet.trailerTwoPlate ? ` / ${vehicleSet.trailerTwoPlate}` : ''}</strong>
                   <span>{vehicleSet.driverName}{vehicleSet.driverTwoName ? ` / ${vehicleSet.driverTwoName}` : ''}</span>
                   <span>Motorista desde {formatDateTime(vehicleSet.driverAssignedAt)}</span>
                 </ActiveText>
@@ -802,7 +882,7 @@ export function VehicleSets() {
           <Modal role="dialog" aria-modal="true" aria-labelledby="manage-set-title">
             <ModalHeader>
               <div>
-                <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate}{managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ' / Sem carreta'}</h3>
+                <h3 id="manage-set-title">Gerenciar {managingSet.tractorPlate}{managingSet.trailerPlate ? ` / ${managingSet.trailerPlate}` : ' / Sem carreta'}{managingSet.trailerTwoPlate ? ` / ${managingSet.trailerTwoPlate}` : ''}</h3>
                 <p>Gerencie os motoristas ou encerre o conjunto mantendo todo o histórico.</p>
               </div>
               <CloseButton type="button" disabled={managing} onClick={() => setManagingSet(null)}><X size={17} /></CloseButton>
@@ -810,7 +890,8 @@ export function VehicleSets() {
             <ModalBody>
               <SummaryCard>
                 <SummaryRow><Truck size={15} /><span>Cavalo</span><strong>{managingSet.tractorLabel}</strong></SummaryRow>
-                <SummaryRow><Link2 size={15} /><span>Carreta</span><strong>{managingSet.trailerLabel || 'Não vinculada'}</strong></SummaryRow>
+                <SummaryRow><Link2 size={15} /><span>Carreta 1</span><strong>{managingSet.trailerLabel || 'Não vinculada'}</strong></SummaryRow>
+                <SummaryRow><Link2 size={15} /><span>Carreta 2</span><strong>{managingSet.trailerTwoLabel || 'Não vinculada'}</strong></SummaryRow>
                 <SummaryRow><UserRound size={15} /><span>Motorista 1</span><strong>{managingSet.driverName}</strong></SummaryRow>
                 <SummaryRow><UserPlus size={15} /><span>Motorista 2</span><strong>{managingSet.driverTwoName ?? 'Não vinculado'}</strong></SummaryRow>
                 <SummaryRow><CalendarClock size={15} /><span>Motorista 1 desde</span><strong>{formatDateTime(managingSet.driverAssignedAt)}</strong></SummaryRow>
@@ -872,7 +953,7 @@ export function VehicleSets() {
 
               <ModalSection>
                 <h4>Desatrelar conjunto</h4>
-                <p>Encerra o conjunto e libera o cavalo, a carreta quando houver e todos os motoristas vinculados. O histórico permanece intacto.</p>
+                <p>Encerra o conjunto e libera o cavalo, as carretas quando houver e todos os motoristas vinculados. O histórico permanece intacto.</p>
                 <Field>
                   Data e horário do desatrelamento
                   <DateTimeInput type="datetime-local" value={detachedAt} onChange={(event) => setDetachedAt(event.target.value)} />

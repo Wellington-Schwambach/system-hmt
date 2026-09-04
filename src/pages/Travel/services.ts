@@ -37,6 +37,8 @@ interface ApiTravel {
   shipper: string;
   shipper_color: string;
   operation_type: TravelRecord['operationType'];
+  freight_type: string | null;
+  cst: string | null;
   vehicle_id: number | null;
   plate: string;
   driver_one_id: number | null;
@@ -80,6 +82,13 @@ interface ApiOptions {
   filter_plates: string[];
   active_sets?: Array<{ id: number; tractor_id: number | null; trailer_id: number | null; driver_id: number | null; driver_two_id: number | null }>;
   warnings?: string[];
+}
+
+function normalizeFreightType(value: string | null | undefined): TravelRecord['freightType'] {
+  if (value === 'CABOTAGE') return 'CABOTAGE';
+  if (value === 'EXPORT_PORT') return 'EXPORT_PORT';
+  if (value === 'OTHER') return 'OTHER';
+  return '';
 }
 
 function normalizeCteType(value: string): TravelCteRecord['cteType'] {
@@ -140,6 +149,8 @@ function mapTravel(travel: ApiTravel): TravelRecord {
     shipper: travel.shipper,
     shipperColor: travel.shipper_color || '#009E60',
     operationType: travel.operation_type,
+    freightType: normalizeFreightType(travel.freight_type),
+    cst: travel.cst ?? '',
     vehicleId: travel.vehicle_id,
     plate: travel.plate,
     driver:
@@ -174,6 +185,8 @@ function buildPayload(data: TravelFormData) {
     destination: data.destination.trim(),
     shipper_id: data.shipperId ? Number(data.shipperId) : null,
     operation_type: data.operationType,
+    freight_type: data.freightType || null,
+    cst: data.cst || null,
     vehicle_id: data.operationType === 'FLEET' && data.vehicleId ? Number(data.vehicleId) : null,
     driver_one_id:
       data.operationType === 'FLEET' && data.driverOneId ? Number(data.driverOneId) : null,

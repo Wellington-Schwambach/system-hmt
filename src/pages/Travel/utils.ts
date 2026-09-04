@@ -145,6 +145,12 @@ function xlsxTextCell(reference: string, value: string | number, style = 0): str
   return `<c r="${reference}" t="inlineStr"${styleAttribute}><is><t xml:space="preserve">${escapeXmlForXlsx(value)}</t></is></c>`;
 }
 
+function xlsxNumberCell(reference: string, value: number, style = 0): string {
+  const styleAttribute = style > 0 ? ` s="${style}"` : '';
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return `<c r="${reference}"${styleAttribute}><v>${safeValue}</v></c>`;
+}
+
 const TRAVEL_XLSX_CRC_TABLE = (() => {
   const table = new Uint32Array(256);
 
@@ -300,6 +306,8 @@ export function exportTravelsToExcel(
     'Origem',
     'Destino',
     'Operação',
+    'Tipo de frete',
+    'CST',
     'Placa / Cavalo',
     'Motorista 1',
     'Motorista 2',
@@ -334,12 +342,14 @@ export function exportTravelsToExcel(
       record.origin,
       record.destination,
       operationTypeLabel(record),
+      record.freightType === 'CABOTAGE' ? 'Cabotagem' : record.freightType === 'EXPORT_PORT' ? 'Exportação Porto' : record.freightType === 'OTHER' ? 'Outros' : '',
+      record.cst,
       record.plate,
       record.driverOne,
       record.driverTwo,
       record.thirdPartyName,
       record.thirdPartyPlate,
-      record.operationType === 'THIRD_PARTY' ? formatCurrency(record.thirdPartyPayoutAmount) : '',
+      record.operationType === 'THIRD_PARTY' ? record.thirdPartyPayoutAmount : '',
       record.operationType === 'THIRD_PARTY' ? formatDate(record.thirdPartyPayoutDate) : '',
       record.detachedTrailerPlate,
       record.receivedDate ? formatDate(record.receivedDate) : '',
@@ -347,27 +357,31 @@ export function exportTravelsToExcel(
       cte.cteNumber,
       cte.cteSeries,
       cte.complementedCteNumber,
-      formatCurrency(cte.netFreight),
-      formatCurrency(cte.insuranceAmount),
-      formatCurrency(cte.tollAmount),
-      formatCurrency(cte.icmsAmount),
-      formatCurrency(cte.grossFreight),
+      cte.netFreight,
+      cte.insuranceAmount,
+      cte.tollAmount,
+      cte.icmsAmount,
+      cte.grossFreight,
       formatDateTimeForExcel(record.createdAt),
       formatDateTimeForExcel(record.updatedAt),
     ]);
   });
 
   const allRows = [headers, ...rows];
+  const moneyColumns = new Set([13, 21, 22, 23, 24, 25]);
   const sheetRows = allRows
     .map((row, rowIndex) => {
       const cells = row
-        .map((value, columnIndex) =>
-          xlsxTextCell(
-            `${spreadsheetColumn(columnIndex)}${rowIndex + 1}`,
-            value,
-            rowIndex === 0 ? 1 : 0,
-          ),
-        )
+        .map((value, columnIndex) => {
+          const reference = `${spreadsheetColumn(columnIndex)}${rowIndex + 1}`;
+
+          if (rowIndex === 0) return xlsxTextCell(reference, value, 1);
+          if (typeof value === 'number') {
+            return xlsxNumberCell(reference, value, moneyColumns.has(columnIndex) ? 2 : 0);
+          }
+
+          return xlsxTextCell(reference, value, 0);
+        })
         .join('');
       return `<row r="${rowIndex + 1}">${cells}</row>`;
     })
@@ -391,11 +405,12 @@ export function exportTravelsToExcel(
 
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;R$&quot; #,##0.00;[Red]-&quot;R$&quot; #,##0.00"/></numFmts>
   <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
   <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
   <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
   <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
+  <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
 </styleSheet>`;
 
   const entries = [

@@ -254,6 +254,64 @@ export const FieldGrid = styled.div`
   }
 `;
 
+
+export const FreightTypeGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+`;
+
+export const FreightTypeOption = styled.label<{ $selected: boolean }>`
+  min-width: 0;
+  min-height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid ${({ theme, $selected }) =>
+    $selected ? theme.colors.brandGreen : theme.colors.dashboardBorderStrong};
+  border-radius: 0.85rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme, $selected }) =>
+    $selected ? theme.colors.brandGreenSoft : theme.colors.surfaceElevated};
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.2rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    min-height: 3.25rem;
+    padding: 0.6rem;
+    gap: 0.45rem;
+  }
+`;
+
+export const FreightTypeCheckbox = styled.input`
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: ${({ theme }) => theme.colors.brandGreen};
+  cursor: pointer;
+`;
+
+export const FreightTypeOptionText = styled.span`
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.25;
+
+  @media (max-width: ${breakpoints.mobile}) {
+    font-size: 0.72rem;
+    text-align: left;
+  }
+`;
+
 export const Field = styled.div<{ $fullWidth?: boolean }>`
   position: relative;
   min-width: 0;

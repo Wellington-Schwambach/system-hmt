@@ -15,7 +15,7 @@ import {
 
 import { DateInput } from '../../../../components/DateInput';
 import { SearchableSelect } from '../../../../components/SearchableSelect';
-import { CTE_TYPE_OPTIONS, INITIAL_TRAVEL_FORM, createEmptyCte } from '../../constants';
+import { CST_OPTIONS, CTE_TYPE_OPTIONS, FREIGHT_TYPE_OPTIONS, INITIAL_TRAVEL_FORM, createEmptyCte } from '../../constants';
 import { travelService } from '../../services';
 import type {
   TravelCityOption,
@@ -54,6 +54,10 @@ import {
   FormSectionHeader,
   FormSectionHeaderRow,
   FormSectionTitle,
+  FreightTypeCheckbox,
+  FreightTypeGrid,
+  FreightTypeOption,
+  FreightTypeOptionText,
   Header,
   InlineAddButton,
   InlineInfo,
@@ -107,6 +111,8 @@ function getInitialFormData(editingRecord?: TravelRecordWithMetrics | null): Tra
     destination: editingRecord.destination,
     shipperId: editingRecord.shipperId ? String(editingRecord.shipperId) : '',
     operationType: editingRecord.operationType,
+    freightType: editingRecord.freightType,
+    cst: editingRecord.cst,
     vehicleId: editingRecord.vehicleId ? String(editingRecord.vehicleId) : '',
     driverOneId: editingRecord.driverOneId ? String(editingRecord.driverOneId) : '',
     driverTwoId: editingRecord.driverTwoId ? String(editingRecord.driverTwoId) : '',
@@ -437,6 +443,16 @@ export function TravelFormModal({
 
     if (!formData.origin.trim() || !formData.destination.trim()) {
       setFormError('Informe a origem e o destino da viagem.');
+      return;
+    }
+
+    if (!formData.freightType) {
+      setFormError('Selecione o tipo de frete: Cabotagem, Exportação Porto ou Outros.');
+      return;
+    }
+
+    if (!formData.cst) {
+      setFormError('Selecione a CST da viagem.');
       return;
     }
 
@@ -838,6 +854,49 @@ export function TravelFormModal({
                 <RoutePreviewPoint>{formData.destination || 'Destino'}</RoutePreviewPoint>
               </RoutePreview>
             )}
+          </FormSection>
+
+          <FormSection>
+            <FormSectionHeader>
+              <div>
+                <FormSectionTitle>Classificação do frete</FormSectionTitle>
+                <FormSectionDescription>
+                  Selecione o tipo de frete e a CST aplicável ao lançamento.
+                </FormSectionDescription>
+              </div>
+            </FormSectionHeader>
+
+            <FreightTypeGrid role="group" aria-label="Tipo de frete">
+              {FREIGHT_TYPE_OPTIONS.map((option) => {
+                const checked = formData.freightType === option.value;
+                return (
+                  <FreightTypeOption key={option.value} $selected={checked}>
+                    <FreightTypeCheckbox
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => handleChange('freightType', option.value)}
+                      aria-label={option.label}
+                    />
+                    <FreightTypeOptionText>{option.label}</FreightTypeOptionText>
+                  </FreightTypeOption>
+                );
+              })}
+            </FreightTypeGrid>
+
+            <Field $fullWidth>
+              <Label htmlFor="travel-cst">CST</Label>
+              <Select
+                id="travel-cst"
+                value={formData.cst}
+                onChange={(event) => handleChange('cst', event.target.value)}
+                required
+              >
+                <option value="" disabled>Selecione a CST</option>
+                {CST_OPTIONS.map((cst) => (
+                  <option key={cst.value} value={cst.value}>{cst.label}</option>
+                ))}
+              </Select>
+            </Field>
           </FormSection>
 
           <FormSection>

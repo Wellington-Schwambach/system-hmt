@@ -32,12 +32,15 @@ export interface VehicleSetRecord {
   status: 'ACTIVE' | 'DETACHED';
   tractorId: number | null;
   trailerId: number | null;
+  trailerTwoId: number | null;
   driverId: number | null;
   driverTwoId: number | null;
   tractorPlate: string;
   tractorLabel: string;
   trailerPlate: string | null;
   trailerLabel: string | null;
+  trailerTwoPlate: string | null;
+  trailerTwoLabel: string | null;
   driverName: string;
   driverTwoName: string | null;
   coupledAt: string;
@@ -46,6 +49,7 @@ export interface VehicleSetRecord {
   detachedAt: string | null;
   tractor: VehicleSetVehicleOption | null;
   trailer: VehicleSetVehicleOption | null;
+  trailerTwo: VehicleSetVehicleOption | null;
   driver: VehicleSetDriverOption | null;
   driverTwo: VehicleSetDriverOption | null;
 }
@@ -62,6 +66,7 @@ export interface VehicleSetEventRecord {
   action: VehicleSetEventAction;
   tractorPlate: string;
   trailerPlate: string | null;
+  trailerTwoPlate: string | null;
   driverName: string | null;
   occurredAt: string;
   userName: string | null;

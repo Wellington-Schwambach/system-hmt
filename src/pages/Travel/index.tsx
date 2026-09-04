@@ -14,7 +14,9 @@ import {
 } from 'lucide-react';
 
 import { useNotifications } from '../../contexts/Notifications';
+import { CheckboxMultiSelect } from '../../components/CheckboxMultiSelect';
 import { FloatingAddButton } from './components/FloatingAddButton';
+import { CST_OPTIONS, FREIGHT_TYPE_OPTIONS } from './constants';
 import { TravelFilters } from './components/TravelFilters';
 import { TravelFormModal } from './components/TravelFormModal';
 import { TravelMobileList } from './components/TravelMobileList';
@@ -34,6 +36,10 @@ import {
   Pagination,
   PaginationActions,
   PaginationSummary,
+  RecordFilterField,
+  RecordFilterLabel,
+  RecordFilterSelect,
+  RecordFilters,
   RecordsSection,
   RestoreButton,
   SectionActions,
@@ -42,7 +48,7 @@ import {
   SectionTitle,
   SummaryGrid,
 } from './styles';
-import type { TravelFormData, TravelHistoryEvent, TravelRecordWithMetrics } from './types';
+import type { TravelFormData, TravelFreightType, TravelHistoryEvent, TravelRecordWithMetrics } from './types';
 import { travelService } from './services';
 import { exportTravelsToExcel, formatCurrency } from './utils';
 
@@ -64,6 +70,12 @@ export function Travel() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    originStateFilter,
+    destinationStateFilter,
+    freightTypeFilter,
+    cstFilter,
+    originStateOptions,
+    destinationStateOptions,
     dateFrom,
     dateTo,
     plateOptions,
@@ -77,6 +89,10 @@ export function Travel() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setOriginStateFilter,
+    setDestinationStateFilter,
+    setFreightTypeFilter,
+    setCstFilter,
     setDateFrom,
     setDateTo,
     setSearchTerm,
@@ -279,6 +295,62 @@ export function Travel() {
             </ExportButton>
           </SectionActions>
         </SectionHeader>
+
+        <RecordFilters aria-label="Filtros complementares de viagens">
+          <RecordFilterField>
+            <RecordFilterLabel htmlFor="travel-origin-state-filter">Estado de origem</RecordFilterLabel>
+            <RecordFilterSelect
+              id="travel-origin-state-filter"
+              value={originStateFilter}
+              onChange={(event) => resetPage(setOriginStateFilter, event.target.value)}
+            >
+              <option value="ALL">Todos os estados</option>
+              {originStateOptions.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </RecordFilterSelect>
+          </RecordFilterField>
+
+          <RecordFilterField>
+            <RecordFilterLabel htmlFor="travel-destination-state-filter">Estado de destino</RecordFilterLabel>
+            <RecordFilterSelect
+              id="travel-destination-state-filter"
+              value={destinationStateFilter}
+              onChange={(event) => resetPage(setDestinationStateFilter, event.target.value)}
+            >
+              <option value="ALL">Todos os estados</option>
+              {destinationStateOptions.map((state) => (
+                <option key={state} value={state}>{state}</option>
+              ))}
+            </RecordFilterSelect>
+          </RecordFilterField>
+
+          <RecordFilterField>
+            <RecordFilterLabel>Tipo de frete</RecordFilterLabel>
+            <CheckboxMultiSelect
+              value={freightTypeFilter}
+              options={FREIGHT_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+              allLabel="Todos os tipos de frete"
+              searchPlaceholder="Pesquisar tipo..."
+              ariaLabel="Filtrar por um ou mais tipos de frete"
+              onChange={(value) => resetPage(setFreightTypeFilter, value as TravelFreightType[])}
+            />
+          </RecordFilterField>
+
+          <RecordFilterField>
+            <RecordFilterLabel htmlFor="travel-cst-filter">CST</RecordFilterLabel>
+            <RecordFilterSelect
+              id="travel-cst-filter"
+              value={cstFilter}
+              onChange={(event) => resetPage(setCstFilter, event.target.value)}
+            >
+              <option value="ALL">Todas as CST</option>
+              {CST_OPTIONS.map((cst) => (
+                <option key={cst.value} value={cst.value}>{cst.label}</option>
+              ))}
+            </RecordFilterSelect>
+          </RecordFilterField>
+        </RecordFilters>
 
         <TravelTable
           records={paginatedRecords}
