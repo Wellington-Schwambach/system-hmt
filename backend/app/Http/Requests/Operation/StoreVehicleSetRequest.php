@@ -25,6 +25,12 @@ class StoreVehicleSetRequest extends FormRequest
                 'integer',
                 Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRAILER')->where('status', 'ACTIVE')),
             ],
+            'trailer_two_id' => [
+                'nullable',
+                'integer',
+                'different:trailer_id',
+                Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRAILER')->where('status', 'ACTIVE')),
+            ],
             'driver_id' => [
                 'required',
                 'integer',
@@ -48,6 +54,8 @@ class StoreVehicleSetRequest extends FormRequest
             'tractor_id.required' => 'Selecione o cavalo do conjunto.',
             'tractor_id.exists' => 'O cavalo selecionado não está disponível ou não está ativo.',
             'trailer_id.exists' => 'A carreta selecionada não está disponível ou não está ativa.',
+            'trailer_two_id.different' => 'A segunda carreta deve ser diferente da primeira.',
+            'trailer_two_id.exists' => 'A segunda carreta selecionada não está disponível ou não está ativa.',
             'driver_id.required' => 'Selecione o motorista que ficará vinculado ao conjunto.',
             'driver_id.exists' => 'O motorista selecionado não está disponível ou não está ativo.',
             'driver_two_id.different' => 'O segundo motorista deve ser diferente do primeiro.',

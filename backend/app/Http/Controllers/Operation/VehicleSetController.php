@@ -22,7 +22,7 @@ class VehicleSetController extends Controller
     public function index(): JsonResponse
     {
         $sets = VehicleSet::query()
-            ->with(['tractor', 'trailer', 'driver', 'driverTwo'])
+            ->with(['tractor', 'trailer', 'trailerTwo', 'driver', 'driverTwo'])
             ->where('status', VehicleSet::STATUS_ACTIVE)
             ->orderByDesc('coupled_at')
             ->get()
@@ -45,10 +45,16 @@ class VehicleSetController extends Controller
     {
         $activeSetRows = VehicleSet::query()
             ->where('status', VehicleSet::STATUS_ACTIVE)
-            ->get(['tractor_id', 'trailer_id', 'driver_id', 'driver_two_id']);
+            ->get(['tractor_id', 'trailer_id', 'trailer_two_id', 'driver_id', 'driver_two_id']);
 
         $usedTractors = $activeSetRows->pluck('tractor_id')->filter()->map(fn ($id): int => (int) $id)->all();
-        $usedTrailers = $activeSetRows->pluck('trailer_id')->filter()->map(fn ($id): int => (int) $id)->all();
+        $usedTrailers = $activeSetRows
+            ->flatMap(fn (VehicleSet $set) => [$set->trailer_id, $set->trailer_two_id])
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
         $usedDrivers = $activeSetRows
             ->flatMap(fn (VehicleSet $set) => [$set->driver_id, $set->driver_two_id])
             ->filter()
@@ -105,6 +111,9 @@ class VehicleSetController extends Controller
                 $trailer = ! empty($validated['trailer_id'])
                     ? Vehicle::query()->findOrFail((int) $validated['trailer_id'])
                     : null;
+                $trailerTwo = ! empty($validated['trailer_two_id'])
+                    ? Vehicle::query()->findOrFail((int) $validated['trailer_two_id'])
+                    : null;
                 $driver = Employee::query()->findOrFail((int) $validated['driver_id']);
                 $driverTwo = ! empty($validated['driver_two_id'])
                     ? Employee::query()->findOrFail((int) $validated['driver_two_id'])
@@ -122,7 +131,15 @@ class VehicleSetController extends Controller
 
                 $this->ensureAvailable('tractor_id', $tractor->id, 'Este cavalo já está vinculado a outro conjunto ativo.');
                 if ($trailer !== null) {
-                    $this->ensureAvailable('trailer_id', $trailer->id, 'Esta carreta já está vinculada a outro conjunto ativo.');
+                    $this->ensureTrailerAvailable($trailer->id, 'trailer_id');
+                }
+                if ($trailerTwo !== null) {
+                    if ($trailer !== null && $trailerTwo->id === $trailer->id) {
+                        throw ValidationException::withMessages([
+                            'trailer_two_id' => ['A segunda carreta deve ser diferente da primeira.'],
+                        ]);
+                    }
+                    $this->ensureTrailerAvailable($trailerTwo->id, 'trailer_two_id');
                 }
                 $this->ensureDriverAvailable($driver->id, 'driver_id');
                 if ($driverTwo !== null) {
@@ -138,12 +155,15 @@ class VehicleSetController extends Controller
                 $vehicleSet = VehicleSet::query()->create([
                     'tractor_id' => $tractor->id,
                     'trailer_id' => $trailer?->id,
+                    'trailer_two_id' => $trailerTwo?->id,
                     'driver_id' => $driver->id,
                     'driver_two_id' => $driverTwo?->id,
                     'tractor_plate' => $tractor->plate,
                     'tractor_label' => $this->vehicleLabel($tractor),
                     'trailer_plate' => $trailer?->plate,
                     'trailer_label' => $trailer !== null ? $this->vehicleLabel($trailer) : null,
+                    'trailer_two_plate' => $trailerTwo?->plate,
+                    'trailer_two_label' => $trailerTwo !== null ? $this->vehicleLabel($trailerTwo) : null,
                     'driver_name' => $driver->full_name,
                     'driver_two_name' => $driverTwo?->full_name,
                     'coupled_at' => $coupledAt,
@@ -160,9 +180,14 @@ class VehicleSetController extends Controller
                     $coupledAt,
                     $request,
                     $driver,
-                    ['message' => $trailer !== null
-                        ? 'Cavalo e carreta foram atrelados para formar o conjunto.'
-                        : 'Conjunto criado sem carreta vinculada.']
+                    [
+                        'message' => $trailerTwo !== null
+                            ? 'Cavalo e duas carretas foram atrelados para formar o conjunto.'
+                            : ($trailer !== null
+                                ? 'Cavalo e carreta foram atrelados para formar o conjunto.'
+                                : 'Conjunto criado sem carreta vinculada.'),
+                        'trailer_two_plate' => $trailerTwo?->plate,
+                    ]
                 );
 
                 $this->recordEvent(
@@ -185,7 +210,7 @@ class VehicleSetController extends Controller
                     );
                 }
 
-                return $vehicleSet->fresh()->load(['tractor', 'trailer', 'driver', 'driverTwo']);
+                return $vehicleSet->fresh()->load(['tractor', 'trailer', 'trailerTwo', 'driver', 'driverTwo']);
             });
         } catch (QueryException $exception) {
             if ($exception->getCode() === '23505') {
@@ -198,16 +223,21 @@ class VehicleSetController extends Controller
         }
 
         $hasTrailer = ! empty($validated['trailer_id']);
+        $hasSecondTrailer = ! empty($validated['trailer_two_id']);
         $hasSecondDriver = ! empty($validated['driver_two_id']);
 
         return response()->json([
-            'message' => $hasTrailer
+            'message' => $hasSecondTrailer
                 ? ($hasSecondDriver
-                    ? 'Conjunto montado e dois motoristas vinculados com sucesso.'
-                    : 'Conjunto montado e motorista vinculado com sucesso.')
-                : ($hasSecondDriver
-                    ? 'Cavalo vinculado a dois motoristas, sem carreta, com sucesso.'
-                    : 'Cavalo e motorista vinculados sem carreta com sucesso.'),
+                    ? 'Conjunto com duas carretas e dois motoristas vinculado com sucesso.'
+                    : 'Conjunto com duas carretas vinculado com sucesso.')
+                : ($hasTrailer
+                    ? ($hasSecondDriver
+                        ? 'Conjunto montado e dois motoristas vinculados com sucesso.'
+                        : 'Conjunto montado e motorista vinculado com sucesso.')
+                    : ($hasSecondDriver
+                        ? 'Cavalo vinculado a dois motoristas, sem carreta, com sucesso.'
+                        : 'Cavalo e motorista vinculados sem carreta com sucesso.')),
             'set' => $this->setPayload($vehicleSet),
         ], 201);
     }
@@ -294,7 +324,7 @@ class VehicleSetController extends Controller
             'message' => $oldDriverName === null
                 ? 'Segundo motorista vinculado com sucesso.'
                 : ($slot === 'SECONDARY' ? 'Segundo motorista alterado com sucesso.' : 'Motorista principal alterado com sucesso.'),
-            'set' => $this->setPayload($vehicleSet->fresh()->load(['tractor', 'trailer', 'driver', 'driverTwo'])),
+            'set' => $this->setPayload($vehicleSet->fresh()->load(['tractor', 'trailer', 'trailerTwo', 'driver', 'driverTwo'])),
         ]);
     }
 
@@ -354,6 +384,24 @@ class VehicleSetController extends Controller
         }
     }
 
+    private function ensureTrailerAvailable(int $trailerId, string $field = 'trailer_id', ?int $ignoreSetId = null): void
+    {
+        $exists = VehicleSet::query()
+            ->where('status', VehicleSet::STATUS_ACTIVE)
+            ->where(function ($query) use ($trailerId): void {
+                $query->where('trailer_id', $trailerId)
+                    ->orWhere('trailer_two_id', $trailerId);
+            })
+            ->when($ignoreSetId !== null, fn ($query) => $query->where('id', '!=', $ignoreSetId))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                $field => ['Esta carreta já está vinculada a outro conjunto ativo.'],
+            ]);
+        }
+    }
+
     private function ensureDriverAvailable(int $driverId, string $field = 'driver_id', ?int $ignoreSetId = null): void
     {
         $exists = VehicleSet::query()
@@ -403,9 +451,11 @@ class VehicleSetController extends Controller
             'action' => $action,
             'tractor_id' => $vehicleSet->tractor_id,
             'trailer_id' => $vehicleSet->trailer_id,
+            'trailer_two_id' => $vehicleSet->trailer_two_id,
             'driver_id' => $driver?->id,
             'tractor_plate' => $vehicleSet->tractor_plate,
             'trailer_plate' => $vehicleSet->trailer_plate,
+            'trailer_two_plate' => $vehicleSet->trailer_two_plate,
             'driver_name' => $driver?->full_name ?? ($details['driver_names'] ?? $vehicleSet->driver_name),
             'occurred_at' => $occurredAt,
             'details' => $details,
@@ -464,12 +514,15 @@ class VehicleSetController extends Controller
             'status' => $vehicleSet->status,
             'tractor_id' => $vehicleSet->tractor_id,
             'trailer_id' => $vehicleSet->trailer_id,
+            'trailer_two_id' => $vehicleSet->trailer_two_id,
             'driver_id' => $vehicleSet->driver_id,
             'driver_two_id' => $vehicleSet->driver_two_id,
             'tractor_plate' => $vehicleSet->tractor_plate,
             'tractor_label' => $vehicleSet->tractor_label,
             'trailer_plate' => $vehicleSet->trailer_plate,
             'trailer_label' => $vehicleSet->trailer_label,
+            'trailer_two_plate' => $vehicleSet->trailer_two_plate,
+            'trailer_two_label' => $vehicleSet->trailer_two_label,
             'driver_name' => $vehicleSet->driver_name,
             'driver_two_name' => $vehicleSet->driver_two_name,
             'coupled_at' => $vehicleSet->coupled_at?->toIso8601String(),
@@ -478,6 +531,7 @@ class VehicleSetController extends Controller
             'detached_at' => $vehicleSet->detached_at?->toIso8601String(),
             'tractor' => $vehicleSet->tractor === null ? null : $this->vehicleOption($vehicleSet->tractor, true),
             'trailer' => $vehicleSet->trailer === null ? null : $this->vehicleOption($vehicleSet->trailer, true),
+            'trailer_two' => $vehicleSet->trailerTwo === null ? null : $this->vehicleOption($vehicleSet->trailerTwo, true),
             'driver' => $vehicleSet->driver === null ? null : $this->driverOption($vehicleSet->driver, true),
             'driver_two' => $vehicleSet->driverTwo === null ? null : $this->driverOption($vehicleSet->driverTwo, true),
         ];
@@ -492,6 +546,7 @@ class VehicleSetController extends Controller
             'action' => $event->action,
             'tractor_plate' => $event->tractor_plate,
             'trailer_plate' => $event->trailer_plate,
+            'trailer_two_plate' => $event->trailer_two_plate,
             'driver_name' => $event->driver_name,
             'occurred_at' => $event->occurred_at?->toIso8601String(),
             'user_name' => $event->user?->name,

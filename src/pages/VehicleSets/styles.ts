@@ -86,7 +86,7 @@ export const BuilderTop = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 3.6rem minmax(0, 1fr);
   gap: 0.8rem;
-  align-items: stretch;
+  align-items: start;
   padding: 1rem;
 
   @media (max-width: ${breakpoints.desktop}) {
@@ -97,7 +97,45 @@ export const BuilderTop = styled.div`
 export const SelectionBlock = styled.div`
   min-width: 0;
   display: grid;
+  align-content: start;
+  align-self: start;
   gap: 0.7rem;
+`;
+
+export const SecondaryTrailerPanel = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 0.15rem;
+  padding: 0.75rem;
+  border: 1px dashed ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.85rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const SecondaryTrailerHeader = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.72rem;
+  }
+
+  small {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.66rem;
+    font-weight: 700;
+  }
+
+  > button {
+    min-height: 2.2rem;
+    padding-block: 0.4rem;
+  }
 `;
 
 export const StepTitle = styled.div`

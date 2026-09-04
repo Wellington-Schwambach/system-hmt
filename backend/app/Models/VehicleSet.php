@@ -17,12 +17,15 @@ class VehicleSet extends Model
     protected $fillable = [
         'tractor_id',
         'trailer_id',
+        'trailer_two_id',
         'driver_id',
         'driver_two_id',
         'tractor_plate',
         'tractor_label',
         'trailer_plate',
         'trailer_label',
+        'trailer_two_plate',
+        'trailer_two_label',
         'driver_name',
         'driver_two_name',
         'coupled_at',
@@ -52,6 +55,11 @@ class VehicleSet extends Model
     public function trailer(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class, 'trailer_id');
+    }
+
+    public function trailerTwo(): BelongsTo
+    {
+        return $this->belongsTo(Vehicle::class, 'trailer_two_id');
     }
 
     public function driver(): BelongsTo

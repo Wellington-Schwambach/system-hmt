@@ -68,6 +68,24 @@ export const HeaderText = styled.div`
   }
 `;
 
+
+export const HeaderAside = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.65rem;
+  min-width: 0;
+
+  @media (max-width: ${mobile}) {
+    width: 100%;
+    align-items: stretch;
+
+    > button {
+      width: 100%;
+    }
+  }
+`;
+
 export const HeaderMeta = styled.div`
   display: grid;
   gap: 0.25rem;
@@ -93,6 +111,7 @@ export const Form = styled.form`
 `;
 
 export const Section = styled.section`
+  scroll-margin-top: 5.5rem;
   padding: 1.15rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   border-radius: 1.2rem;

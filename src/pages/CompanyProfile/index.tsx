@@ -13,7 +13,7 @@ import {
   UploadCloud,
   UserRound,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
@@ -35,6 +35,7 @@ import {
   Form,
   Grid,
   HeaderCard,
+  HeaderAside,
   HeaderIdentity,
   HeaderMeta,
   HeaderText,
@@ -179,6 +180,7 @@ function formatBytes(bytes: number): string {
 
 export function CompanyProfile() {
   const notifications = useNotifications();
+  const documentsSectionRef = useRef<HTMLElement | null>(null);
   const [company, setCompany] = useState<CompanyProfileRecord | null>(null);
   const [form, setForm] = useState<CompanyProfileFormData>(EMPTY_FORM);
   const [documents, setDocuments] = useState<DocumentDraft[]>([]);
@@ -342,11 +344,20 @@ export function CompanyProfile() {
             <p>Centralize informações cadastrais, fiscais, contatos, endereço e documentos da empresa.</p>
           </HeaderText>
         </HeaderIdentity>
-        <HeaderMeta>
-          <strong>{form.tradeName || form.legalName || 'Empresa ainda não cadastrada'}</strong>
-          <span>{form.cnpj || 'CNPJ não informado'}</span>
-          {company?.updatedAt ? <span>Última atualização: {new Date(company.updatedAt).toLocaleString('pt-BR')}</span> : null}
-        </HeaderMeta>
+        <HeaderAside>
+          <Button
+            type="button"
+            onClick={() => documentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            title="Ir para documentos e anexos"
+          >
+            <Paperclip size={16} /> Ver anexos{visibleDocuments.length > 0 ? ` (${visibleDocuments.length})` : ''}
+          </Button>
+          <HeaderMeta>
+            <strong>{form.tradeName || form.legalName || 'Empresa ainda não cadastrada'}</strong>
+            <span>{form.cnpj || 'CNPJ não informado'}</span>
+            {company?.updatedAt ? <span>Última atualização: {new Date(company.updatedAt).toLocaleString('pt-BR')}</span> : null}
+          </HeaderMeta>
+        </HeaderAside>
       </HeaderCard>
 
       <Form onSubmit={handleSave}>
@@ -442,7 +453,7 @@ export function CompanyProfile() {
           <Textarea value={form.notes} onChange={(e) => change('notes', e.target.value)} maxLength={5000} placeholder="Informações adicionais sobre a empresa..." />
         </Section>
 
-        <Section>
+        <Section ref={documentsSectionRef}>
           <SectionHeader>
             <SectionTitle>
               <span><Paperclip size={19} /></span>

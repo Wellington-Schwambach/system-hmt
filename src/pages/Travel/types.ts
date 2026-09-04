@@ -2,6 +2,7 @@ export type Shipper = string;
 export type CteType = 'NORMAL' | 'FREIGHT_COMPLEMENT' | 'DAILY';
 export type TravelCteTypeFilter = 'ALL' | CteType;
 export type TravelOperationType = 'FLEET' | 'THIRD_PARTY';
+export type TravelFreightType = 'CABOTAGE' | 'EXPORT_PORT' | 'OTHER';
 
 export interface TravelOptionVehicle {
   id: number;
@@ -89,6 +90,8 @@ export interface TravelRecord {
   shipper: Shipper;
   shipperColor: string;
   operationType: TravelOperationType;
+  freightType: TravelFreightType | '';
+  cst: string;
   vehicleId: number | null;
   plate: string;
   /** Campo compatível com BI/Acertos: dois motoristas ficam unidos por ' / '. */
@@ -127,6 +130,8 @@ export interface TravelFormData {
   destination: string;
   shipperId: string;
   operationType: TravelOperationType;
+  freightType: TravelFreightType | '';
+  cst: string;
   vehicleId: string;
   driverOneId: string;
   driverTwoId: string;

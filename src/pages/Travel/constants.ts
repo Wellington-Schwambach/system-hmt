@@ -1,4 +1,21 @@
-import type { CteType, TravelCteFormData, TravelFormData, TravelRecord } from './types';
+import type { CteType, TravelCteFormData, TravelFormData, TravelFreightType, TravelRecord } from './types';
+
+
+export const FREIGHT_TYPE_OPTIONS: Array<{ value: TravelFreightType; label: string }> = [
+  { value: 'CABOTAGE', label: 'Cabotagem' },
+  { value: 'EXPORT_PORT', label: 'Exportação Porto' },
+  { value: 'OTHER', label: 'Outros' },
+];
+
+export const CST_OPTIONS = [
+  { value: '00', label: '00 - Tributação normal ICMS' },
+  { value: '90', label: '90 - ICMS outros' },
+  { value: '60', label: '60 - ICMS cobrado anteriormente por substituição tributária' },
+  { value: '41', label: '41 - ICMS não tributada' },
+  { value: '40', label: '40 - ICMS isenção' },
+  { value: '51', label: '51 - ICMS diferido' },
+  { value: '20', label: '20 - Tributação com BC reduzida do ICMS' },
+] as const;
 
 export const CTE_TYPE_OPTIONS: Array<{ value: CteType; label: string }> = [
   { value: 'NORMAL', label: 'Normal' },
@@ -27,6 +44,8 @@ export const INITIAL_TRAVEL_FORM: TravelFormData = {
   destination: '',
   shipperId: '',
   operationType: 'FLEET',
+  freightType: '',
+  cst: '',
   vehicleId: '',
   driverOneId: '',
   driverTwoId: '',

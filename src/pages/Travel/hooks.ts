@@ -11,6 +11,7 @@ import type {
   TravelOptions,
   TravelRecord,
   TravelCteTypeFilter,
+  TravelFreightType,
 } from './types';
 import { enrichTravelRecords, getTravelSummary } from './utils';
 
@@ -28,6 +29,12 @@ function getCurrentMonthRange(): { from: string; to: string } {
 }
 
 const CURRENT_MONTH_RANGE = getCurrentMonthRange();
+
+function extractState(value: string): string {
+  const normalized = value.trim().toUpperCase();
+  const match = normalized.match(/(?:\/|-)\s*([A-Z]{2})$/);
+  return match?.[1] ?? '';
+}
 
 const EMPTY_OPTIONS: TravelOptions = {
   tractors: [],
@@ -55,6 +62,10 @@ export function useTravelRecords() {
   const [shipperFilter, setShipperFilter] = useState<string[]>([]);
   const [plateFilter, setPlateFilter] = useState<string[]>([]);
   const [cteTypeFilter, setCteTypeFilter] = useState<TravelCteTypeFilter>('ALL');
+  const [originStateFilter, setOriginStateFilter] = useState('ALL');
+  const [destinationStateFilter, setDestinationStateFilter] = useState('ALL');
+  const [freightTypeFilter, setFreightTypeFilter] = useState<TravelFreightType[]>([]);
+  const [cstFilter, setCstFilter] = useState('ALL');
   const [dateFrom, setDateFrom] = useState(CURRENT_MONTH_RANGE.from);
   const [dateTo, setDateTo] = useState(CURRENT_MONTH_RANGE.to);
   const [searchTerm, setSearchTerm] = useState('');
@@ -130,6 +141,14 @@ export function useTravelRecords() {
 
   const plateOptions = options.filterPlates;
   const shipperOptions = options.filterShippers.length > 0 ? options.filterShippers : options.shippers;
+  const originStateOptions = useMemo(
+    () => Array.from(new Set(enrichedRecords.map((record) => extractState(record.origin)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [enrichedRecords],
+  );
+  const destinationStateOptions = useMemo(
+    () => Array.from(new Set(enrichedRecords.map((record) => extractState(record.destination)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [enrichedRecords],
+  );
 
   const records = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR');
@@ -141,6 +160,14 @@ export function useTravelRecords() {
       const matchesCteType =
         cteTypeFilter === 'ALL' ||
         record.ctes.some((cte) => cte.cteType === cteTypeFilter);
+      const matchesOriginState =
+        originStateFilter === 'ALL' || extractState(record.origin) === originStateFilter;
+      const matchesDestinationState =
+        destinationStateFilter === 'ALL' || extractState(record.destination) === destinationStateFilter;
+      const matchesFreightType =
+        freightTypeFilter.length === 0 ||
+        (record.freightType !== '' && freightTypeFilter.includes(record.freightType));
+      const matchesCst = cstFilter === 'ALL' || record.cst === cstFilter;
       const matchesPeriod =
         (!dateFrom || record.date >= dateFrom) && (!dateTo || record.date <= dateTo);
       const matchesSearch =
@@ -157,9 +184,31 @@ export function useTravelRecords() {
         record.shipper.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         record.detachedTrailerPlate.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
 
-      return matchesShipper && matchesPlate && matchesCteType && matchesPeriod && matchesSearch;
+      return (
+        matchesShipper &&
+        matchesPlate &&
+        matchesCteType &&
+        matchesOriginState &&
+        matchesDestinationState &&
+        matchesFreightType &&
+        matchesCst &&
+        matchesPeriod &&
+        matchesSearch
+      );
     });
-  }, [cteTypeFilter, dateFrom, dateTo, enrichedRecords, plateFilter, searchTerm, shipperFilter]);
+  }, [
+    cstFilter,
+    cteTypeFilter,
+    dateFrom,
+    dateTo,
+    destinationStateFilter,
+    enrichedRecords,
+    freightTypeFilter,
+    originStateFilter,
+    plateFilter,
+    searchTerm,
+    shipperFilter,
+  ]);
 
   const summary = useMemo(() => getTravelSummary(records, cteTypeFilter), [cteTypeFilter, records]);
 
@@ -268,6 +317,12 @@ export function useTravelRecords() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    originStateFilter,
+    destinationStateFilter,
+    freightTypeFilter,
+    cstFilter,
+    originStateOptions,
+    destinationStateOptions,
     dateFrom,
     dateTo,
     plateOptions,
@@ -281,6 +336,10 @@ export function useTravelRecords() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setOriginStateFilter,
+    setDestinationStateFilter,
+    setFreightTypeFilter,
+    setCstFilter,
     setDateFrom,
     setDateTo,
     setSearchTerm,

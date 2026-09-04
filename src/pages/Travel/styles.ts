@@ -89,6 +89,59 @@ export const ExportButton = styled.button`
   }
 `;
 
+
+export const RecordFilters = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 1rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+
+  @media (max-width: ${breakpoints.desktop}) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const RecordFilterField = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+`;
+
+export const RecordFilterLabel = styled.label`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+`;
+
+export const RecordFilterSelect = styled.select`
+  width: 100%;
+  min-width: 0;
+  min-height: 2.65rem;
+  padding: 0.6rem 2.2rem 0.6rem 0.8rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.8rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font: inherit;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.18rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+`;
+
 export const Pagination = styled.nav`
   display: flex;
   align-items: center;

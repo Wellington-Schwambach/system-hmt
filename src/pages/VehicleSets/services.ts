@@ -41,12 +41,15 @@ interface ApiVehicleSet {
   status: 'ACTIVE' | 'DETACHED';
   tractor_id: number | null;
   trailer_id: number | null;
+  trailer_two_id: number | null;
   driver_id: number | null;
   driver_two_id: number | null;
   tractor_plate: string;
   tractor_label: string;
   trailer_plate: string | null;
   trailer_label: string | null;
+  trailer_two_plate: string | null;
+  trailer_two_label: string | null;
   driver_name: string;
   driver_two_name: string | null;
   coupled_at: string;
@@ -55,6 +58,7 @@ interface ApiVehicleSet {
   detached_at: string | null;
   tractor: ApiVehicleOption | null;
   trailer: ApiVehicleOption | null;
+  trailer_two: ApiVehicleOption | null;
   driver: ApiDriverOption | null;
   driver_two: ApiDriverOption | null;
 }
@@ -65,6 +69,7 @@ interface ApiVehicleSetEvent {
   action: VehicleSetEventRecord['action'];
   tractor_plate: string;
   trailer_plate: string | null;
+  trailer_two_plate: string | null;
   driver_name: string | null;
   occurred_at: string;
   user_name: string | null;
@@ -110,12 +115,15 @@ function mapSet(item: ApiVehicleSet): VehicleSetRecord {
     status: item.status,
     tractorId: item.tractor_id,
     trailerId: item.trailer_id,
+    trailerTwoId: item.trailer_two_id,
     driverId: item.driver_id,
     driverTwoId: item.driver_two_id,
     tractorPlate: item.tractor_plate,
     tractorLabel: item.tractor_label,
     trailerPlate: item.trailer_plate,
     trailerLabel: item.trailer_label,
+    trailerTwoPlate: item.trailer_two_plate,
+    trailerTwoLabel: item.trailer_two_label,
     driverName: item.driver_name,
     driverTwoName: item.driver_two_name,
     coupledAt: item.coupled_at,
@@ -124,6 +132,7 @@ function mapSet(item: ApiVehicleSet): VehicleSetRecord {
     detachedAt: item.detached_at,
     tractor: item.tractor ? mapVehicle(item.tractor) : null,
     trailer: item.trailer ? mapVehicle(item.trailer) : null,
+    trailerTwo: item.trailer_two ? mapVehicle(item.trailer_two) : null,
     driver: item.driver ? mapDriver(item.driver) : null,
     driverTwo: item.driver_two ? mapDriver(item.driver_two) : null,
   };
@@ -140,6 +149,7 @@ export const vehicleSetService = {
         action: event.action,
         tractorPlate: event.tractor_plate,
         trailerPlate: event.trailer_plate,
+        trailerTwoPlate: event.trailer_two_plate,
         driverName: event.driver_name,
         occurredAt: event.occurred_at,
         userName: event.user_name,
@@ -165,6 +175,7 @@ export const vehicleSetService = {
   async create(data: {
     tractorId: number;
     trailerId?: number | null;
+    trailerTwoId?: number | null;
     driverId: number;
     driverTwoId?: number | null;
     coupledAt: string;
@@ -174,6 +185,7 @@ export const vehicleSetService = {
     const response = await api.post<{ message: string; set: ApiVehicleSet }>('/api/vehicle-sets', {
       tractor_id: data.tractorId,
       trailer_id: data.trailerId ?? null,
+      trailer_two_id: data.trailerTwoId ?? null,
       driver_id: data.driverId,
       driver_two_id: data.driverTwoId ?? null,
       coupled_at: data.coupledAt,

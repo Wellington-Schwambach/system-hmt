@@ -120,12 +120,12 @@ function formatDateTime(value: string): string {
 }
 
 export function exportVehicleSetHistoryToExcel(records: VehicleSetEventRecord[]): void {
-  const headers = ['Data/Hora', 'Ação', 'Cavalo', 'Carreta', 'Motorista', 'Usuário', 'Observação'];
+  const headers = ['Data/Hora', 'Ação', 'Cavalo', 'Carreta(s)', 'Motorista', 'Usuário', 'Observação'];
   const rows = records.map((record) => [
     formatDateTime(record.occurredAt),
     actionLabel(record.action),
     record.tractorPlate,
-    record.trailerPlate || '',
+    [record.trailerPlate, record.trailerTwoPlate].filter(Boolean).join(' / '),
     record.driverName || '',
     record.userName || '',
     typeof record.details?.message === 'string' ? record.details.message : '',
@@ -198,9 +198,10 @@ export function printActiveVehicleSetsPdf(records: VehicleSetRecord[]): boolean 
 
   const rows = ordered.map((record, index) => {
     const fleet = record.tractor?.fleetNumber?.trim() || '';
-    const hasTrailer = Boolean(record.trailerPlate?.trim());
+    const trailerPlates = [record.trailerPlate, record.trailerTwoPlate].filter((plate): plate is string => Boolean(plate?.trim()));
+    const hasTrailer = trailerPlates.length > 0;
     const plates = hasTrailer
-      ? `${record.tractorPlate} / ${record.trailerPlate}`
+      ? `${record.tractorPlate} / ${trailerPlates.join(' / ')}`
       : record.tractorPlate;
 
     const drivers = [
