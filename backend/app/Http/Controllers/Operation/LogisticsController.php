@@ -5,7 +5,12 @@ namespace App\Http\Controllers\Operation;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Operation\MoveLogisticsLoadRequest;
 use App\Http\Requests\Operation\SaveLogisticsLoadRequest;
+use App\Models\BrazilCity;
 use App\Models\Employee;
+use App\Models\LogisticsCargoType;
+use App\Models\LogisticsContainerType;
+use App\Models\LogisticsLocationType;
+use App\Models\LogisticsShipowner;
 use App\Models\LogisticsLoad;
 use App\Models\LogisticsLoadEvent;
 use App\Models\Shipper;
@@ -39,8 +44,8 @@ class LogisticsController extends Controller
 
         $referenceDateExpression = "CASE
             WHEN completed_at IS NOT NULL THEN completed_at
-            WHEN stage = 'PROGRAMMING' AND collection_at IS NULL AND tractor_id IS NULL THEN COALESCE(loading_at, scheduled_at)
-            WHEN stage = 'PROGRAMMING' THEN COALESCE(collection_at, scheduled_at)
+            WHEN stage = 'PROGRAMMING' AND collection_at IS NULL THEN COALESCE(collection_scheduled_at, loading_at, scheduled_at)
+            WHEN stage = 'PROGRAMMING' THEN COALESCE(collection_at, collection_scheduled_at, scheduled_at)
             WHEN stage = 'COLLECTION' THEN COALESCE(loading_at, collection_at, scheduled_at)
             WHEN stage = 'LOADING' THEN COALESCE(delivery_at, loading_at, scheduled_at)
             WHEN stage = 'DELIVERY' THEN COALESCE(delivery_at, loading_at, collection_at, scheduled_at)
@@ -88,13 +93,18 @@ class LogisticsController extends Controller
                 ->where('reference_code', 'ILIKE', "%{$search}%")
                 ->orWhere('shipment_number', 'ILIKE', "%{$search}%")
                 ->orWhere('load_number', 'ILIKE', "%{$search}%")
+                ->orWhere('cargo_number', 'ILIKE', "%{$search}%")
+                ->orWhereRaw('CAST(load_entries AS TEXT) ILIKE ?', ["%{$search}%"])
                 ->orWhere('shipowner', 'ILIKE', "%{$search}%")
                 ->orWhere('booking_number', 'ILIKE', "%{$search}%")
+                ->orWhere('collection_booking_number', 'ILIKE', "%{$search}%")
                 ->orWhere('collection_terminal', 'ILIKE', "%{$search}%")
                 ->orWhere('loading_location', 'ILIKE', "%{$search}%")
                 ->orWhere('delivery_location', 'ILIKE', "%{$search}%")
+                ->orWhereHas('shipownerRelation', fn (Builder $shipowner) => $shipowner->where('name', 'ILIKE', "%{$search}%"))
                 ->orWhereHas('shipper', fn (Builder $shipper) => $shipper->where('name', 'ILIKE', "%{$search}%"))
-                ->orWhereHas('tractor', fn (Builder $tractor) => $tractor->where('plate', 'ILIKE', "%{$search}%")));
+                ->orWhereHas('tractor', fn (Builder $tractor) => $tractor->where('plate', 'ILIKE', "%{$search}%"))
+                ->orWhereHas('trailer', fn (Builder $trailer) => $trailer->where('plate', 'ILIKE', "%{$search}%")));
         }
 
         if ($status === 'FINALIZED') {
@@ -113,6 +123,50 @@ class LogisticsController extends Controller
 
     public function calendar(Request $request): JsonResponse
     {
+        if ($request->filled('date_from') || $request->filled('date_to')) {
+            $validated = $request->validate([
+                'date_from' => ['required', 'date_format:Y-m-d'],
+                'date_to' => ['required', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+                'shipper_id' => ['nullable', 'integer', 'exists:shippers,id'],
+            ]);
+
+            $dateFrom = CarbonImmutable::createFromFormat('Y-m-d H:i:s', $validated['date_from'].' 00:00:00');
+            $dateTo = CarbonImmutable::createFromFormat('Y-m-d H:i:s', $validated['date_to'].' 23:59:59');
+
+            if ($dateFrom === false || $dateTo === false || $dateFrom->diffInDays($dateTo) > 31) {
+                throw ValidationException::withMessages([
+                    'date_from' => ['Informe um período válido de até 31 dias.'],
+                ]);
+            }
+
+            $query = LogisticsLoad::query()
+                ->with($this->relations())
+                ->where(function ($query) use ($dateFrom, $dateTo): void {
+                    // A agenda semanal só usa datas operacionais reais.
+                    // Não usamos scheduled_at/created_at como fallback para evitar cargas
+                    // aparecendo em dias sem coleta, carregamento ou entrega preenchidos.
+                    $query->whereBetween('collection_scheduled_at', [$dateFrom, $dateTo])
+                        ->orWhereBetween('collection_at', [$dateFrom, $dateTo])
+                        ->orWhereBetween('loading_at', [$dateFrom, $dateTo])
+                        ->orWhereBetween('delivery_at', [$dateFrom, $dateTo]);
+                });
+
+            if (! empty($validated['shipper_id'])) {
+                $query->where('shipper_id', (int) $validated['shipper_id']);
+            }
+
+            $loads = $query
+                ->orderByRaw('COALESCE(collection_scheduled_at, collection_at, loading_at, delivery_at) ASC NULLS LAST')
+                ->orderBy('id')
+                ->get();
+
+            return response()->json([
+                'date_from' => $validated['date_from'],
+                'date_to' => $validated['date_to'],
+                'loads' => $loads->map(fn (LogisticsLoad $load): array => $this->loadPayload($load))->values(),
+            ]);
+        }
+
         $month = trim((string) $request->query('month', now()->format('Y-m')));
 
         if (! preg_match('/^\d{4}-\d{2}$/', $month)) {
@@ -214,13 +268,106 @@ class LogisticsController extends Controller
                 ]);
         }
 
+        $cargoTypes = Schema::hasTable('logistics_cargo_types')
+            ? LogisticsCargoType::query()->where('active', true)->orderBy('name')->get(['id', 'name'])->map(fn ($item): array => ['id' => (int) $item->id, 'name' => (string) $item->name])
+            : collect();
+        $containerTypes = Schema::hasTable('logistics_container_types')
+            ? LogisticsContainerType::query()->where('active', true)->orderBy('name')->get(['id', 'name'])->map(fn ($item): array => ['id' => (int) $item->id, 'name' => (string) $item->name])
+            : collect();
+        $shipowners = Schema::hasTable('logistics_shipowners')
+            ? LogisticsShipowner::query()->where('active', true)->orderBy('name')->get(['id', 'name'])->map(fn ($item): array => ['id' => (int) $item->id, 'name' => (string) $item->name])
+            : collect();
+        $locationTypes = Schema::hasTable('logistics_location_types')
+            ? LogisticsLocationType::query()->where('active', true)->orderBy('scope')->orderBy('name')->get(['id', 'name', 'scope'])->map(fn ($item): array => ['id' => (int) $item->id, 'name' => (string) $item->name, 'scope' => (string) $item->scope])
+            : collect();
+        $cities = (Schema::hasTable('brazil_cities') && Schema::hasTable('brazil_states'))
+            ? BrazilCity::query()
+                ->join('brazil_states as state', 'state.id', '=', 'brazil_cities.state_id')
+                ->orderBy('brazil_cities.name')
+                ->get(['brazil_cities.id', 'brazil_cities.name', 'state.abbreviation as state_abbreviation'])
+                ->map(fn ($city): array => [
+                    'id' => (int) $city->id,
+                    'name' => (string) $city->name,
+                    'state_abbreviation' => (string) $city->state_abbreviation,
+                    'label' => (string) $city->name.' / '.(string) $city->state_abbreviation,
+                ])
+            : collect();
+
         return response()->json([
             'shippers' => $shippers,
             'drivers' => $drivers,
             'tractors' => $tractors,
             'trailers' => $trailers,
             'active_sets' => $activeSets,
+            'cargo_types' => $cargoTypes,
+            'container_types' => $containerTypes,
+            'shipowners' => $shipowners,
+            'location_types' => $locationTypes,
+            'cities' => $cities,
         ]);
+    }
+
+    public function storeCatalog(Request $request, string $catalog): JsonResponse
+    {
+        $catalog = strtolower(trim($catalog));
+        $allowed = ['shippers', 'cargo-types', 'container-types', 'shipowners', 'location-types'];
+        if (! in_array($catalog, $allowed, true)) {
+            abort(404);
+        }
+
+        // Mantém a validação alinhada ao tamanho real de cada coluna no banco.
+        $maxNameLength = match ($catalog) {
+            'shippers' => 100,
+            'shipowners' => 140,
+            'cargo-types', 'container-types', 'location-types' => 120,
+        };
+        $rules = ['name' => ['required', 'string', 'min:2', 'max:'.$maxNameLength]];
+        if ($catalog === 'location-types') {
+            $rules['scope'] = ['required', 'string', 'in:C,B'];
+        }
+        $validated = $request->validate($rules);
+        $name = trim((string) $validated['name']);
+        $normalized = mb_strtoupper($name, 'UTF-8');
+
+        if ($catalog === 'shippers') {
+            $exists = Shipper::query()->whereRaw('UPPER(TRIM(name)) = ?', [$normalized])->first();
+            if ($exists) {
+                throw ValidationException::withMessages(['name' => ['Este embarcador já está cadastrado.']]);
+            }
+            $item = Shipper::query()->create([
+                'name' => $name,
+                'normalized_name' => $normalized,
+                'status' => 'ACTIVE',
+                'display_color' => Shipper::suggestedColor($name),
+                'created_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
+            ]);
+            return response()->json(['item' => ['id' => (int) $item->id, 'name' => (string) $item->name, 'display_color' => (string) $item->display_color]], 201);
+        }
+
+        $scope = $catalog === 'location-types' ? (string) $validated['scope'] : null;
+        $modelClass = match ($catalog) {
+            'cargo-types' => LogisticsCargoType::class,
+            'container-types' => LogisticsContainerType::class,
+            'shipowners' => LogisticsShipowner::class,
+            'location-types' => LogisticsLocationType::class,
+        };
+
+        $query = $modelClass::query()->where('normalized_name', $normalized);
+        if ($scope !== null) $query->where('scope', $scope);
+        if ($query->exists()) {
+            throw ValidationException::withMessages(['name' => ['Este cadastro já existe.']]);
+        }
+
+        $attributes = ['name' => $name, 'normalized_name' => $normalized, 'active' => true];
+        if ($scope !== null) $attributes['scope'] = $scope;
+        $item = $modelClass::query()->create($attributes);
+
+        return response()->json(['item' => [
+            'id' => (int) $item->id,
+            'name' => (string) $item->name,
+            'scope' => $scope,
+        ]], 201);
     }
 
     public function store(SaveLogisticsLoadRequest $request): JsonResponse
@@ -327,6 +474,12 @@ class LogisticsController extends Controller
             if ($locked->completed_at !== null) {
                 throw ValidationException::withMessages([
                     'load' => 'Uma carga finalizada não pode ser movimentada entre as etapas.',
+                ]);
+            }
+
+            if ($destinationStage === LogisticsLoad::STAGE_PROGRAMMING && $locked->collection_scheduled_at === null) {
+                throw ValidationException::withMessages([
+                    'collection_scheduled_at' => ['Informe a data em “Agendar coleta” antes de mover a carga para Programação.'],
                 ]);
             }
 
@@ -475,7 +628,7 @@ class LogisticsController extends Controller
     /** @return array<string, mixed> */
     private function attributes(array $validated): array
     {
-        $nullableIds = ['driver_id', 'driver_two_id', 'tractor_id', 'trailer_id'];
+        $nullableIds = ['driver_id', 'driver_two_id', 'tractor_id', 'trailer_id', 'cargo_type_id', 'container_type_id', 'shipowner_id', 'collection_city_id', 'loading_city_id', 'delivery_city_id', 'collection_location_type_id', 'delivery_location_type_id'];
         $payload = [];
 
         foreach ($nullableIds as $field) {
@@ -490,12 +643,27 @@ class LogisticsController extends Controller
             'load_number',
             'shipowner',
             'booking_number',
+            'collection_booking_number',
             'collection_terminal',
+            'collection_scheduled_at',
             'collection_at',
             'loading_location',
             'loading_at',
             'delivery_location',
             'delivery_at',
+            'plan',
+            'load_mode',
+            'load_status',
+            'cargo_number',
+            'container_number',
+            'container_tare_kg',
+            'container_payload_kg',
+            'shipowner_seal',
+            'vessel',
+            'deadline',
+            'country',
+            'temperature',
+            'sif_seal',
             'notes',
         ];
 
@@ -509,14 +677,43 @@ class LogisticsController extends Controller
             $payload['shipper_id'] = (int) $payload['shipper_id'];
         }
 
-        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_terminal', 'loading_location', 'delivery_location', 'notes'] as $field) {
+        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes'] as $field) {
             if (array_key_exists($field, $payload)) {
                 $value = trim((string) ($payload[$field] ?? ''));
                 $payload[$field] = $value === '' ? null : $value;
             }
         }
 
-        foreach (['collection_at', 'loading_at', 'delivery_at'] as $field) {
+        if (array_key_exists('load_entries', $validated)) {
+            $entries = collect($validated['load_entries'] ?? [])
+                ->filter(fn ($entry): bool => is_array($entry) && in_array($entry['status'] ?? null, ['EMPTY', 'FULL'], true))
+                ->map(fn (array $entry): array => [
+                    'status' => (string) $entry['status'],
+                    'number' => trim((string) ($entry['number'] ?? '')) ?: null,
+                ])
+                ->values()
+                ->all();
+            $payload['load_entries'] = $entries === [] ? null : $entries;
+        }
+
+        $mode = $payload['load_mode'] ?? ($validated['load_mode'] ?? null);
+        if ($mode === 'CARGO') {
+            $payload['load_number'] = null;
+            $payload['load_status'] = null;
+            $payload['load_entries'] = null;
+        } elseif ($mode === 'LOAD') {
+            $payload['cargo_number'] = null;
+            $firstEntry = $payload['load_entries'][0] ?? null;
+            $payload['load_status'] = is_array($firstEntry) ? ($firstEntry['status'] ?? null) : null;
+            $payload['load_number'] = is_array($firstEntry) ? ($firstEntry['number'] ?? null) : null;
+        } elseif ($mode === null || $mode === '') {
+            $payload['cargo_number'] = null;
+            $payload['load_number'] = null;
+            $payload['load_status'] = null;
+            $payload['load_entries'] = null;
+        }
+
+        foreach (['collection_scheduled_at', 'collection_at', 'loading_at', 'delivery_at', 'deadline'] as $field) {
             if (array_key_exists($field, $payload) && empty($payload[$field])) {
                 $payload[$field] = null;
             }
@@ -530,6 +727,17 @@ class LogisticsController extends Controller
     {
         return [
             'shipper:id,name,display_color,status',
+            'cargoType:id,name',
+            'containerType:id,name',
+            'shipownerRelation:id,name',
+            'collectionCityRelation:id,name,state_id',
+            'collectionCityRelation.state:id,abbreviation',
+            'loadingCityRelation:id,name,state_id',
+            'loadingCityRelation.state:id,abbreviation',
+            'deliveryCityRelation:id,name,state_id',
+            'deliveryCityRelation.state:id,abbreviation',
+            'collectionLocationType:id,name,scope',
+            'deliveryLocationType:id,name,scope',
             'driver:id,employee_code,full_name',
             'driverTwo:id,employee_code,full_name',
             'tractor:id,plate,fleet_number,brand,model,type',
@@ -542,6 +750,14 @@ class LogisticsController extends Controller
     /** @return array<string, mixed> */
     private function loadPayload(LogisticsLoad $load): array
     {
+        $loadEntries = $this->loadEntriesPayload($load);
+        $loadMode = $load->load_mode;
+        if ($loadMode === null && trim((string) ($load->cargo_number ?? '')) !== '') {
+            $loadMode = 'CARGO';
+        } elseif ($loadMode === null && $loadEntries !== []) {
+            $loadMode = 'LOAD';
+        }
+
         return [
             'id' => (int) $load->id,
             'reference_code' => (string) $load->reference_code,
@@ -549,6 +765,13 @@ class LogisticsController extends Controller
             'load_number' => $load->load_number,
             'shipowner' => $load->shipowner,
             'booking_number' => $load->booking_number,
+            'collection_booking_number' => $load->collection_booking_number,
+            'cargo_type_id' => $load->cargo_type_id ? (int) $load->cargo_type_id : null,
+            'cargo_type_name' => $load->cargoType?->name,
+            'container_type_id' => $load->container_type_id ? (int) $load->container_type_id : null,
+            'container_type_name' => $load->containerType?->name,
+            'shipowner_id' => $load->shipowner_id ? (int) $load->shipowner_id : null,
+            'shipowner_name' => $load->shipownerRelation?->name ?: $load->shipowner,
             'shipper_id' => (int) $load->shipper_id,
             'shipper_name' => (string) ($load->shipper?->name ?? '-'),
             'shipper_color' => (string) ($load->shipper?->display_color ?: '#3FA66C'),
@@ -560,12 +783,34 @@ class LogisticsController extends Controller
             'tractor_plate' => $load->tractor?->plate,
             'trailer_id' => $load->trailer_id ? (int) $load->trailer_id : null,
             'trailer_plate' => $load->trailer?->plate,
-            'collection_terminal' => $load->collection_terminal ?: $load->collection_city,
+            'collection_city_id' => $load->collection_city_id ? (int) $load->collection_city_id : null,
+            'collection_terminal' => $load->collectionCityRelation ? $load->collectionCityRelation->name.' / '.$load->collectionCityRelation->state?->abbreviation : ($load->collection_terminal ?: $load->collection_city),
+            'collection_location_type_id' => $load->collection_location_type_id ? (int) $load->collection_location_type_id : null,
+            'collection_location_type_name' => $load->collectionLocationType?->name,
+            'collection_scheduled_at' => $load->collection_scheduled_at?->toIso8601String(),
             'collection_at' => $load->collection_at?->toIso8601String(),
-            'loading_location' => $load->loading_location ?: $load->loading_city,
+            'loading_city_id' => $load->loading_city_id ? (int) $load->loading_city_id : null,
+            'loading_location' => $load->loadingCityRelation ? $load->loadingCityRelation->name.' / '.$load->loadingCityRelation->state?->abbreviation : ($load->loading_location ?: $load->loading_city),
             'loading_at' => $load->loading_at?->toIso8601String(),
-            'delivery_location' => $load->delivery_location ?: $load->delivery_city,
+            'delivery_city_id' => $load->delivery_city_id ? (int) $load->delivery_city_id : null,
+            'delivery_location' => $load->deliveryCityRelation ? $load->deliveryCityRelation->name.' / '.$load->deliveryCityRelation->state?->abbreviation : ($load->delivery_location ?: $load->delivery_city),
+            'delivery_location_type_id' => $load->delivery_location_type_id ? (int) $load->delivery_location_type_id : null,
+            'delivery_location_type_name' => $load->deliveryLocationType?->name,
             'delivery_at' => $load->delivery_at?->toIso8601String(),
+            'plan' => $load->plan,
+            'load_mode' => $loadMode,
+            'load_status' => $load->load_status,
+            'cargo_number' => $load->cargo_number,
+            'load_entries' => $loadEntries,
+            'container_number' => $load->container_number,
+            'container_tare_kg' => $load->container_tare_kg !== null ? (float) $load->container_tare_kg : null,
+            'container_payload_kg' => $load->container_payload_kg !== null ? (float) $load->container_payload_kg : null,
+            'shipowner_seal' => $load->shipowner_seal,
+            'vessel' => $load->vessel,
+            'deadline' => $load->deadline?->format('Y-m-d'),
+            'country' => $load->country,
+            'temperature' => $load->temperature,
+            'sif_seal' => $load->sif_seal,
             'scheduled_at' => $load->scheduled_at?->toIso8601String(),
             'stage' => (string) $load->stage,
             'position' => (int) $load->position,
@@ -586,6 +831,32 @@ class LogisticsController extends Controller
         ];
     }
 
+    /** @return array<int, array{status: string, number: ?string}> */
+    private function loadEntriesPayload(LogisticsLoad $load): array
+    {
+        $entries = collect(is_array($load->load_entries) ? $load->load_entries : [])
+            ->filter(fn ($entry): bool => is_array($entry) && in_array($entry['status'] ?? null, ['EMPTY', 'FULL'], true))
+            ->map(fn (array $entry): array => [
+                'status' => (string) $entry['status'],
+                'number' => isset($entry['number']) && trim((string) $entry['number']) !== '' ? trim((string) $entry['number']) : null,
+            ])
+            ->values()
+            ->all();
+
+        if (
+            $entries === []
+            && $load->load_mode !== 'CARGO'
+            && (in_array($load->load_status, ['EMPTY', 'FULL'], true) || trim((string) ($load->load_number ?? '')) !== '')
+        ) {
+            $entries[] = [
+                'status' => in_array($load->load_status, ['EMPTY', 'FULL'], true) ? (string) $load->load_status : 'EMPTY',
+                'number' => trim((string) ($load->load_number ?? '')) !== '' ? trim((string) $load->load_number) : null,
+            ];
+        }
+
+        return $entries;
+    }
+
     /** @return array<string, mixed> */
     private function vehicleOption(Vehicle $vehicle): array
     {
@@ -601,7 +872,7 @@ class LogisticsController extends Controller
     /** @param array<string, mixed> $attributes */
     private function firstOperationalDate(array $attributes): mixed
     {
-        foreach (['collection_at', 'loading_at', 'delivery_at'] as $field) {
+        foreach (['collection_scheduled_at', 'collection_at', 'loading_at', 'delivery_at'] as $field) {
             if (! empty($attributes[$field])) {
                 return $attributes[$field];
             }

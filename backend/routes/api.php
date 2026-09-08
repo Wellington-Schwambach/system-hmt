@@ -118,6 +118,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         ->group(function (): void {
             Route::get('/options', [LogisticsController::class, 'options']);
             Route::get('/calendar', [LogisticsController::class, 'calendar']);
+            Route::post('/catalogs/{catalog}', [LogisticsController::class, 'storeCatalog']);
             Route::get('/', [LogisticsController::class, 'index']);
             Route::post('/', [LogisticsController::class, 'store']);
             Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);

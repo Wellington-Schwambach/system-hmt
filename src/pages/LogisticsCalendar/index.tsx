@@ -1,7 +1,11 @@
 import {
+  CalendarDays,
   CheckCircle2,
+  Copy,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Edit3,
   Plus,
   RefreshCw,
@@ -15,6 +19,8 @@ import { SearchableSelect } from '../../components/SearchableSelect';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { LOGISTICS_SYNC_STORAGE_KEY, logisticsService } from '../Logistic/services';
+import { LogisticsLoadForm } from '../Logistic/components/LogisticsLoadForm';
+import { validateLogisticsForm } from '../Logistic/validation';
 import type {
   LogisticsFormData,
   LogisticsLoad,
@@ -23,53 +29,52 @@ import type {
 } from '../Logistic/types';
 import {
   AccentPreview,
-  ArmadorTitle,
-  CalendarPane,
-  CardActions,
-  CardBody,
-  CardMeta,
-  CompactCalendarList,
-  CompactDateButton,
-  DataItem,
+  CalendarDayButton,
+  CalendarDayFlow,
+  CalendarDayFlowColumn,
+  CalendarDayFlowTitle,
+  CalendarShipperCount,
+  CalendarDropdown,
+  CalendarToggle,
   DangerButton,
-  DayCell,
-  DayCount,
-  DetailsHeader,
-  DetailsPane,
-  Dot,
   Drawer,
   DrawerBackdrop,
   DrawerBody,
   DrawerFooter,
   DrawerHeader,
   EmptyState,
-  Field,
   FilterBox,
   FinalizeButton,
   FinalizedBadge,
   Header,
   IconButton,
-  Input,
   LoadCard,
-  LoadCardHeader,
   LoadList,
+  LoadListViewport,
+  SketchActionButton,
+  SketchActions,
+  SketchBodyGrid,
+  SketchBodyItem,
+  SketchLoadEntries,
+  SketchObservation,
+  SketchTopBar,
+  SketchTopItem,
+  LoadsCount,
+  LoadsHeader,
+  LoadsSection,
   LoadingState,
-  MonthControls,
-  MonthGrid,
   MonthTitle,
+  OperationalTabButton,
+  OperationalTabs,
   Page,
   PrimaryButton,
   SecondaryButton,
-  Select,
-  ShipperBadge,
-  Textarea,
   Toolbar,
-  ViewTab,
-  ViewTabs,
-  WeekDay,
-  WeekHeader,
-  Workspace,
-  FormGrid,
+  WeekCalendarHeader,
+  WeekControls,
+  WeekDatesGrid,
+  WeekDatesScroller,
+  WeekRangeText,
 } from './styles';
 
 const EMPTY_OPTIONS: LogisticsOptions = {
@@ -78,6 +83,11 @@ const EMPTY_OPTIONS: LogisticsOptions = {
   tractors: [],
   trailers: [],
   activeSets: [],
+  cargoTypes: [],
+  containerTypes: [],
+  shipowners: [],
+  locationTypes: [],
+  cities: [],
 };
 
 const STAGE_LABELS: Record<LogisticsStage, string> = {
@@ -87,18 +97,30 @@ const STAGE_LABELS: Record<LogisticsStage, string> = {
   DELIVERY: 'Baixa / Entrega',
 };
 
-const STAGES: LogisticsStage[] = ['PROGRAMMING', 'COLLECTION', 'LOADING', 'DELIVERY'];
 const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-type CalendarView = 'MONTH' | 'WEEK' | 'LIST';
+
+type OperationalTab = 'SCHEDULING' | 'COLLECTION' | 'LOADING' | 'DELIVERY';
 type DrawerMode = 'create' | 'edit' | null;
+
+const TAB_LABELS: Record<OperationalTab, string> = {
+  SCHEDULING: 'Agendamento',
+  COLLECTION: 'Coleta',
+  LOADING: 'Carregamento',
+  DELIVERY: 'Baixas / Entregas',
+};
+
+const TAB_DATE_HINTS: Record<OperationalTab, string> = {
+  SCHEDULING: 'usa o campo Agendar coleta',
+  COLLECTION: 'usa somente a data de coleta informada',
+  LOADING: 'usa somente a data de carregamento informada',
+  DELIVERY: 'usa somente a data de baixa/entrega informada',
+};
+
+const TABS: OperationalTab[] = ['SCHEDULING', 'COLLECTION', 'LOADING', 'DELIVERY'];
 
 function localDateString(date: Date): string {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 10);
-}
-
-function monthKey(date: Date): string {
-  return localDateString(new Date(date.getFullYear(), date.getMonth(), 1)).slice(0, 7);
 }
 
 function dateKeyFromIso(value: string | null): string | null {
@@ -117,6 +139,42 @@ function formatDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+function formatCompactDateTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function formatShortDate(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date);
+}
+
+function startOfWeek(date: Date): Date {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+function buildWeekCells(anchor: Date): Date[] {
+  const start = startOfWeek(anchor);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+function isoWeekInfo(date: Date): { week: number; year: number } {
+  const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = target.getUTCDay() || 7;
+  target.setUTCDate(target.getUTCDate() + 4 - day);
+  const year = target.getUTCFullYear();
+  const firstDay = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((target.getTime() - firstDay.getTime()) / 86_400_000) + 1) / 7);
+  return { week, year };
+}
+
 function shortDriverName(value: string | null): string {
   if (!value) return '—';
   const parts = value.trim().split(/\s+/).filter(Boolean);
@@ -132,8 +190,7 @@ function driverSummary(load: LogisticsLoad): string {
 }
 
 function plateSummary(load: LogisticsLoad): string {
-  if (!load.tractorPlate) return '—';
-  return load.trailerPlate ? `${load.tractorPlate} / ${load.trailerPlate}` : load.tractorPlate;
+  return [load.tractorPlate, load.trailerPlate].filter(Boolean).join(' / ') || '—';
 }
 
 function toLocalInput(value: string | null): string {
@@ -144,27 +201,73 @@ function toLocalInput(value: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
-function emptyForm(selectedDate: string): LogisticsFormData {
-  return {
+function toDateInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return localDateString(date);
+}
+
+function emptyForm(selectedDate: string, tab: OperationalTab = 'SCHEDULING'): LogisticsFormData {
+  const base: LogisticsFormData = {
     referenceCode: '',
     shipmentNumber: '',
     loadNumber: '',
     shipowner: '',
     bookingNumber: '',
+    collectionBookingNumber: '',
+    cargoTypeId: '',
+    containerTypeId: '',
+    shipownerId: '',
     shipperId: '',
     driverId: '',
     driverTwoId: '',
     tractorId: '',
     trailerId: '',
+    collectionCityId: '',
     collectionTerminal: '',
+    collectionLocationTypeId: '',
+    collectionScheduledAt: '',
     collectionAt: '',
+    loadingCityId: '',
     loadingLocation: '',
-    loadingAt: `${selectedDate}T08:00`,
+    loadingAt: '',
+    deliveryCityId: '',
     deliveryLocation: '',
+    deliveryLocationTypeId: '',
     deliveryAt: '',
+    plan: '',
+    loadMode: '',
+    loadStatus: '',
+    cargoNumber: '',
+    loadEntries: [],
+    containerNumber: '',
+    containerTareKg: '',
+    containerPayloadKg: '',
+    shipownerSeal: '',
+    vessel: '',
+    deadline: '',
+    country: '',
+    temperature: '',
+    sifSeal: '',
     stage: 'PROGRAMMING',
     notes: '',
   };
+
+  if (tab === 'SCHEDULING') {
+    base.collectionScheduledAt = selectedDate;
+  } else if (tab === 'COLLECTION') {
+    base.collectionAt = `${selectedDate}T08:00`;
+    base.stage = 'COLLECTION';
+  } else if (tab === 'LOADING') {
+    base.loadingAt = `${selectedDate}T08:00`;
+    base.stage = 'LOADING';
+  } else if (tab === 'DELIVERY') {
+    base.deliveryAt = `${selectedDate}T08:00`;
+    base.stage = 'DELIVERY';
+  }
+
+  return base;
 }
 
 function formFromLoad(load: LogisticsLoad): LogisticsFormData {
@@ -174,65 +277,94 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     loadNumber: load.loadNumber ?? '',
     shipowner: load.shipowner ?? '',
     bookingNumber: load.bookingNumber ?? '',
+    collectionBookingNumber: load.collectionBookingNumber ?? '',
+    cargoTypeId: load.cargoTypeId ? String(load.cargoTypeId) : '',
+    containerTypeId: load.containerTypeId ? String(load.containerTypeId) : '',
+    shipownerId: load.shipownerId ? String(load.shipownerId) : '',
     shipperId: String(load.shipperId),
     driverId: load.driverId ? String(load.driverId) : '',
     driverTwoId: load.driverTwoId ? String(load.driverTwoId) : '',
     tractorId: load.tractorId ? String(load.tractorId) : '',
     trailerId: load.trailerId ? String(load.trailerId) : '',
+    collectionCityId: load.collectionCityId ? String(load.collectionCityId) : '',
     collectionTerminal: load.collectionTerminal ?? '',
+    collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
+    collectionScheduledAt: toDateInput(load.collectionScheduledAt),
     collectionAt: toLocalInput(load.collectionAt),
+    loadingCityId: load.loadingCityId ? String(load.loadingCityId) : '',
     loadingLocation: load.loadingLocation ?? '',
     loadingAt: toLocalInput(load.loadingAt),
+    deliveryCityId: load.deliveryCityId ? String(load.deliveryCityId) : '',
     deliveryLocation: load.deliveryLocation ?? '',
+    deliveryLocationTypeId: load.deliveryLocationTypeId ? String(load.deliveryLocationTypeId) : '',
     deliveryAt: toLocalInput(load.deliveryAt),
+    plan: load.plan ?? '',
+    loadMode: load.loadMode ?? '',
+    loadStatus: load.loadStatus ?? '',
+    cargoNumber: load.cargoNumber ?? '',
+    loadEntries: load.loadEntries.map((entry) => ({ ...entry })),
+    containerNumber: load.containerNumber ?? '',
+    containerTareKg: load.containerTareKg !== null ? String(load.containerTareKg) : '',
+    containerPayloadKg: load.containerPayloadKg !== null ? String(load.containerPayloadKg) : '',
+    shipownerSeal: load.shipownerSeal ?? '',
+    vessel: load.vessel ?? '',
+    deadline: load.deadline ?? '',
+    country: load.country ?? '',
+    temperature: load.temperature ?? '',
+    sifSeal: load.sifSeal ?? '',
     stage: load.stage,
     notes: load.notes ?? '',
   };
 }
 
-function buildMonthCells(monthDate: Date): Date[] {
-  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const start = new Date(first);
-  start.setDate(1 - first.getDay());
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
+function referenceDateForTab(load: LogisticsLoad, tab: OperationalTab): string | null {
+  if (tab === 'SCHEDULING') return load.collectionScheduledAt;
+  if (tab === 'COLLECTION') return load.collectionAt;
+  if (tab === 'LOADING') return load.loadingAt;
+  return load.deliveryAt;
 }
 
-function buildWeekCells(selectedDate: string): Date[] {
-  const selected = new Date(`${selectedDate}T12:00:00`);
-  const start = new Date(selected);
-  start.setDate(selected.getDate() - selected.getDay());
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
+interface CalendarShipperSummary {
+  name: string;
+  color: string;
+  count: number;
 }
 
-function dayColors(loads: LogisticsLoad[], date: string): string[] {
-  const unique = new Set(
-    loads
-      .filter((load) => dateKeyFromIso(load.loadingAt) === date)
-      .map((load) => load.shipperColor || '#3FA66C'),
-  );
-  return Array.from(unique).slice(0, 3);
+interface CalendarDaySummary {
+  scheduled: CalendarShipperSummary[];
+  loading: CalendarShipperSummary[];
 }
 
+function pushShipperSummary(
+  target: Record<string, { name: string; color: string; count: number }>,
+  load: LogisticsLoad,
+): void {
+  const key = String(load.shipperId || load.shipperName || 'SEM_EMBARCADOR');
+  if (!target[key]) {
+    target[key] = {
+      name: load.shipperName || 'Sem embarcador',
+      color: load.shipperColor || '#7d8b82',
+      count: 0,
+    };
+  }
+  target[key].count += 1;
+}
+
+function isDateInRange(value: string | null, from: string, to: string): boolean {
+  const key = dateKeyFromIso(value);
+  return Boolean(key && key >= from && key <= to);
+}
 
 export function LogisticsCalendar() {
   const notifications = useNotifications();
   const today = useMemo(() => new Date(), []);
-  const [visibleMonth, setVisibleMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
-  const [selectedDate, setSelectedDate] = useState(() => localDateString(today));
+  const [weekAnchor, setWeekAnchor] = useState(() => new Date(today));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<OperationalTab>('SCHEDULING');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [shipperFilter, setShipperFilter] = useState('');
-  const [view, setView] = useState<CalendarView>('MONTH');
-  const [isDayPanelOpen, setIsDayPanelOpen] = useState(false);
   const [options, setOptions] = useState<LogisticsOptions>(EMPTY_OPTIONS);
   const [loads, setLoads] = useState<LogisticsLoad[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(null);
   const [selectedLoad, setSelectedLoad] = useState<LogisticsLoad | null>(null);
@@ -241,22 +373,26 @@ export function LogisticsCalendar() {
   const [finishingId, setFinishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  const month = monthKey(visibleMonth);
+  const weekCells = useMemo(() => buildWeekCells(weekAnchor), [weekAnchor]);
+  const weekStart = useMemo(() => localDateString(weekCells[0]), [weekCells]);
+  const weekEnd = useMemo(() => localDateString(weekCells[6]), [weekCells]);
+  const weekInfo = useMemo(() => isoWeekInfo(weekCells[3]), [weekCells]);
+  const weekNumber = weekInfo.week;
+  const weekYear = weekInfo.year;
 
   const loadCalendar = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await logisticsService.calendar(month, shipperFilter);
-      setLoads(data.loads);
-      setCounts(data.counts);
-      setSelectedLoad((current) => current ? data.loads.find((item) => item.id === current.id) ?? current : null);
+      const data = await logisticsService.calendarWeek(weekStart, weekEnd, shipperFilter);
+      setLoads(data);
+      setSelectedLoad((current) => current ? data.find((item) => item.id === current.id) ?? current : null);
     } catch (error) {
-      const feedback = getApiErrorFeedback(error, 'Não foi possível carregar o calendário de cargas.');
+      const feedback = getApiErrorFeedback(error, 'Não foi possível carregar as cargas da semana.');
       notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setLoading(false);
     }
-  }, [month, notifications, shipperFilter]);
+  }, [notifications, shipperFilter, weekEnd, weekStart]);
 
   useEffect(() => {
     void logisticsService.options()
@@ -309,43 +445,64 @@ export function LogisticsCalendar() {
     };
   }, [drawerMode]);
 
-  const selectedDayLoads = useMemo(
-    () => loads
-      .filter((load) => dateKeyFromIso(load.loadingAt) === selectedDate)
-      .sort((a, b) => new Date(a.loadingAt ?? 0).getTime() - new Date(b.loadingAt ?? 0).getTime()),
-    [loads, selectedDate],
-  );
+  const tabLoads = useMemo(() => {
+    return loads.filter((load) => {
+      const reference = referenceDateForTab(load, activeTab);
+      return isDateInRange(reference, weekStart, weekEnd);
+    });
+  }, [activeTab, loads, weekEnd, weekStart]);
 
-  const monthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
-  const weekCells = useMemo(() => buildWeekCells(selectedDate), [selectedDate]);
-  const datesWithLoads = useMemo(
-    () => Object.keys(counts).filter((date) => date.startsWith(month)).sort(),
-    [counts, month],
-  );
+  const tabTotals = useMemo(() => {
+    return TABS.reduce<Record<OperationalTab, number>>((accumulator, tab) => {
+      accumulator[tab] = loads.filter((load) => isDateInRange(referenceDateForTab(load, tab), weekStart, weekEnd)).length;
+      return accumulator;
+    }, { SCHEDULING: 0, COLLECTION: 0, LOADING: 0, DELIVERY: 0 });
+  }, [loads, weekEnd, weekStart]);
+
+  const daySummaries = useMemo<Record<string, CalendarDaySummary>>(() => {
+    const raw: Record<string, {
+      scheduled: Record<string, CalendarShipperSummary>;
+      loading: Record<string, CalendarShipperSummary>;
+    }> = {};
+
+    loads.forEach((load) => {
+      const scheduledDate = dateKeyFromIso(load.collectionScheduledAt);
+      const loadingDate = dateKeyFromIso(load.loadingAt);
+
+      if (scheduledDate && scheduledDate >= weekStart && scheduledDate <= weekEnd) {
+        if (!raw[scheduledDate]) raw[scheduledDate] = { scheduled: {}, loading: {} };
+        pushShipperSummary(raw[scheduledDate].scheduled, load);
+      }
+      if (loadingDate && loadingDate >= weekStart && loadingDate <= weekEnd) {
+        if (!raw[loadingDate]) raw[loadingDate] = { scheduled: {}, loading: {} };
+        pushShipperSummary(raw[loadingDate].loading, load);
+      }
+    });
+
+    return Object.fromEntries(
+      Object.entries(raw).map(([date, groups]) => [
+        date,
+        {
+          scheduled: Object.values(groups.scheduled).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+          loading: Object.values(groups.loading).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+        },
+      ]),
+    );
+  }, [loads, weekEnd, weekStart]);
+
+  const visibleLoads = useMemo(() => {
+    return tabLoads
+      .filter((load) => !selectedDate || dateKeyFromIso(referenceDateForTab(load, activeTab)) === selectedDate)
+      .sort((a, b) => {
+        const aDate = referenceDateForTab(a, activeTab);
+        const bDate = referenceDateForTab(b, activeTab);
+        return new Date(aDate ?? 0).getTime() - new Date(bDate ?? 0).getTime();
+      });
+  }, [activeTab, selectedDate, tabLoads]);
 
   const shipperSelectOptions = useMemo(
     () => options.shippers.map((item) => ({ value: String(item.id), label: item.name })),
     [options.shippers],
-  );
-  const driverSelectOptions = useMemo(
-    () => options.drivers.map((item) => ({ value: String(item.id), label: item.name, searchText: item.employeeCode })),
-    [options.drivers],
-  );
-  const tractorSelectOptions = useMemo(
-    () => options.tractors.map((item) => ({
-      value: String(item.id),
-      label: `${item.plate}${item.fleetNumber ? ` · Frota ${item.fleetNumber}` : ''}`,
-      searchText: `${item.brand} ${item.model}`,
-    })),
-    [options.tractors],
-  );
-  const trailerSelectOptions = useMemo(
-    () => options.trailers.map((item) => ({
-      value: String(item.id),
-      label: `${item.plate}${item.fleetNumber ? ` · Frota ${item.fleetNumber}` : ''}`,
-      searchText: `${item.brand} ${item.model}`,
-    })),
-    [options.trailers],
   );
   const selectedShipper = useMemo(
     () => options.shippers.find((item) => String(item.id) === form.shipperId),
@@ -353,39 +510,34 @@ export function LogisticsCalendar() {
   );
   const formAccent = selectedShipper?.displayColor ?? selectedLoad?.shipperColor ?? '#3FA66C';
 
-  function selectCalendarDate(date: Date) {
-    const key = localDateString(date);
-    setSelectedDate(key);
-    setIsDayPanelOpen(true);
-    if (date.getFullYear() !== visibleMonth.getFullYear() || date.getMonth() !== visibleMonth.getMonth()) {
-      setVisibleMonth(new Date(date.getFullYear(), date.getMonth(), 1));
-    }
-  }
-
-  function selectDateFromList(date: string) {
-    setSelectedDate(date);
-    setIsDayPanelOpen(true);
-  }
-
-  function changeMonth(delta: number) {
-    setIsDayPanelOpen(false);
-    setVisibleMonth((current) => {
-      const next = new Date(current.getFullYear(), current.getMonth() + delta, 1);
-      setSelectedDate(localDateString(next));
+  function changeWeek(delta: number) {
+    setSelectedDate(null);
+    setWeekAnchor((current) => {
+      const next = new Date(current);
+      next.setDate(current.getDate() + delta * 7);
       return next;
     });
   }
 
-  function goToday() {
-    const now = new Date();
-    setIsDayPanelOpen(false);
-    setVisibleMonth(new Date(now.getFullYear(), now.getMonth(), 1));
-    setSelectedDate(localDateString(now));
+  function goCurrentWeek() {
+    setSelectedDate(null);
+    setWeekAnchor(new Date());
+  }
+
+  function selectTab(tab: OperationalTab) {
+    setActiveTab(tab);
+    setSelectedDate(null);
+  }
+
+  function selectCalendarDate(date: Date) {
+    const key = localDateString(date);
+    setSelectedDate((current) => current === key ? null : key);
   }
 
   function openCreate() {
+    const date = selectedDate ?? localDateString(weekAnchor);
     setSelectedLoad(null);
-    setForm(emptyForm(selectedDate));
+    setForm(emptyForm(date, activeTab));
     setDrawerMode('create');
   }
 
@@ -395,38 +547,28 @@ export function LogisticsCalendar() {
     setDrawerMode('edit');
   }
 
+  function openDuplicate(load: LogisticsLoad) {
+    const scheduledDate = toDateInput(load.collectionScheduledAt);
+    const duplicated = emptyForm(scheduledDate || localDateString(weekAnchor), 'SCHEDULING');
+    setSelectedLoad(null);
+    setForm({
+      ...duplicated,
+      shipperId: String(load.shipperId),
+      collectionScheduledAt: scheduledDate,
+    });
+    setDrawerMode('create');
+  }
+
   function closeDrawer() {
     if (saving) return;
     setDrawerMode(null);
     setSelectedLoad(null);
   }
 
-  function handleTractorChange(value: string) {
-    setForm((current) => {
-      if (!value) return { ...current, tractorId: '' };
-      const activeSet = options.activeSets.find((item) => item.tractorId === Number(value));
-      if (!activeSet) return { ...current, tractorId: value };
-      return {
-        ...current,
-        tractorId: value,
-        trailerId: activeSet.trailerId ? String(activeSet.trailerId) : current.trailerId,
-        driverId: activeSet.driverId ? String(activeSet.driverId) : current.driverId,
-        driverTwoId: activeSet.driverTwoId ? String(activeSet.driverTwoId) : current.driverTwoId,
-      };
-    });
-  }
-
   async function saveLoad() {
-    if (!form.shipperId) {
-      notifications.warning('Embarcador obrigatório', 'Selecione o embarcador da carga.');
-      return;
-    }
-    if (!form.loadingAt) {
-      notifications.warning('Data de carregamento', 'Informe a data e hora do carregamento para a carga aparecer no calendário.');
-      return;
-    }
-    if (form.driverId && form.driverId === form.driverTwoId) {
-      notifications.warning('Motoristas duplicados', 'O segundo motorista deve ser diferente do primeiro.');
+    const validation = validateLogisticsForm(form);
+    if (validation) {
+      notifications.warning(validation.title, validation.message);
       return;
     }
 
@@ -435,7 +577,7 @@ export function LogisticsCalendar() {
       let saved: LogisticsLoad;
       if (drawerMode === 'create') {
         saved = await logisticsService.create(form);
-        notifications.success('Carga criada', `${saved.referenceCode} foi adicionada ao calendário.`);
+        notifications.success('Carga criada', `${saved.referenceCode} foi adicionada à logística.`);
       } else if (selectedLoad) {
         const originalStage = selectedLoad.stage;
         saved = await logisticsService.update(selectedLoad.id, form);
@@ -447,12 +589,8 @@ export function LogisticsCalendar() {
         return;
       }
 
-      const savedDate = dateKeyFromIso(saved.loadingAt);
-      if (savedDate) {
-        setSelectedDate(savedDate);
-        const savedDateObj = new Date(`${savedDate}T12:00:00`);
-        setVisibleMonth(new Date(savedDateObj.getFullYear(), savedDateObj.getMonth(), 1));
-      }
+      const targetDate = dateKeyFromIso(referenceDateForTab(saved, activeTab) ?? saved.collectionScheduledAt ?? saved.loadingAt ?? saved.deliveryAt);
+      if (targetDate) setWeekAnchor(new Date(`${targetDate}T12:00:00`));
       setDrawerMode(null);
       setSelectedLoad(null);
       await loadCalendar();
@@ -469,7 +607,7 @@ export function LogisticsCalendar() {
     const confirmed = await notifications.confirm({
       title: 'Finalizar carga?',
       message: `A carga ${load.referenceCode} será marcada como finalizada.`,
-      details: ['Ela continuará aparecendo no calendário histórico na data do carregamento.'],
+      details: ['Ela continuará disponível no histórico da logística.'],
       type: 'warning',
       confirmLabel: 'Finalizar carga',
       cancelLabel: 'Cancelar',
@@ -500,6 +638,7 @@ export function LogisticsCalendar() {
       cancelLabel: 'Cancelar',
     });
     if (!confirmed) return;
+
     setDeletingId(load.id);
     try {
       await logisticsService.remove(load.id);
@@ -514,45 +653,6 @@ export function LogisticsCalendar() {
     }
   }
 
-  function renderCalendarCell(date: Date, compact = false) {
-    const key = localDateString(date);
-    const count = counts[key] ?? 0;
-    const outside = date.getMonth() !== visibleMonth.getMonth();
-    const isToday = key === localDateString(today);
-    const colors = dayColors(loads, key);
-
-    if (compact) {
-      return (
-        <DayCell
-          key={key}
-          type="button"
-          $outside={outside}
-          $selected={key === selectedDate}
-          $today={isToday}
-          onClick={() => selectCalendarDate(date)}
-          style={{ minHeight: '8rem' }}
-        >
-          <span>{date.getDate()}</span>
-          {count > 0 ? <DayCount>{colors.map((color) => <Dot key={color} $color={color} />)} {count}</DayCount> : null}
-        </DayCell>
-      );
-    }
-
-    return (
-      <DayCell
-        key={key}
-        type="button"
-        $outside={outside}
-        $selected={key === selectedDate}
-        $today={isToday}
-        onClick={() => selectCalendarDate(date)}
-      >
-        <span>{date.getDate()}</span>
-        {count > 0 ? <DayCount>{colors.map((color) => <Dot key={color} $color={color} />)} {count}</DayCount> : null}
-      </DayCell>
-    );
-  }
-
   return (
     <Page>
       <Header>
@@ -561,12 +661,33 @@ export function LogisticsCalendar() {
       </Header>
 
       <Toolbar>
-        <MonthControls>
-          <SecondaryButton type="button" onClick={goToday}>Hoje</SecondaryButton>
-          <IconButton type="button" onClick={() => changeMonth(-1)} aria-label="Mês anterior"><ChevronLeft size={18} /></IconButton>
-          <IconButton type="button" onClick={() => changeMonth(1)} aria-label="Próximo mês"><ChevronRight size={18} /></IconButton>
-          <MonthTitle>{formatMonth(visibleMonth)}</MonthTitle>
-        </MonthControls>
+        <WeekControls>
+          <SecondaryButton type="button" onClick={goCurrentWeek} title="Voltar para a semana atual">
+            Semana {weekNumber}/{weekYear}
+          </SecondaryButton>
+          <IconButton type="button" onClick={() => changeWeek(-1)} aria-label="Semana anterior"><ChevronLeft size={18} /></IconButton>
+          <IconButton type="button" onClick={() => changeWeek(1)} aria-label="Próxima semana"><ChevronRight size={18} /></IconButton>
+          <MonthTitle>{formatMonth(weekAnchor)}</MonthTitle>
+          <CalendarToggle
+            type="button"
+            $active={isCalendarOpen}
+            onClick={() => setIsCalendarOpen((open) => !open)}
+            aria-expanded={isCalendarOpen}
+          >
+            <CalendarDays size={17} />
+            <span>Calendário</span>
+            {isCalendarOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          </CalendarToggle>
+        </WeekControls>
+
+        <OperationalTabs aria-label="Etapa operacional das cargas">
+          {TABS.map((tab) => (
+            <OperationalTabButton key={tab} type="button" $active={activeTab === tab} onClick={() => selectTab(tab)}>
+              <span>{TAB_LABELS[tab]}</span>
+              <strong>{tabTotals[tab]}</strong>
+            </OperationalTabButton>
+          ))}
+        </OperationalTabs>
 
         <FilterBox>
           <SearchableSelect
@@ -580,83 +701,183 @@ export function LogisticsCalendar() {
             ariaLabel="Filtrar calendário por embarcador"
           />
         </FilterBox>
-
-        <ViewTabs aria-label="Visualização do calendário">
-          <ViewTab type="button" $active={view === 'MONTH'} onClick={() => setView('MONTH')}>Mês</ViewTab>
-          <ViewTab type="button" $active={view === 'WEEK'} onClick={() => setView('WEEK')}>Semana</ViewTab>
-          <ViewTab type="button" $active={view === 'LIST'} onClick={() => setView('LIST')}>Lista</ViewTab>
-        </ViewTabs>
       </Toolbar>
 
-      <Workspace $detailsOpen={isDayPanelOpen}>
-        <CalendarPane $detailsOpen={isDayPanelOpen}>
-          {view !== 'LIST' ? <WeekHeader>{WEEK_DAYS.map((day) => <WeekDay key={day}>{day}</WeekDay>)}</WeekHeader> : null}
-          {view === 'MONTH' ? <MonthGrid>{monthCells.map((date) => renderCalendarCell(date))}</MonthGrid> : null}
-          {view === 'WEEK' ? (
-            <MonthGrid style={{ gridTemplateRows: 'minmax(12rem, 1fr)', minHeight: '20rem' }}>
-              {weekCells.map((date) => renderCalendarCell(date, true))}
-            </MonthGrid>
-          ) : null}
-          {view === 'LIST' ? (
-            <CompactCalendarList>
-              {datesWithLoads.length === 0 ? <EmptyState>Nenhuma carga com data de carregamento neste mês.</EmptyState> : datesWithLoads.map((date) => (
-                <CompactDateButton key={date} type="button" $active={date === selectedDate} onClick={() => selectDateFromList(date)}>
-                  <div><strong>{formatDate(date)}</strong><br /><small>{new Intl.DateTimeFormat('pt-BR', { weekday: 'long' }).format(new Date(`${date}T12:00:00`))}</small></div>
-                  <strong>{counts[date]} carga(s)</strong>
-                </CompactDateButton>
-              ))}
-            </CompactCalendarList>
-          ) : null}
-        </CalendarPane>
+      {isCalendarOpen ? (
+        <CalendarDropdown>
+          <WeekCalendarHeader>
+            <div>
+              <strong>Datas da semana</strong>
+              <WeekRangeText>{formatShortDate(weekCells[0])} até {formatShortDate(weekCells[6])} · Agendamento = campo Agendar coleta · Carregamentos = data de carregamento</WeekRangeText>
+            </div>
+            {selectedDate ? <SecondaryButton type="button" onClick={() => setSelectedDate(null)}>Ver semana toda</SecondaryButton> : null}
+          </WeekCalendarHeader>
+          <WeekDatesScroller>
+            <WeekDatesGrid>
+              {weekCells.map((date, index) => {
+                const key = localDateString(date);
+                const summary = daySummaries[key] ?? { scheduled: [], loading: [] };
+                const scheduledTotal = summary.scheduled.reduce((total, item) => total + item.count, 0);
+                const loadingTotal = summary.loading.reduce((total, item) => total + item.count, 0);
+                const isToday = key === localDateString(today);
+                return (
+                  <CalendarDayButton
+                    key={key}
+                    type="button"
+                    $selected={selectedDate === key}
+                    $today={isToday}
+                    onClick={() => selectCalendarDate(date)}
+                    aria-label={`${WEEK_DAYS[index]}, ${formatDate(key)}, ${scheduledTotal} agendamento(s), ${loadingTotal} carregamento(s)`}
+                  >
+                    <div className="day-heading">
+                      <span>{WEEK_DAYS[index]}</span>
+                      <strong>{date.getDate()}</strong>
+                    </div>
+                    <CalendarDayFlow>
+                      <CalendarDayFlowColumn>
+                        <CalendarDayFlowTitle>Agendamento <strong>{scheduledTotal}</strong></CalendarDayFlowTitle>
+                        {summary.scheduled.length === 0 ? <em>—</em> : summary.scheduled.map((item) => (
+                          <CalendarShipperCount key={`scheduled-${item.name}`}>
+                            <i style={{ background: item.color }} />
+                            <span title={item.name}>{item.name}</span>
+                            <strong>{item.count}</strong>
+                          </CalendarShipperCount>
+                        ))}
+                      </CalendarDayFlowColumn>
+                      <CalendarDayFlowColumn>
+                        <CalendarDayFlowTitle>Carregamentos <strong>{loadingTotal}</strong></CalendarDayFlowTitle>
+                        {summary.loading.length === 0 ? <em>—</em> : summary.loading.map((item) => (
+                          <CalendarShipperCount key={`loading-${item.name}`}>
+                            <i style={{ background: item.color }} />
+                            <span title={item.name}>{item.name}</span>
+                            <strong>{item.count}</strong>
+                          </CalendarShipperCount>
+                        ))}
+                      </CalendarDayFlowColumn>
+                    </CalendarDayFlow>
+                  </CalendarDayButton>
+                );
+              })}
+            </WeekDatesGrid>
+          </WeekDatesScroller>
+        </CalendarDropdown>
+      ) : null}
 
-        {isDayPanelOpen ? (
-          <DetailsPane>
-            <DetailsHeader>
-              <div>
-                <h2>Cargas do dia {formatDate(selectedDate)}</h2>
-                <p>{selectedDayLoads.length} carga(s) programada(s)</p>
-              </div>
-              <IconButton type="button" onClick={() => setIsDayPanelOpen(false)} aria-label="Recolher cargas do dia" title="Recolher painel">
-                <X size={17} />
-              </IconButton>
-            </DetailsHeader>
+      <LoadsSection>
+        <LoadsHeader>
+          <div>
+            <h2>{TAB_LABELS[activeTab]}</h2>
+            <p>
+              {selectedDate
+                ? `${formatDate(selectedDate)} · ${TAB_DATE_HINTS[activeTab]} · clique novamente na data para voltar à semana inteira`
+                : `Semana ${weekNumber}/${weekYear} · ${formatShortDate(weekCells[0])} até ${formatShortDate(weekCells[6])} · ${TAB_DATE_HINTS[activeTab]}`}
+            </p>
+          </div>
+          <LoadsCount>{visibleLoads.length} carga(s)</LoadsCount>
+        </LoadsHeader>
 
-            {loading ? <LoadingState><RefreshCw size={22} /> Carregando calendário...</LoadingState> : (
-              <LoadList>
-                {selectedDayLoads.length === 0 ? (
-                  <EmptyState>Nenhuma carga com carregamento programado para este dia.</EmptyState>
-                ) : selectedDayLoads.map((load) => (
+        {loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
+          <LoadListViewport $scrollable={visibleLoads.length >= 10}>
+            <LoadList>
+              {visibleLoads.length === 0 ? (
+                <EmptyState>Nenhuma carga encontrada para esta etapa e semana.</EmptyState>
+              ) : visibleLoads.map((load) => {
+                const collectionDate = load.collectionAt;
+                return (
                   <LoadCard key={load.id} $accent={load.shipperColor}>
-                    <LoadCardHeader $accent={load.shipperColor}>
-                      <ShipperBadge $accent={load.shipperColor}>{load.shipperName}</ShipperBadge>
-                      <CardActions>
-                        <ArmadorTitle>
-                          <strong>{load.shipowner || 'Armador não informado'}</strong>
-                          {load.completedAt ? <FinalizedBadge><CheckCircle2 size={13} /> Finalizado</FinalizedBadge> : null}
-                        </ArmadorTitle>
-                        <IconButton type="button" onClick={() => openEdit(load)} aria-label="Editar carga" title="Editar carga"><Edit3 size={15} /></IconButton>
-                      </CardActions>
-                    </LoadCardHeader>
-                    <CardBody>
-                      <DataItem><span>Data</span><strong>{formatDate(dateKeyFromIso(load.loadingAt) ?? selectedDate)}</strong></DataItem>
-                      <DataItem><span>Remessa</span><strong>{load.shipmentNumber || '—'}</strong></DataItem>
-                      <DataItem><span>Load</span><strong>{load.loadNumber || '—'}</strong></DataItem>
-                      <DataItem><span>Origem</span><strong>{load.loadingLocation || load.collectionTerminal || '—'}</strong></DataItem>
-                      <DataItem><span>Destino</span><strong>{load.deliveryLocation || '—'}</strong></DataItem>
-                      <DataItem><span>Armador</span><strong>{load.shipowner || '—'}</strong></DataItem>
-                      <DataItem><span>Booking de baixa</span><strong>{load.bookingNumber || '—'}</strong></DataItem>
-                    </CardBody>
-                    <CardMeta>
-                      <DataItem><span>Cavalo / Carreta</span><strong>{plateSummary(load)}</strong></DataItem>
-                      <DataItem><span>Motorista(s)</span><strong>{driverSummary(load)}</strong></DataItem>
-                    </CardMeta>
+                    <SketchTopBar $accent={load.shipperColor}>
+                      <SketchTopItem>
+                        <span>Embarcador</span>
+                        <strong>{load.shipperName}</strong>
+                      </SketchTopItem>
+                      <SketchTopItem>
+                        <span>Tipo de carga</span>
+                        <strong>{load.cargoTypeName || '—'}</strong>
+                      </SketchTopItem>
+                      <SketchTopItem>
+                        <span>Armador</span>
+                        <strong>{load.shipownerName || load.shipowner || '—'}</strong>
+                      </SketchTopItem>
+                      <SketchTopItem>
+                        <span>Coleta</span>
+                        <strong>{load.collectionTerminal || '—'}</strong>
+                      </SketchTopItem>
+                      <SketchTopItem>
+                        <span>Data / hora coleta</span>
+                        <strong>{collectionDate ? formatCompactDateTime(collectionDate) : '---'}</strong>
+                      </SketchTopItem>
+                      <SketchActions>
+                        {load.completedAt ? <FinalizedBadge title="Carga finalizada"><CheckCircle2 size={13} /></FinalizedBadge> : null}
+                        <SketchActionButton type="button" onClick={() => openEdit(load)} aria-label="Editar carga" title="Editar carga"><Edit3 size={14} /> Editar</SketchActionButton>
+                        <SketchActionButton type="button" onClick={() => openDuplicate(load)} aria-label="Duplicar carga" title="Duplicar carga"><Copy size={14} /> Duplicar</SketchActionButton>
+                      </SketchActions>
+                    </SketchTopBar>
+
+                    <SketchBodyGrid>
+                      <SketchBodyItem>
+                        <span>Origem</span>
+                        <strong>{load.loadingLocation || '—'}</strong>
+                        <strong>{formatCompactDateTime(load.loadingAt)}</strong>
+                      </SketchBodyItem>
+                      <SketchBodyItem>
+                        <span>Destino</span>
+                        <strong>{load.deliveryLocation || '—'}</strong>
+                        <strong>{formatCompactDateTime(load.deliveryAt)}</strong>
+                      </SketchBodyItem>
+                      <SketchBodyItem>
+                        <span>Booking coleta</span>
+                        <strong>{load.collectionBookingNumber || '—'}</strong>
+                      </SketchBodyItem>
+                      <SketchBodyItem>
+                        <span>Booking baixa</span>
+                        <strong>{load.bookingNumber || '—'}</strong>
+                      </SketchBodyItem>
+                      <SketchBodyItem>
+                        <span>Plano</span>
+                        <strong>{load.plan || '—'}</strong>
+                      </SketchBodyItem>
+                      <SketchBodyItem>
+                        <span>{load.loadMode === 'CARGO' ? 'Carga' : load.loadMode === 'LOAD' ? 'Load' : 'Carga / Load'}</span>
+                        {load.loadMode === 'CARGO' ? (
+                          <strong>{load.cargoNumber || '—'}</strong>
+                        ) : load.loadMode === 'LOAD' && load.loadEntries.length > 0 ? (
+                          <SketchLoadEntries>
+                            {[...load.loadEntries]
+                              .sort((a, b) => (a.status === b.status ? 0 : a.status === 'EMPTY' ? -1 : 1))
+                              .map((entry, index) => (
+                                <div key={`${entry.status}-${entry.number}-${index}`}>
+                                  <small>{entry.status === 'EMPTY' ? 'Vazio' : 'Cheio'}</small>
+                                  <strong>{entry.number || '—'}</strong>
+                                </div>
+                              ))}
+                          </SketchLoadEntries>
+                        ) : (
+                          <strong>—</strong>
+                        )}
+                      </SketchBodyItem>
+                    </SketchBodyGrid>
+
+                    <SketchObservation>
+                      <div>
+                        <span>Observação</span>
+                        <strong>{load.notes || '—'}</strong>
+                      </div>
+                      <div>
+                        <span>Placas</span>
+                        <strong>{plateSummary(load)}</strong>
+                      </div>
+                      <div>
+                        <span>Motorista</span>
+                        <strong>{driverSummary(load)}</strong>
+                      </div>
+                    </SketchObservation>
                   </LoadCard>
-                ))}
-              </LoadList>
-            )}
-          </DetailsPane>
-        ) : null}
-      </Workspace>
+                );
+              })}
+            </LoadList>
+          </LoadListViewport>
+        )}
+      </LoadsSection>
 
       {drawerMode ? (
         <>
@@ -676,28 +897,14 @@ export function LogisticsCalendar() {
                 <span>{STAGE_LABELS[form.stage]}</span>
               </AccentPreview>
 
-              <FormGrid>
-                <Field className="full">Referência da carga<Input value={form.referenceCode} onChange={(event) => setForm((current) => ({ ...current, referenceCode: event.target.value.toUpperCase() }))} placeholder="Ex.: número do container / referência" /></Field>
-                <Field>Remessa<Input value={form.shipmentNumber} onChange={(event) => setForm((current) => ({ ...current, shipmentNumber: event.target.value }))} placeholder="Em branco" /></Field>
-                <Field>Load<Input value={form.loadNumber} onChange={(event) => setForm((current) => ({ ...current, loadNumber: event.target.value }))} placeholder="Em branco" /></Field>
-                <Field>Armador<Input value={form.shipowner} onChange={(event) => setForm((current) => ({ ...current, shipowner: event.target.value }))} placeholder="Armador" /></Field>
-                <Field>Booking<Input value={form.bookingNumber} onChange={(event) => setForm((current) => ({ ...current, bookingNumber: event.target.value }))} placeholder="Booking" /></Field>
-                <Field className="half">Cliente / Embarcador<SearchableSelect id="cal-form-shipper" value={form.shipperId} options={shipperSelectOptions} onChange={(value) => setForm((current) => ({ ...current, shipperId: value }))} placeholder="Selecione" clearable={false} /></Field>
-                <Field className="half">Etapa<Select disabled={Boolean(selectedLoad?.completedAt)} value={form.stage} onChange={(event) => setForm((current) => ({ ...current, stage: event.target.value as LogisticsStage }))}>{STAGES.map((stage) => <option key={stage} value={stage}>{STAGE_LABELS[stage]}</option>)}</Select></Field>
-
-                <Field className="half">Terminal de coleta<Input value={form.collectionTerminal} onChange={(event) => setForm((current) => ({ ...current, collectionTerminal: event.target.value }))} placeholder="Campo livre" /></Field>
-                <Field className="half">Data / hora da coleta<Input type="datetime-local" value={form.collectionAt} onChange={(event) => setForm((current) => ({ ...current, collectionAt: event.target.value }))} /></Field>
-                <Field className="half">Carregamento<Input value={form.loadingLocation} onChange={(event) => setForm((current) => ({ ...current, loadingLocation: event.target.value }))} placeholder="Local de carregamento" /></Field>
-                <Field className="half">Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(event) => setForm((current) => ({ ...current, loadingAt: event.target.value }))} /></Field>
-                <Field className="half">Baixa / Entrega<Input value={form.deliveryLocation} onChange={(event) => setForm((current) => ({ ...current, deliveryLocation: event.target.value }))} placeholder="Local da baixa/entrega" /></Field>
-                <Field className="half">Data / hora da baixa / entrega<Input type="datetime-local" value={form.deliveryAt} onChange={(event) => setForm((current) => ({ ...current, deliveryAt: event.target.value }))} /></Field>
-
-                <Field className="half">Placa (cavalo)<SearchableSelect id="cal-form-tractor" value={form.tractorId} options={tractorSelectOptions} onChange={handleTractorChange} placeholder="Selecione o cavalo" /></Field>
-                <Field className="half">Carreta<SearchableSelect id="cal-form-trailer" value={form.trailerId} options={trailerSelectOptions} onChange={(value) => setForm((current) => ({ ...current, trailerId: value }))} placeholder="Selecione a carreta" /></Field>
-                <Field className="half">Motorista principal<SearchableSelect id="cal-form-driver" value={form.driverId} options={driverSelectOptions} onChange={(value) => setForm((current) => ({ ...current, driverId: value }))} placeholder="Selecione o motorista" /></Field>
-                <Field className="half">Segundo motorista<SearchableSelect id="cal-form-driver-two" value={form.driverTwoId} options={driverSelectOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => setForm((current) => ({ ...current, driverTwoId: value }))} placeholder="Opcional" /></Field>
-                <Field className="full">Observações<Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Instruções, janela, contato, particularidades da carga..." /></Field>
-              </FormGrid>
+              <LogisticsLoadForm
+                prefix="calendar-load"
+                form={form}
+                options={options}
+                completed={Boolean(selectedLoad?.completedAt)}
+                onChange={setForm}
+                onOptionsChange={setOptions}
+              />
             </DrawerBody>
 
             <DrawerFooter>

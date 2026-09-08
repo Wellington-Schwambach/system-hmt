@@ -25,6 +25,13 @@ interface ApiLoad {
   load_number: string | null;
   shipowner: string | null;
   booking_number: string | null;
+  collection_booking_number: string | null;
+  cargo_type_id: number | null;
+  cargo_type_name: string | null;
+  container_type_id: number | null;
+  container_type_name: string | null;
+  shipowner_id: number | null;
+  shipowner_name: string | null;
   shipper_id: number;
   shipper_name: string;
   shipper_color: string;
@@ -36,12 +43,34 @@ interface ApiLoad {
   tractor_plate: string | null;
   trailer_id: number | null;
   trailer_plate: string | null;
+  collection_city_id: number | null;
   collection_terminal: string | null;
+  collection_location_type_id: number | null;
+  collection_location_type_name: string | null;
+  collection_scheduled_at: string | null;
   collection_at: string | null;
+  loading_city_id: number | null;
   loading_location: string | null;
   loading_at: string | null;
+  delivery_city_id: number | null;
   delivery_location: string | null;
+  delivery_location_type_id: number | null;
+  delivery_location_type_name: string | null;
   delivery_at: string | null;
+  plan: string | null;
+  load_mode: 'CARGO' | 'LOAD' | null;
+  load_status: 'EMPTY' | 'FULL' | null;
+  cargo_number: string | null;
+  load_entries: Array<{ status: 'EMPTY' | 'FULL'; number: string | null }> | null;
+  container_number: string | null;
+  container_tare_kg: number | null;
+  container_payload_kg: number | null;
+  shipowner_seal: string | null;
+  vessel: string | null;
+  deadline: string | null;
+  country: string | null;
+  temperature: string | null;
+  sif_seal: string | null;
   scheduled_at: string | null;
   stage: LogisticsStage;
   position: number;
@@ -65,6 +94,11 @@ interface ApiOptions {
     driver_id: number | null;
     driver_two_id: number | null;
   }>;
+  cargo_types: Array<{ id: number; name: string }>;
+  container_types: Array<{ id: number; name: string }>;
+  shipowners: Array<{ id: number; name: string }>;
+  location_types: Array<{ id: number; name: string; scope: 'C' | 'B' }>;
+  cities: Array<{ id: number; name: string; state_abbreviation: string; label: string }>;
 }
 
 function mapLoad(item: ApiLoad): LogisticsLoad {
@@ -75,6 +109,13 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     loadNumber: item.load_number,
     shipowner: item.shipowner,
     bookingNumber: item.booking_number,
+    collectionBookingNumber: item.collection_booking_number,
+    cargoTypeId: item.cargo_type_id,
+    cargoTypeName: item.cargo_type_name,
+    containerTypeId: item.container_type_id,
+    containerTypeName: item.container_type_name,
+    shipownerId: item.shipowner_id,
+    shipownerName: item.shipowner_name,
     shipperId: item.shipper_id,
     shipperName: item.shipper_name,
     shipperColor: item.shipper_color,
@@ -86,12 +127,40 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     tractorPlate: item.tractor_plate,
     trailerId: item.trailer_id,
     trailerPlate: item.trailer_plate,
+    collectionCityId: item.collection_city_id,
     collectionTerminal: item.collection_terminal,
+    collectionLocationTypeId: item.collection_location_type_id,
+    collectionLocationTypeName: item.collection_location_type_name,
+    collectionScheduledAt: item.collection_scheduled_at,
     collectionAt: item.collection_at,
+    loadingCityId: item.loading_city_id,
     loadingLocation: item.loading_location,
     loadingAt: item.loading_at,
+    deliveryCityId: item.delivery_city_id,
     deliveryLocation: item.delivery_location,
+    deliveryLocationTypeId: item.delivery_location_type_id,
+    deliveryLocationTypeName: item.delivery_location_type_name,
     deliveryAt: item.delivery_at,
+    plan: item.plan,
+    loadMode: item.load_mode,
+    loadStatus: item.load_status,
+    cargoNumber: item.cargo_number,
+    loadEntries: Array.isArray(item.load_entries) && item.load_entries.length > 0
+      ? item.load_entries
+          .filter((entry) => entry && (entry.status === 'EMPTY' || entry.status === 'FULL'))
+          .map((entry) => ({ status: entry.status, number: String(entry.number ?? '') }))
+      : ((item.load_status === 'EMPTY' || item.load_status === 'FULL')
+          ? [{ status: item.load_status, number: String(item.load_number ?? '') }]
+          : []),
+    containerNumber: item.container_number,
+    containerTareKg: item.container_tare_kg,
+    containerPayloadKg: item.container_payload_kg,
+    shipownerSeal: item.shipowner_seal,
+    vessel: item.vessel,
+    deadline: item.deadline,
+    country: item.country,
+    temperature: item.temperature,
+    sifSeal: item.sif_seal,
     scheduledAt: item.scheduled_at,
     stage: item.stage,
     position: Number(item.position ?? 0),
@@ -130,23 +199,54 @@ function nullableText(value: string): string | null {
 }
 
 function formPayload(data: LogisticsFormData) {
+  const loadEntries = data.loadMode === 'LOAD'
+    ? data.loadEntries
+        .filter((entry) => entry.status === 'EMPTY' || entry.status === 'FULL')
+        .map((entry) => ({ status: entry.status, number: nullableText(entry.number) }))
+    : [];
+  const firstLoad = loadEntries[0] ?? null;
+
   return {
     reference_code: nullableText(data.referenceCode)?.toUpperCase() ?? null,
     shipment_number: nullableText(data.shipmentNumber),
-    load_number: nullableText(data.loadNumber),
+    load_number: data.loadMode === 'LOAD' ? (firstLoad?.number ?? null) : null,
     shipowner: nullableText(data.shipowner),
     booking_number: nullableText(data.bookingNumber),
+    collection_booking_number: nullableText(data.collectionBookingNumber),
+    cargo_type_id: data.cargoTypeId ? Number(data.cargoTypeId) : null,
+    container_type_id: data.containerTypeId ? Number(data.containerTypeId) : null,
+    shipowner_id: data.shipownerId ? Number(data.shipownerId) : null,
     shipper_id: Number(data.shipperId),
     driver_id: data.driverId ? Number(data.driverId) : null,
     driver_two_id: data.driverTwoId ? Number(data.driverTwoId) : null,
     tractor_id: data.tractorId ? Number(data.tractorId) : null,
     trailer_id: data.trailerId ? Number(data.trailerId) : null,
+    collection_city_id: data.collectionCityId ? Number(data.collectionCityId) : null,
     collection_terminal: nullableText(data.collectionTerminal),
+    collection_location_type_id: data.collectionLocationTypeId ? Number(data.collectionLocationTypeId) : null,
+    collection_scheduled_at: data.collectionScheduledAt || null,
     collection_at: data.collectionAt || null,
+    loading_city_id: data.loadingCityId ? Number(data.loadingCityId) : null,
     loading_location: nullableText(data.loadingLocation),
     loading_at: data.loadingAt || null,
+    delivery_city_id: data.deliveryCityId ? Number(data.deliveryCityId) : null,
     delivery_location: nullableText(data.deliveryLocation),
+    delivery_location_type_id: data.deliveryLocationTypeId ? Number(data.deliveryLocationTypeId) : null,
     delivery_at: data.deliveryAt || null,
+    plan: nullableText(data.plan),
+    load_mode: data.loadMode || null,
+    load_status: data.loadMode === 'LOAD' ? (firstLoad?.status ?? null) : null,
+    cargo_number: data.loadMode === 'CARGO' ? nullableText(data.cargoNumber) : null,
+    load_entries: data.loadMode === 'LOAD' ? loadEntries : null,
+    container_number: nullableText(data.containerNumber),
+    container_tare_kg: data.containerTareKg ? Number(data.containerTareKg.replace(',', '.')) : null,
+    container_payload_kg: data.containerPayloadKg ? Number(data.containerPayloadKg.replace(',', '.')) : null,
+    shipowner_seal: nullableText(data.shipownerSeal),
+    vessel: nullableText(data.vessel),
+    deadline: data.deadline || null,
+    country: nullableText(data.country),
+    temperature: nullableText(data.temperature),
+    sif_seal: nullableText(data.sifSeal),
     stage: data.stage,
     notes: nullableText(data.notes),
   };
@@ -187,7 +287,18 @@ export const logisticsService = {
         driverId: item.driver_id,
         driverTwoId: item.driver_two_id,
       })),
+      cargoTypes: (response.data.cargo_types ?? []).map((item) => ({ id: item.id, name: item.name })),
+      containerTypes: (response.data.container_types ?? []).map((item) => ({ id: item.id, name: item.name })),
+      shipowners: (response.data.shipowners ?? []).map((item) => ({ id: item.id, name: item.name })),
+      locationTypes: (response.data.location_types ?? []).map((item) => ({ id: item.id, name: item.name, scope: item.scope })),
+      cities: (response.data.cities ?? []).map((item) => ({ id: item.id, name: item.name, stateAbbreviation: item.state_abbreviation, label: item.label })),
     };
+  },
+
+  async createCatalog(catalog: 'shippers' | 'cargo-types' | 'container-types' | 'shipowners' | 'location-types', name: string, scope?: 'C' | 'B') {
+    const response = await api.post<{ item: { id: number; name: string; display_color?: string; scope?: 'C' | 'B' } }>(`/api/logistics/catalogs/${catalog}`, { name, scope });
+    notifyLogisticsChanged();
+    return response.data.item;
   },
 
   async calendar(month: string, shipperId = ''): Promise<{ loads: LogisticsLoad[]; counts: Record<string, number> }> {
@@ -202,6 +313,18 @@ export const logisticsService = {
       loads: response.data.loads.map(mapLoad),
       counts: response.data.counts ?? {},
     };
+  },
+
+  async calendarWeek(dateFrom: string, dateTo: string, shipperId = ''): Promise<LogisticsLoad[]> {
+    const response = await api.get<{ date_from: string; date_to: string; loads: ApiLoad[] }>('/api/logistics/calendar', {
+      params: {
+        date_from: dateFrom,
+        date_to: dateTo,
+        shipper_id: shipperId || undefined,
+      },
+    });
+
+    return response.data.loads.map(mapLoad);
   },
 
   async list(filters: LogisticsFilters): Promise<LogisticsLoad[]> {
