@@ -14,6 +14,7 @@ use App\Models\TravelCte;
 use App\Models\TravelEvent;
 use App\Models\VehicleSet;
 use App\Models\Vehicle;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -136,7 +137,7 @@ class TravelController extends Controller
             fn (): Collection => Shipper::query()
                 ->where('status', 'ACTIVE')
                 ->orderBy('name')
-                ->get(['id', 'name', 'status', 'display_color'])
+                ->get(['id', 'name', 'status', 'display_color', 'receipt_term_days'])
                 ->map(fn (Shipper $shipper): array => $this->shipperPayload($shipper)),
             'O cadastro de embarcadores ainda não está disponível. Execute as migrations do backend.',
             $warnings
@@ -383,6 +384,12 @@ class TravelController extends Controller
         $operationType = $validated['operation_type'];
 
         $shipper = Shipper::query()->findOrFail((int) $validated['shipper_id']);
+        $receiptDate = $validated['receipt_date'] ?? null;
+        if ($shipper->receipt_term_days !== null) {
+            $travelDate = CarbonImmutable::createFromFormat('Y-m-d', (string) $validated['travel_date']);
+            $receiptDate = $travelDate->addDays((int) $shipper->receipt_term_days)->format('Y-m-d');
+        }
+
         $vehicle = null;
         $driverOne = null;
         $driverTwo = null;
@@ -417,7 +424,7 @@ class TravelController extends Controller
 
         return [
             'travel_date' => $validated['travel_date'],
-            'receipt_date' => $validated['receipt_date'] ?? null,
+            'receipt_date' => $receiptDate,
             'origin' => trim($validated['origin']),
             'destination' => trim($validated['destination']),
             'shipper_id' => $shipper->id,
@@ -621,7 +628,7 @@ class TravelController extends Controller
         ];
     }
 
-    /** @return array{id:int,name:string,status:string,color:string} */
+    /** @return array{id:int,name:string,status:string,color:string,receipt_term_days:?int} */
     private function shipperPayload(Shipper $shipper): array
     {
         return [
@@ -629,6 +636,7 @@ class TravelController extends Controller
             'name' => $shipper->name,
             'status' => $shipper->status,
             'color' => $shipper->display_color ?? '#009E60',
+            'receipt_term_days' => $shipper->receipt_term_days !== null ? (int) $shipper->receipt_term_days : null,
         ];
     }
 }

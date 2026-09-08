@@ -65,6 +65,7 @@ interface ApiShipper {
   name: string;
   status: string;
   color: string;
+  receipt_term_days: number | null;
 }
 
 interface ApiTravelCity {
@@ -98,7 +99,13 @@ function normalizeCteType(value: string): TravelCteRecord['cteType'] {
 }
 
 function mapShipper(shipper: ApiShipper): TravelOptionShipper {
-  return { id: shipper.id, name: shipper.name, status: shipper.status, color: shipper.color };
+  return {
+    id: shipper.id,
+    name: shipper.name,
+    status: shipper.status,
+    color: shipper.color,
+    receiptTermDays: shipper.receipt_term_days === null ? null : Number(shipper.receipt_term_days),
+  };
 }
 
 function mapCte(cte: ApiTravelCte): TravelCteRecord {

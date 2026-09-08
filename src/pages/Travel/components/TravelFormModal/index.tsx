@@ -80,6 +80,20 @@ function moneyValue(value: number): string {
   return value ? value.toFixed(2).replace('.', ',') : '';
 }
 
+function addDaysToIsoDate(value: string, days: number): string {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day || !Number.isFinite(days)) return '';
+
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setDate(date.getDate() + days);
+
+  const nextYear = date.getFullYear();
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const nextDay = String(date.getDate()).padStart(2, '0');
+  return `${nextYear}-${nextMonth}-${nextDay}`;
+}
+
 function getInitialFormData(editingRecord?: TravelRecordWithMetrics | null): TravelFormData {
   if (!editingRecord) {
     return {
@@ -230,10 +244,26 @@ export function TravelFormModal({
         name: editingRecord.shipper,
         status: 'ACTIVE',
         color: editingRecord.shipperColor || '#009E60',
+        receiptTermDays: null,
       });
     }
     return current.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [editingRecord, options.shippers]);
+
+  const selectedShipper = useMemo(
+    () => shippers.find((shipper) => String(shipper.id) === formData.shipperId) ?? null,
+    [formData.shipperId, shippers],
+  );
+  const hasAutomaticReceiptDate = selectedShipper?.receiptTermDays !== null && selectedShipper?.receiptTermDays !== undefined;
+
+  useEffect(() => {
+    if (!isOpen || !formData.date || !hasAutomaticReceiptDate || !selectedShipper) return;
+
+    const calculatedDate = addDaysToIsoDate(formData.date, selectedShipper.receiptTermDays ?? 0);
+    if (!calculatedDate || calculatedDate === formData.receivedDate) return;
+
+    setFormData((current) => ({ ...current, receivedDate: calculatedDate }));
+  }, [formData.date, formData.receivedDate, hasAutomaticReceiptDate, isOpen, selectedShipper]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -346,6 +376,22 @@ export function TravelFormModal({
   function handleChange(field: Exclude<keyof TravelFormData, 'ctes'>, value: string) {
     setFormError('');
     setFormData((current) => {
+      if (field === 'date') {
+        const shipper = shippers.find((item) => String(item.id) === current.shipperId);
+        const receiptDate = shipper?.receiptTermDays !== null && shipper?.receiptTermDays !== undefined
+          ? addDaysToIsoDate(value, shipper.receiptTermDays)
+          : current.receivedDate;
+        return { ...current, date: value, receivedDate: receiptDate };
+      }
+
+      if (field === 'shipperId') {
+        const shipper = shippers.find((item) => String(item.id) === value);
+        const receiptDate = shipper?.receiptTermDays !== null && shipper?.receiptTermDays !== undefined && current.date
+          ? addDaysToIsoDate(current.date, shipper.receiptTermDays)
+          : shipper ? '' : current.receivedDate;
+        return { ...current, shipperId: value, receivedDate: receiptDate };
+      }
+
       if (field === 'vehicleId') {
         const activeSet = options.activeSets.find((set) => String(set.tractorId ?? '') === value);
         return {
@@ -548,7 +594,7 @@ export function TravelFormModal({
               <div>
                 <FormSectionTitle>Dados da viagem</FormSectionTitle>
                 <FormSectionDescription>
-                  Informe a data, o embarcador e, quando houver, a data de recebimento.
+                  Informe a data e o embarcador. Quando houver prazo cadastrado no embarcador, a data de recebimento é calculada automaticamente.
                 </FormSectionDescription>
               </div>
             </FormSectionHeader>
@@ -596,11 +642,14 @@ export function TravelFormModal({
               </Field>
 
               <Field>
-                <Label htmlFor="travel-received-date">Data de recebimento do frete</Label>
+                <Label htmlFor="travel-received-date">
+                  Data de recebimento do frete{hasAutomaticReceiptDate ? ` · +${selectedShipper?.receiptTermDays ?? 0} dia(s)` : ''}
+                </Label>
                 <DateInput
                   id="travel-received-date"
                   value={formData.receivedDate}
                   onValueChange={(value) => handleChange('receivedDate', value)}
+                  disabled={hasAutomaticReceiptDate}
                 />
               </Field>
             </FieldGrid>
