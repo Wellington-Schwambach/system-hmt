@@ -353,9 +353,9 @@ export const CalendarDayFlowTitle = styled.div`
   gap: 0.35rem;
   margin-bottom: 0.42rem;
   color: ${({ theme }) => theme.colors.dashboardTextMuted};
-  font-size: 0.58rem;
+  font-size: 0.5rem;
   font-weight: 850;
-  letter-spacing: 0.035em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 
   > strong {

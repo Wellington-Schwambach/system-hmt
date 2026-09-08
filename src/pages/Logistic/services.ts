@@ -39,10 +39,13 @@ interface ApiLoad {
   driver_name: string | null;
   driver_two_id: number | null;
   driver_two_name: string | null;
+  plate_mode: 'FLEET' | 'THIRD_PARTY' | null;
   tractor_id: number | null;
   tractor_plate: string | null;
   trailer_id: number | null;
   trailer_plate: string | null;
+  third_party_tractor_plate: string | null;
+  third_party_trailer_plate: string | null;
   collection_city_id: number | null;
   collection_terminal: string | null;
   collection_location_type_id: number | null;
@@ -123,10 +126,13 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     driverName: item.driver_name,
     driverTwoId: item.driver_two_id,
     driverTwoName: item.driver_two_name,
+    plateMode: item.plate_mode === 'THIRD_PARTY' ? 'THIRD_PARTY' : 'FLEET',
     tractorId: item.tractor_id,
     tractorPlate: item.tractor_plate,
     trailerId: item.trailer_id,
     trailerPlate: item.trailer_plate,
+    thirdPartyTractorPlate: item.third_party_tractor_plate,
+    thirdPartyTrailerPlate: item.third_party_trailer_plate,
     collectionCityId: item.collection_city_id,
     collectionTerminal: item.collection_terminal,
     collectionLocationTypeId: item.collection_location_type_id,
@@ -219,8 +225,11 @@ function formPayload(data: LogisticsFormData) {
     shipper_id: Number(data.shipperId),
     driver_id: data.driverId ? Number(data.driverId) : null,
     driver_two_id: data.driverTwoId ? Number(data.driverTwoId) : null,
-    tractor_id: data.tractorId ? Number(data.tractorId) : null,
-    trailer_id: data.trailerId ? Number(data.trailerId) : null,
+    plate_mode: data.plateMode,
+    tractor_id: data.plateMode === 'FLEET' && data.tractorId ? Number(data.tractorId) : null,
+    trailer_id: data.plateMode === 'FLEET' && data.trailerId ? Number(data.trailerId) : null,
+    third_party_tractor_plate: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyTractorPlate)?.toUpperCase() ?? null : null,
+    third_party_trailer_plate: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyTrailerPlate)?.toUpperCase() ?? null : null,
     collection_city_id: data.collectionCityId ? Number(data.collectionCityId) : null,
     collection_terminal: nullableText(data.collectionTerminal),
     collection_location_type_id: data.collectionLocationTypeId ? Number(data.collectionLocationTypeId) : null,

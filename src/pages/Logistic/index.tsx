@@ -164,8 +164,11 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     shipperId: '',
     driverId: '',
     driverTwoId: '',
+    plateMode: 'FLEET',
     tractorId: '',
     trailerId: '',
+    thirdPartyTractorPlate: '',
+    thirdPartyTrailerPlate: '',
     collectionCityId: '',
     collectionTerminal: '',
     collectionLocationTypeId: '',
@@ -211,8 +214,11 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     shipperId: String(load.shipperId),
     driverId: load.driverId ? String(load.driverId) : '',
     driverTwoId: load.driverTwoId ? String(load.driverTwoId) : '',
+    plateMode: load.plateMode,
     tractorId: load.tractorId ? String(load.tractorId) : '',
     trailerId: load.trailerId ? String(load.trailerId) : '',
+    thirdPartyTractorPlate: load.thirdPartyTractorPlate ?? '',
+    thirdPartyTrailerPlate: load.thirdPartyTrailerPlate ?? '',
     collectionCityId: load.collectionCityId ? String(load.collectionCityId) : '',
     collectionTerminal: load.collectionTerminal ?? '',
     collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
@@ -623,7 +629,7 @@ export function Logistic() {
         </CardHead>
 
         <CardRows>
-          <CardRow><Truck size={14} /><span>{load.tractorPlate || ''}</span></CardRow>
+          <CardRow><Truck size={14} /><span>{[load.tractorPlate, load.trailerPlate].filter(Boolean).join(' / ') || ''}</span></CardRow>
           <CardRow><UserRound size={14} /><span>{[load.driverName, load.driverTwoName].filter(Boolean).join(' + ') || ''}</span></CardRow>
           {(load.shipownerName || load.shipowner) ? <CardRow><Ship size={14} /><span>Armador: {load.shipownerName || load.shipowner}</span></CardRow> : null}
           {load.bookingNumber ? <CardRow><Hash size={14} /><span>Booking: {load.bookingNumber}</span></CardRow> : null}

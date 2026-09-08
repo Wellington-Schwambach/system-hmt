@@ -13,6 +13,31 @@ class SaveLogisticsLoadRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $plateMode = strtoupper(trim((string) $this->input('plate_mode', 'FLEET')));
+        if (! in_array($plateMode, ['FLEET', 'THIRD_PARTY'], true)) {
+            $plateMode = 'FLEET';
+        }
+
+        $normalizeThirdPartyPlate = static function ($value): ?string {
+            $normalized = preg_replace('/\s+/', ' ', strtoupper(trim((string) $value)));
+            return $normalized === '' ? null : $normalized;
+        };
+
+        $this->merge([
+            'plate_mode' => $plateMode,
+            'tractor_id' => $plateMode === 'FLEET' ? $this->input('tractor_id') : null,
+            'trailer_id' => $plateMode === 'FLEET' ? $this->input('trailer_id') : null,
+            'third_party_tractor_plate' => $plateMode === 'THIRD_PARTY'
+                ? $normalizeThirdPartyPlate($this->input('third_party_tractor_plate'))
+                : null,
+            'third_party_trailer_plate' => $plateMode === 'THIRD_PARTY'
+                ? $normalizeThirdPartyPlate($this->input('third_party_trailer_plate'))
+                : null,
+        ]);
+    }
+
     public function rules(): array
     {
         $load = $this->route('logisticsLoad');
@@ -51,7 +76,9 @@ class SaveLogisticsLoadRequest extends FormRequest
                 'different:driver_id',
                 Rule::exists('employees', 'id')->where(fn ($query) => $query->where('status', 'ACTIVE')),
             ],
+            'plate_mode' => ['required', Rule::in(['FLEET', 'THIRD_PARTY'])],
             'tractor_id' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') === 'THIRD_PARTY'),
                 'nullable',
                 'integer',
                 Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRACTOR')->where('status', 'ACTIVE')),
@@ -62,9 +89,22 @@ class SaveLogisticsLoadRequest extends FormRequest
             'collection_location_type_id' => ['nullable', 'integer', Rule::exists('logistics_location_types', 'id')->where(fn ($query) => $query->where('scope', 'C')->where('active', true))],
             'delivery_location_type_id' => ['nullable', 'integer', Rule::exists('logistics_location_types', 'id')->where(fn ($query) => $query->where('scope', 'B')->where('active', true))],
             'trailer_id' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') === 'THIRD_PARTY'),
                 'nullable',
                 'integer',
                 Rule::exists('vehicles', 'id')->where(fn ($query) => $query->where('type', 'TRAILER')->where('status', 'ACTIVE')),
+            ],
+            'third_party_tractor_plate' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') !== 'THIRD_PARTY'),
+                'required',
+                'string',
+                'max:40',
+            ],
+            'third_party_trailer_plate' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') !== 'THIRD_PARTY'),
+                'nullable',
+                'string',
+                'max:40',
             ],
             'collection_terminal' => ['nullable', 'string', 'max:180'],
             'collection_scheduled_at' => ['nullable', 'date', Rule::requiredIf($effectiveStage === LogisticsLoad::STAGE_PROGRAMMING)],
@@ -98,6 +138,11 @@ class SaveLogisticsLoadRequest extends FormRequest
     {
         return [
             'reference_code.unique' => 'Já existe uma carga com esta referência.',
+            'plate_mode.required' => 'Selecione se as placas são da frota própria ou de terceiro.',
+            'plate_mode.in' => 'Selecione uma opção válida para as placas.',
+            'third_party_tractor_plate.required' => 'Informe a placa principal do terceiro.',
+            'third_party_tractor_plate.max' => 'A descrição da placa principal do terceiro deve possuir no máximo 40 caracteres.',
+            'third_party_trailer_plate.max' => 'A descrição da placa da carreta do terceiro deve possuir no máximo 40 caracteres.',
             'shipper_id.required' => 'Selecione o embarcador da carga.',
             'shipper_id.exists' => 'O embarcador selecionado não está ativo.',
             'driver_two_id.prohibited' => 'Selecione o primeiro motorista antes de informar o segundo.',

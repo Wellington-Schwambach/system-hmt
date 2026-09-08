@@ -21,6 +21,7 @@ export interface TravelOptionShipper {
   name: string;
   status: string;
   color: string;
+  receiptTermDays: number | null;
 }
 
 export interface TravelCityOption {

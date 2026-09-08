@@ -95,10 +95,13 @@ export interface LogisticsLoad {
   driverName: string | null;
   driverTwoId: number | null;
   driverTwoName: string | null;
+  plateMode: 'FLEET' | 'THIRD_PARTY';
   tractorId: number | null;
   tractorPlate: string | null;
   trailerId: number | null;
   trailerPlate: string | null;
+  thirdPartyTractorPlate: string | null;
+  thirdPartyTrailerPlate: string | null;
   collectionCityId: number | null;
   collectionTerminal: string | null;
   collectionLocationTypeId: number | null;
@@ -163,8 +166,11 @@ export interface LogisticsFormData {
   shipperId: string;
   driverId: string;
   driverTwoId: string;
+  plateMode: 'FLEET' | 'THIRD_PARTY';
   tractorId: string;
   trailerId: string;
+  thirdPartyTractorPlate: string;
+  thirdPartyTrailerPlate: string;
   collectionCityId: string;
   collectionTerminal: string;
   collectionLocationTypeId: string;

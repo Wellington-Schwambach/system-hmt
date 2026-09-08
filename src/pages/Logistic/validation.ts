@@ -34,6 +34,13 @@ export function validateLogisticsForm(form: LogisticsFormData): LogisticsValidat
     };
   }
 
+  if (form.plateMode === 'THIRD_PARTY' && !form.thirdPartyTractorPlate.trim()) {
+    return {
+      title: 'Placa do terceiro',
+      message: 'Informe a placa principal do terceiro. A carreta continua opcional.',
+    };
+  }
+
   // CARGA não depende de Load. Esta regra só existe quando LOAD foi selecionado.
   if (form.loadMode === 'LOAD' && form.loadEntries.length === 0) {
     return {

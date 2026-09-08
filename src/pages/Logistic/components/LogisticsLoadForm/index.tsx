@@ -97,6 +97,26 @@ export function LogisticsLoadForm({ prefix, form, options, completed = false, on
     }));
   }
 
+  function handlePlateMode(value: LogisticsFormData['plateMode']) {
+    onChange((current) => {
+      if (value === 'THIRD_PARTY') {
+        return {
+          ...current,
+          plateMode: value,
+          tractorId: '',
+          trailerId: '',
+        };
+      }
+
+      return {
+        ...current,
+        plateMode: 'FLEET',
+        thirdPartyTractorPlate: '',
+        thirdPartyTrailerPlate: '',
+      };
+    });
+  }
+
   function handleTractor(value: string) {
     onChange((current) => {
       if (!value) return { ...current, tractorId: '', trailerId: '', driverId: '', driverTwoId: '' };
@@ -233,8 +253,23 @@ export function LogisticsLoadForm({ prefix, form, options, completed = false, on
         <Section>
           <SectionTitle>Placas e motoristas</SectionTitle>
           <Grid>
-            <Field $span={3}>Cavalo<SearchableSelect id={`${prefix}-tractor`} value={form.tractorId} options={tractorOptions} onChange={handleTractor} placeholder="Selecione o cavalo" /></Field>
-            <Field $span={3}>Carreta<SearchableSelect id={`${prefix}-trailer`} value={form.trailerId} options={trailerOptions} onChange={(value) => patch({ trailerId: value })} placeholder="Opcional" /></Field>
+            <Field $span={3}>Tipo das placas
+              <Select value={form.plateMode} onChange={(e) => handlePlateMode(e.target.value as LogisticsFormData['plateMode'])}>
+                <option value="FLEET">Frota própria</option>
+                <option value="THIRD_PARTY">Terceiro</option>
+              </Select>
+            </Field>
+            {form.plateMode === 'THIRD_PARTY' ? (
+              <>
+                <Field $span={3}>Placa cavalo (terceiro)<Input maxLength={40} value={form.thirdPartyTractorPlate} onChange={(e) => patch({ thirdPartyTractorPlate: e.target.value.toUpperCase() })} placeholder="Descreva a placa" /></Field>
+                <Field $span={3}>Placa carreta (terceiro)<Input maxLength={40} value={form.thirdPartyTrailerPlate} onChange={(e) => patch({ thirdPartyTrailerPlate: e.target.value.toUpperCase() })} placeholder="Opcional" /></Field>
+              </>
+            ) : (
+              <>
+                <Field $span={3}>Cavalo<SearchableSelect id={`${prefix}-tractor`} value={form.tractorId} options={tractorOptions} onChange={handleTractor} placeholder="Selecione o cavalo" /></Field>
+                <Field $span={3}>Carreta<SearchableSelect id={`${prefix}-trailer`} value={form.trailerId} options={trailerOptions} onChange={(value) => patch({ trailerId: value })} placeholder="Opcional" /></Field>
+              </>
+            )}
             <Field $span={3}>Motorista<SearchableSelect id={`${prefix}-driver`} value={form.driverId} options={driverOptions} onChange={handleDriver} placeholder="Selecione" /></Field>
             <Field $span={3}>Segundo motorista<SearchableSelect id={`${prefix}-driver-two`} value={form.driverTwoId} options={driverOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => patch({ driverTwoId: value })} placeholder={form.driverId ? 'Opcional' : 'Selecione o primeiro motorista'} disabled={!form.driverId && !form.driverTwoId} /></Field>
           </Grid>
