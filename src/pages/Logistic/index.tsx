@@ -22,6 +22,8 @@ import { SearchableSelect } from '../../components/SearchableSelect';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { LOGISTICS_SYNC_STORAGE_KEY, logisticsService } from './services';
+import { LogisticsLoadForm } from './components/LogisticsLoadForm';
+import { validateLogisticsForm } from './validation';
 import type {
   LogisticsFilters,
   LogisticsFormData,
@@ -53,7 +55,6 @@ import {
   FinalizedGrid,
   FinalizedHeader,
   FinalizedSection,
-  FormGrid,
   Header,
   HeaderActions,
   HistoryBox,
@@ -74,7 +75,6 @@ import {
   RouteRow,
   SecondaryButton,
   Select,
-  Textarea,
 } from './styles';
 
 const EMPTY_OPTIONS: LogisticsOptions = {
@@ -83,6 +83,11 @@ const EMPTY_OPTIONS: LogisticsOptions = {
   tractors: [],
   trailers: [],
   activeSets: [],
+  cargoTypes: [],
+  containerTypes: [],
+  shipowners: [],
+  locationTypes: [],
+  cities: [],
 };
 
 interface StageMeta {
@@ -137,6 +142,14 @@ function toLocalInput(value: string | null): string {
   return local.toISOString().slice(0, 16);
 }
 
+function toDateInput(value: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
 function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
   return {
     referenceCode: '',
@@ -144,17 +157,41 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     loadNumber: '',
     shipowner: '',
     bookingNumber: '',
+    collectionBookingNumber: '',
+    cargoTypeId: '',
+    containerTypeId: '',
+    shipownerId: '',
     shipperId: '',
     driverId: '',
     driverTwoId: '',
     tractorId: '',
     trailerId: '',
+    collectionCityId: '',
     collectionTerminal: '',
+    collectionLocationTypeId: '',
+    collectionScheduledAt: '',
     collectionAt: '',
+    loadingCityId: '',
     loadingLocation: '',
     loadingAt: '',
+    deliveryCityId: '',
     deliveryLocation: '',
+    deliveryLocationTypeId: '',
     deliveryAt: '',
+    plan: '',
+    loadMode: '',
+    loadStatus: '',
+    cargoNumber: '',
+    loadEntries: [],
+    containerNumber: '',
+    containerTareKg: '',
+    containerPayloadKg: '',
+    shipownerSeal: '',
+    vessel: '',
+    deadline: '',
+    country: '',
+    temperature: '',
+    sifSeal: '',
     stage,
     notes: '',
   };
@@ -167,17 +204,41 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     loadNumber: load.loadNumber ?? '',
     shipowner: load.shipowner ?? '',
     bookingNumber: load.bookingNumber ?? '',
+    collectionBookingNumber: load.collectionBookingNumber ?? '',
+    cargoTypeId: load.cargoTypeId ? String(load.cargoTypeId) : '',
+    containerTypeId: load.containerTypeId ? String(load.containerTypeId) : '',
+    shipownerId: load.shipownerId ? String(load.shipownerId) : '',
     shipperId: String(load.shipperId),
     driverId: load.driverId ? String(load.driverId) : '',
     driverTwoId: load.driverTwoId ? String(load.driverTwoId) : '',
     tractorId: load.tractorId ? String(load.tractorId) : '',
     trailerId: load.trailerId ? String(load.trailerId) : '',
+    collectionCityId: load.collectionCityId ? String(load.collectionCityId) : '',
     collectionTerminal: load.collectionTerminal ?? '',
+    collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
+    collectionScheduledAt: toDateInput(load.collectionScheduledAt),
     collectionAt: toLocalInput(load.collectionAt),
+    loadingCityId: load.loadingCityId ? String(load.loadingCityId) : '',
     loadingLocation: load.loadingLocation ?? '',
     loadingAt: toLocalInput(load.loadingAt),
+    deliveryCityId: load.deliveryCityId ? String(load.deliveryCityId) : '',
     deliveryLocation: load.deliveryLocation ?? '',
+    deliveryLocationTypeId: load.deliveryLocationTypeId ? String(load.deliveryLocationTypeId) : '',
     deliveryAt: toLocalInput(load.deliveryAt),
+    plan: load.plan ?? '',
+    loadMode: load.loadMode ?? '',
+    loadStatus: load.loadStatus ?? '',
+    cargoNumber: load.cargoNumber ?? '',
+    loadEntries: load.loadEntries.map((entry) => ({ ...entry })),
+    containerNumber: load.containerNumber ?? '',
+    containerTareKg: load.containerTareKg !== null ? String(load.containerTareKg) : '',
+    containerPayloadKg: load.containerPayloadKg !== null ? String(load.containerPayloadKg) : '',
+    shipownerSeal: load.shipownerSeal ?? '',
+    vessel: load.vessel ?? '',
+    deadline: load.deadline ?? '',
+    country: load.country ?? '',
+    temperature: load.temperature ?? '',
+    sifSeal: load.sifSeal ?? '',
     stage: load.stage,
     notes: load.notes ?? '',
   };
@@ -202,13 +263,7 @@ function nextActivity(load: LogisticsLoad): NextActivity {
   }
 
   if (load.stage === 'PROGRAMMING') {
-    if (load.collectionAt) {
-      return { label: 'Coleta', location: load.collectionTerminal, date: load.collectionAt };
-    }
-    if (!load.tractorPlate) {
-      return { label: 'Carregamento', location: load.loadingLocation, date: load.loadingAt };
-    }
-    return { label: 'Coleta', location: load.collectionTerminal, date: null };
+    return { label: 'Coleta', location: load.collectionTerminal, date: load.collectionAt };
   }
   if (load.stage === 'COLLECTION') {
     return { label: 'Carregamento', location: load.loadingLocation, date: load.loadingAt };
@@ -272,15 +327,6 @@ export function Logistic() {
     })),
     [options.tractors],
   );
-  const trailerSelectOptions = useMemo(
-    () => options.trailers.map((item) => ({
-      value: String(item.id),
-      label: `${item.plate}${item.fleetNumber ? ` · Frota ${item.fleetNumber}` : ''}`,
-      searchText: `${item.brand} ${item.model}`,
-    })),
-    [options.trailers],
-  );
-
   const selectedShipper = useMemo(
     () => options.shippers.find((item) => String(item.id) === form.shipperId),
     [options.shippers, form.shipperId],
@@ -401,28 +447,10 @@ export function Logistic() {
     setSelectedLoad(null);
   }
 
-  function handleTractorChange(value: string) {
-    setForm((current) => {
-      if (!value) return { ...current, tractorId: '' };
-      const activeSet = options.activeSets.find((item) => item.tractorId === Number(value));
-      if (!activeSet) return { ...current, tractorId: value };
-      return {
-        ...current,
-        tractorId: value,
-        trailerId: activeSet.trailerId ? String(activeSet.trailerId) : current.trailerId,
-        driverId: activeSet.driverId ? String(activeSet.driverId) : current.driverId,
-        driverTwoId: activeSet.driverTwoId ? String(activeSet.driverTwoId) : current.driverTwoId,
-      };
-    });
-  }
-
   async function saveLoad() {
-    if (!form.shipperId) {
-      notifications.warning('Embarcador obrigatório', 'Selecione o embarcador para definir também a cor do ticket.');
-      return;
-    }
-    if (form.driverId && form.driverId === form.driverTwoId) {
-      notifications.warning('Motoristas duplicados', 'O segundo motorista deve ser diferente do primeiro.');
+    const validation = validateLogisticsForm(form);
+    if (validation) {
+      notifications.warning(validation.title, validation.message);
       return;
     }
 
@@ -597,13 +625,15 @@ export function Logistic() {
         <CardRows>
           <CardRow><Truck size={14} /><span>{load.tractorPlate || ''}</span></CardRow>
           <CardRow><UserRound size={14} /><span>{[load.driverName, load.driverTwoName].filter(Boolean).join(' + ') || ''}</span></CardRow>
-          {load.shipowner ? <CardRow><Ship size={14} /><span>Armador: {load.shipowner}</span></CardRow> : null}
+          {(load.shipownerName || load.shipowner) ? <CardRow><Ship size={14} /><span>Armador: {load.shipownerName || load.shipowner}</span></CardRow> : null}
           {load.bookingNumber ? <CardRow><Hash size={14} /><span>Booking: {load.bookingNumber}</span></CardRow> : null}
           <RouteRow><PackageCheck size={14} /><span>{routeLabel(load)}</span></RouteRow>
-          <CardRow>
-            <CalendarClock size={14} />
-            <span><strong>{activity.label}:</strong> {formatDateTime(activity.date)}</span>
-          </CardRow>
+          {activity.date ? (
+            <CardRow>
+              <CalendarClock size={14} />
+              <span><strong>{activity.label}:</strong> {formatDateTime(activity.date)}</span>
+            </CardRow>
+          ) : null}
           {activity.location ? <CardRow><ArrowRight size={14} /><span>{activity.location}</span></CardRow> : null}
         </CardRows>
 
@@ -759,86 +789,14 @@ export function Logistic() {
                   <span>{selectedLoad?.completedAt ? 'Finalizada' : STAGES[form.stage].shortLabel}</span>
                 </AccentPreview>
 
-                <FormGrid>
-                  <Field className="full">
-                    Referência da carga
-                    <Input value={form.referenceCode} onChange={(e) => setForm((f) => ({ ...f, referenceCode: e.target.value.toUpperCase() }))} placeholder="Ex.: número do container / referência da carga" />
-                  </Field>
-                  <Field>
-                    Remessa
-                    <Input value={form.shipmentNumber} onChange={(e) => setForm((f) => ({ ...f, shipmentNumber: e.target.value }))} placeholder="Em branco" />
-                  </Field>
-                  <Field>
-                    Load
-                    <Input value={form.loadNumber} onChange={(e) => setForm((f) => ({ ...f, loadNumber: e.target.value }))} placeholder="Em branco" />
-                  </Field>
-                  <Field>
-                    Armador
-                    <Input value={form.shipowner} onChange={(e) => setForm((f) => ({ ...f, shipowner: e.target.value }))} placeholder="Armador" />
-                  </Field>
-                  <Field>
-                    Booking
-                    <Input value={form.bookingNumber} onChange={(e) => setForm((f) => ({ ...f, bookingNumber: e.target.value }))} placeholder="Booking" />
-                  </Field>
-                  <Field className="half">
-                    Cliente / Embarcador
-                    <SearchableSelect id="log-form-shipper" value={form.shipperId} options={shipperSelectOptions} onChange={(value) => setForm((f) => ({ ...f, shipperId: value }))} placeholder="Selecione" clearable={false} />
-                  </Field>
-                  <Field className="half">
-                    Etapa
-                    <Select disabled={Boolean(selectedLoad?.completedAt)} value={form.stage} onChange={(e) => setForm((f) => ({ ...f, stage: e.target.value as LogisticsStage }))}>
-                      {STAGE_ORDER.map((stage) => <option key={stage} value={stage}>{STAGES[stage].label}</option>)}
-                    </Select>
-                  </Field>
-
-                  <Field className="half">
-                    Terminal de coleta
-                    <Input value={form.collectionTerminal} onChange={(e) => setForm((f) => ({ ...f, collectionTerminal: e.target.value }))} placeholder="Campo livre" />
-                  </Field>
-                  <Field className="half">
-                    Data / hora da coleta
-                    <Input type="datetime-local" value={form.collectionAt} onChange={(e) => setForm((f) => ({ ...f, collectionAt: e.target.value }))} />
-                  </Field>
-
-                  <Field className="half">
-                    Carregamento
-                    <Input value={form.loadingLocation} onChange={(e) => setForm((f) => ({ ...f, loadingLocation: e.target.value }))} placeholder="Local de carregamento - campo livre" />
-                  </Field>
-                  <Field className="half">
-                    Data / hora do carregamento
-                    <Input type="datetime-local" value={form.loadingAt} onChange={(e) => setForm((f) => ({ ...f, loadingAt: e.target.value }))} />
-                  </Field>
-
-                  <Field className="half">
-                    Baixa / Entrega
-                    <Input value={form.deliveryLocation} onChange={(e) => setForm((f) => ({ ...f, deliveryLocation: e.target.value }))} placeholder="Local da baixa/entrega - campo livre" />
-                  </Field>
-                  <Field className="half">
-                    Data / hora da baixa / entrega
-                    <Input type="datetime-local" value={form.deliveryAt} onChange={(e) => setForm((f) => ({ ...f, deliveryAt: e.target.value }))} />
-                  </Field>
-
-                  <Field className="half">
-                    Placa (cavalo)
-                    <SearchableSelect id="log-form-tractor" value={form.tractorId} options={tractorSelectOptions} onChange={handleTractorChange} placeholder="Selecione o cavalo" />
-                  </Field>
-                  <Field className="half">
-                    Carreta
-                    <SearchableSelect id="log-form-trailer" value={form.trailerId} options={trailerSelectOptions} onChange={(value) => setForm((f) => ({ ...f, trailerId: value }))} placeholder="Selecione a carreta" />
-                  </Field>
-                  <Field className="half">
-                    Motorista principal
-                    <SearchableSelect id="log-form-driver" value={form.driverId} options={driverSelectOptions} onChange={(value) => setForm((f) => ({ ...f, driverId: value }))} placeholder="Selecione o motorista" />
-                  </Field>
-                  <Field className="half">
-                    Segundo motorista
-                    <SearchableSelect id="log-form-driver-two" value={form.driverTwoId} options={driverSelectOptions.filter((item) => item.value !== form.driverId)} onChange={(value) => setForm((f) => ({ ...f, driverTwoId: value }))} placeholder="Opcional" />
-                  </Field>
-                  <Field className="full">
-                    Observações
-                    <Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Instruções, janela, contato, particularidades da carga..." />
-                  </Field>
-                </FormGrid>
+                <LogisticsLoadForm
+                  prefix="panel-load"
+                  form={form}
+                  options={options}
+                  completed={Boolean(selectedLoad?.completedAt)}
+                  onChange={setForm}
+                  onOptionsChange={setOptions}
+                />
 
                 {selectedLoad?.completedAt ? (
                   <AccentPreview $accent="#16A34A">

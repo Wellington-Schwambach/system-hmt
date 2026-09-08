@@ -67,6 +67,36 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
       },
     ],
   },
+  /*{
+    id: 'logistic',
+    label: 'Logística',
+    icon: Truck,
+    permission: 'logistics',
+    children: [
+      {
+        id: 'logistic-panel',
+        label: 'Painel',
+        icon: ClipboardList,
+        path: '/logistic',
+        permission: 'logistics',
+      },
+      {
+        id: 'logistic-calendar',
+        label: 'Calendário de cargas',
+        icon: CalendarDays,
+        path: '/logistic/calendar',
+        permission: 'logistics',
+      }, 
+    ],
+  },
+  */
+  {
+    id: 'logistic',
+    label: 'Logística',
+    icon: Truck,
+    path: '/logistic/calendar',
+    permission: 'logistics',
+  },
   {
     id: 'fuel',
     label: 'Combustível',
@@ -117,27 +147,5 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     path: '/admin/seguranca',
     permission: 'admin.security',
     roles: ['Administrador'],
-  },
-  {
-    id: 'logistic',
-    label: 'Logística',
-    icon: Truck,
-    permission: 'logistics',
-    children: [
-      {
-        id: 'logistic-panel',
-        label: 'Painel',
-        icon: ClipboardList,
-        path: '/logistic',
-        permission: 'logistics',
-      },
-      {
-        id: 'logistic-calendar',
-        label: 'Calendário de cargas',
-        icon: CalendarDays,
-        path: '/logistic/calendar',
-        permission: 'logistics',
-      },
-    ],
   },
 ];
