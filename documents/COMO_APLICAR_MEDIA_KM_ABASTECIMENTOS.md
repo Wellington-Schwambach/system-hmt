@@ -1,51 +1,67 @@
 # Média de KM dos abastecimentos
 
-## Regra implementada
+## Regra atual
 
-Ao selecionar um cavalo, a tela consulta o `current_km` do cadastro de Veículos e mostra esse valor em **KM atual do veículo**.
+O `vehicles.current_km` continua sendo o hodômetro atual da frota e **nunca é reduzido automaticamente**.
 
-O campo **KM do abastecimento** continua opcional.
-
-Quando informado:
+A média de um abastecimento, porém, não usa mais o `current_km` atual como referência histórica. O cálculo segue a sequência cronológica dos abastecimentos ativos do mesmo cavalo:
 
 ```text
-Distância = KM do abastecimento - KM atual do veículo
-Média = Distância / Litros de Diesel
+Referência = último KM válido de abastecimento anterior
+Distância  = KM do abastecimento - Referência
+Média      = Distância / Litros de Diesel
 ```
 
 Exemplo:
 
 ```text
-KM atual do veículo: 1.025.088
-KM do abastecimento: 1.026.088
-Distância:            1.000 km
-Diesel:               400 L
-Média:                2,50 km/L
+02/09  196.000 km
+05/09  198.000 km  -> referência 196.000
+08/09  200.000 km  -> referência 198.000
 ```
 
-Se o KM do abastecimento não for informado, `distance_km` e `diesel_average` ficam `NULL` e a tela mostra `—`.
+Se o registro de 08/09 for lançado antes e o de 05/09 for cadastrado depois, o sistema recalcula a sequência automaticamente. O registro de 08/09 deixa de usar 196.000 e passa a usar 198.000 como referência.
 
-Se o KM informado for menor que a referência do veículo, o Laravel recusa o salvamento com uma mensagem amigável para evitar média incorreta.
+## Lançamentos retroativos
 
-## Atualização automática do KM do veículo
+Ao cadastrar, editar, inativar ou reativar um abastecimento, o Laravel recalcula os registros ativos do veículo em ordem de:
 
-Ao salvar um abastecimento com KM maior que o `current_km` cadastrado, o próprio Laravel atualiza `vehicles.current_km` para a nova leitura.
+1. `fuel_date`;
+2. `id` para desempate de registros no mesmo dia.
 
-Isso faz com que o próximo abastecimento utilize a leitura anterior como nova referência e evita somar quilômetros de vários períodos.
+Isso evita que um lançamento atrasado gere média zero apenas porque o KM atual do veículo já está mais alto.
 
-O sistema nunca reduz o KM do veículo automaticamente.
+## KM atual do veículo
 
-## Histórico
+O `vehicles.current_km` só é atualizado quando o KM informado no abastecimento for maior ou igual ao KM atual. Um lançamento retroativo pode recalcular médias históricas, mas **não reduz o hodômetro atual**.
 
-Cada abastecimento passa a guardar:
+Exemplo:
 
-- `vehicle_km_reference`: KM usado como referência naquele lançamento;
-- `distance_km`: diferença entre KM do abastecimento e referência;
-- `diesel_average`: média calculada em km/L.
+```text
+KM atual do veículo: 200.000
+Lançamento retroativo: 05/09 com 198.000 km
+```
 
-Dessa forma, editar o KM do veículo meses depois não altera a média histórica dos abastecimentos já gravados.
+O registro de 05/09 pode usar 196.000 como referência e calcular a média normalmente, enquanto o cadastro do veículo continua em 200.000 km.
 
-## Aplicação
+## KM opcional e leituras inconsistentes
+
+- O KM do abastecimento continua opcional.
+- Sem KM, a distância fica sem cálculo e a média fica em `0,000 km/L`.
+- Um registro sem KM não interrompe a sequência: o próximo registro usa o último KM válido anterior.
+- Se houver uma leitura realmente regressiva em relação à sequência cronológica, ela fica sem distância/média e não passa a ser referência dos registros seguintes.
+
+## Campos históricos
+
+Cada abastecimento mantém:
+
+- `vehicle_km_reference`: KM cronológico usado como referência;
+- `distance_km`: distância calculada;
+- `diesel_average`: média em km/L.
+
+## Atualização do banco
+
+A migration nova também reconstrói as médias já existentes para corrigir registros retroativos cadastrados com a regra antiga:
 
 ```bash
 cd backend
@@ -53,21 +69,16 @@ php artisan optimize:clear
 php artisan migrate
 ```
 
-Depois:
+Migration:
 
-```bash
-cd ..
-npm install
-npm run dev
+```text
+2026_09_11_180000_recalculate_fuel_metrics_chronologically.php
 ```
 
-Se executar a migration, não execute o SQL manual em `sql/AJUSTE_BANCO_MEDIA_KM_ABASTECIMENTOS.sql`.
+Se preferir aplicar manualmente no PostgreSQL, use:
 
+```text
+sql/AJUSTE_BANCO_RECALCULO_MEDIA_COMBUSTIVEL_20260911.sql
+```
 
-## Regra atualizada de KM opcional
-
-- O KM do abastecimento é opcional.
-- Quando não informado, o abastecimento é salvo normalmente, a média fica em `0,00 km/L` e o `KM atual` do veículo não é alterado.
-- Quando o KM informado é menor que o KM atual do veículo, o abastecimento também é salvo normalmente, a média fica em `0,00 km/L` e o hodômetro do cadastro não é reduzido.
-- O KM atual do veículo só é atualizado quando o KM do abastecimento é maior ou igual ao KM atual.
-- A média só utiliza uma distância válida quando `KM abastecimento >= KM de referência`.
+Use **migration ou SQL manual**, não os dois para a mesma finalidade.

@@ -1,5 +1,6 @@
 import { api } from '../../services/api';
 import type {
+  LogisticsAppointment,
   LogisticsFilters,
   LogisticsFormData,
   LogisticsLoad,
@@ -18,6 +19,14 @@ interface ApiLoadEvent {
   user_name: string | null;
 }
 
+interface ApiStatusNote {
+  id: number;
+  observation: string;
+  is_visible: boolean;
+  user_name: string;
+  created_at: string | null;
+}
+
 interface ApiLoad {
   id: number;
   reference_code: string;
@@ -26,6 +35,8 @@ interface ApiLoad {
   shipowner: string | null;
   booking_number: string | null;
   collection_booking_number: string | null;
+  grade_number: string | null;
+  grade_at: string | null;
   cargo_type_id: number | null;
   cargo_type_name: string | null;
   container_type_id: number | null;
@@ -52,14 +63,18 @@ interface ApiLoad {
   collection_location_type_name: string | null;
   collection_scheduled_at: string | null;
   collection_at: string | null;
+  collection_appointments: Array<{ scheduled_at: string; location_type_id: number | null; location?: string | null }> | null;
   loading_city_id: number | null;
+  loading_city_label: string | null;
   loading_location: string | null;
   loading_at: string | null;
   delivery_city_id: number | null;
+  delivery_city_label: string | null;
   delivery_location: string | null;
   delivery_location_type_id: number | null;
   delivery_location_type_name: string | null;
   delivery_at: string | null;
+  delivery_appointments: Array<{ scheduled_at: string; location_type_id: number | null; location?: string | null }> | null;
   plan: string | null;
   load_mode: 'CARGO' | 'LOAD' | null;
   load_status: 'EMPTY' | 'FULL' | null;
@@ -81,6 +96,7 @@ interface ApiLoad {
   completed_at: string | null;
   completed_by_name: string | null;
   events: ApiLoadEvent[];
+  status_notes: ApiStatusNote[];
   created_at: string;
   updated_at: string;
 }
@@ -113,6 +129,8 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     shipowner: item.shipowner,
     bookingNumber: item.booking_number,
     collectionBookingNumber: item.collection_booking_number,
+    gradeNumber: item.grade_number,
+    gradeAt: item.grade_at,
     cargoTypeId: item.cargo_type_id,
     cargoTypeName: item.cargo_type_name,
     containerTypeId: item.container_type_id,
@@ -139,14 +157,26 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     collectionLocationTypeName: item.collection_location_type_name,
     collectionScheduledAt: item.collection_scheduled_at,
     collectionAt: item.collection_at,
+    collectionAppointments: Array.isArray(item.collection_appointments)
+      ? item.collection_appointments
+          .filter((entry) => entry && typeof entry.scheduled_at === 'string')
+          .map((entry) => ({ scheduledAt: entry.scheduled_at, locationTypeId: entry.location_type_id ?? null, location: String(entry.location ?? '') }))
+      : [],
     loadingCityId: item.loading_city_id,
+    loadingCityLabel: item.loading_city_label,
     loadingLocation: item.loading_location,
     loadingAt: item.loading_at,
     deliveryCityId: item.delivery_city_id,
+    deliveryCityLabel: item.delivery_city_label,
     deliveryLocation: item.delivery_location,
     deliveryLocationTypeId: item.delivery_location_type_id,
     deliveryLocationTypeName: item.delivery_location_type_name,
     deliveryAt: item.delivery_at,
+    deliveryAppointments: Array.isArray(item.delivery_appointments)
+      ? item.delivery_appointments
+          .filter((entry) => entry && typeof entry.scheduled_at === 'string')
+          .map((entry) => ({ scheduledAt: entry.scheduled_at, locationTypeId: entry.location_type_id ?? null, location: String(entry.location ?? '') }))
+      : [],
     plan: item.plan,
     loadMode: item.load_mode,
     loadStatus: item.load_status,
@@ -181,6 +211,13 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
       details: event.details ?? {},
       occurredAt: event.occurred_at,
       userName: event.user_name,
+    })),
+    statusNotes: (item.status_notes ?? []).map((note) => ({
+      id: note.id,
+      observation: note.observation,
+      isVisible: note.is_visible !== false,
+      userName: note.user_name || 'Usuário',
+      createdAt: note.created_at,
     })),
     createdAt: item.created_at,
     updatedAt: item.updated_at,
@@ -219,6 +256,8 @@ function formPayload(data: LogisticsFormData) {
     shipowner: nullableText(data.shipowner),
     booking_number: nullableText(data.bookingNumber),
     collection_booking_number: nullableText(data.collectionBookingNumber),
+    grade_number: nullableText(data.gradeNumber),
+    grade_at: data.gradeAt || null,
     cargo_type_id: data.cargoTypeId ? Number(data.cargoTypeId) : null,
     container_type_id: data.containerTypeId ? Number(data.containerTypeId) : null,
     shipowner_id: data.shipownerId ? Number(data.shipownerId) : null,
@@ -233,7 +272,6 @@ function formPayload(data: LogisticsFormData) {
     collection_city_id: data.collectionCityId ? Number(data.collectionCityId) : null,
     collection_terminal: nullableText(data.collectionTerminal),
     collection_location_type_id: data.collectionLocationTypeId ? Number(data.collectionLocationTypeId) : null,
-    collection_scheduled_at: data.collectionScheduledAt || null,
     collection_at: data.collectionAt || null,
     loading_city_id: data.loadingCityId ? Number(data.loadingCityId) : null,
     loading_location: nullableText(data.loadingLocation),
@@ -247,9 +285,9 @@ function formPayload(data: LogisticsFormData) {
     load_status: data.loadMode === 'LOAD' ? (firstLoad?.status ?? null) : null,
     cargo_number: data.loadMode === 'CARGO' ? nullableText(data.cargoNumber) : null,
     load_entries: data.loadMode === 'LOAD' ? loadEntries : null,
-    container_number: nullableText(data.containerNumber),
-    container_tare_kg: data.containerTareKg ? Number(data.containerTareKg.replace(',', '.')) : null,
-    container_payload_kg: data.containerPayloadKg ? Number(data.containerPayloadKg.replace(',', '.')) : null,
+    container_number: nullableText(data.containerNumber)?.toUpperCase() ?? null,
+    container_tare_kg: data.containerTareKg ? Number.parseInt(data.containerTareKg, 10) : null,
+    container_payload_kg: data.containerPayloadKg ? Number.parseInt(data.containerPayloadKg, 10) : null,
     shipowner_seal: nullableText(data.shipownerSeal),
     vessel: nullableText(data.vessel),
     deadline: data.deadline || null,
@@ -324,7 +362,7 @@ export const logisticsService = {
     };
   },
 
-  async calendarWeek(dateFrom: string, dateTo: string, shipperId = ''): Promise<LogisticsLoad[]> {
+  async calendarRange(dateFrom: string, dateTo: string, shipperId = ''): Promise<LogisticsLoad[]> {
     const response = await api.get<{ date_from: string; date_to: string; loads: ApiLoad[] }>('/api/logistics/calendar', {
       params: {
         date_from: dateFrom,
@@ -361,6 +399,36 @@ export const logisticsService = {
 
   async update(id: number, data: LogisticsFormData): Promise<LogisticsLoad> {
     const response = await api.put<{ message: string; load: ApiLoad }>(`/api/logistics/${id}`, formPayload(data));
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
+  },
+
+  async updateAppointments(id: number, kind: 'COLLECTION' | 'DELIVERY', appointments: LogisticsAppointment[]): Promise<LogisticsLoad> {
+    const response = await api.patch<{ message: string; load: ApiLoad }>(`/api/logistics/${id}/appointments`, {
+      kind,
+      appointments: appointments.map((entry) => ({
+        scheduled_at: entry.scheduledAt,
+        location_type_id: entry.locationTypeId,
+        location: nullableText(entry.location),
+      })),
+    });
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
+  },
+
+  async addStatusNote(id: number, observation: string, isVisible = true): Promise<LogisticsLoad> {
+    const response = await api.post<{ message: string; load: ApiLoad }>(`/api/logistics/${id}/status-notes`, { observation, is_visible: isVisible });
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
+  },
+
+  async updateStatusNoteVisibility(id: number, noteId: number, isVisible: boolean): Promise<LogisticsLoad> {
+    const response = await api.patch<{ message: string; load: ApiLoad }>(`/api/logistics/${id}/status-notes/${noteId}/visibility`, {
+      is_visible: isVisible,
+    });
     const load = mapLoad(response.data.load);
     notifyLogisticsChanged();
     return load;

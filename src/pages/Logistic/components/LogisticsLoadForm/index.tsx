@@ -4,10 +4,10 @@ import { SearchableSelect } from '../../../../components/SearchableSelect';
 import { useNotifications } from '../../../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../../../utils/apiError';
 import { logisticsService } from '../../services';
-import type { LogisticsFormData, LogisticsOptions, LogisticsStage } from '../../types';
+import type { LogisticsFormData, LogisticsOptions } from '../../types';
 import {
   AddButton, Field, Grid, Hint, Input, LoadAddButton, LoadEntriesArea, LoadEntryField, LoadEntryRow, LoadRemoveButton, QuickActions, QuickBackdrop, QuickButton, QuickModal, QuickTitle,
-  Section, Sections, SectionTitle, Select, SelectAction, Textarea,
+  GroupTitle, Section, Sections, SectionTitle, Select, SelectAction, Textarea,
 } from './styles';
 
 type CatalogKey = 'shippers' | 'cargo-types' | 'container-types' | 'shipowners' | 'location-types';
@@ -18,11 +18,33 @@ interface Props {
   form: LogisticsFormData;
   options: LogisticsOptions;
   completed?: boolean;
+  fixedLoadingDate?: string;
   onChange: (updater: (current: LogisticsFormData) => LogisticsFormData) => void;
   onOptionsChange: (options: LogisticsOptions) => void;
 }
 
 const MAX_LOAD_ENTRIES = 10;
+
+function normalizeContainerNumber(value: string): string {
+  const upper = value.toUpperCase();
+  let letters = '';
+  let numbers = '';
+
+  for (const char of upper) {
+    if (letters.length < 4) {
+      if (/[A-Z]/.test(char)) letters += char;
+      continue;
+    }
+
+    if (/[0-9]/.test(char) && numbers.length < 7) numbers += char;
+  }
+
+  return `${letters}${numbers}`;
+}
+
+function numericDigits(value: string, maxLength: number): string {
+  return value.replace(/\D/g, '').slice(0, maxLength);
+}
 
 const QUICK_CATALOG_MAX_LENGTH: Record<CatalogKey, number> = {
   shippers: 100,
@@ -32,14 +54,7 @@ const QUICK_CATALOG_MAX_LENGTH: Record<CatalogKey, number> = {
   'location-types': 120,
 };
 
-const STAGES: Array<{ value: LogisticsStage; label: string }> = [
-  { value: 'PROGRAMMING', label: 'Programação' },
-  { value: 'COLLECTION', label: 'Coleta' },
-  { value: 'LOADING', label: 'Carregamento' },
-  { value: 'DELIVERY', label: 'Baixa / Entrega' },
-];
-
-export function LogisticsLoadForm({ prefix, form, options, completed = false, onChange, onOptionsChange }: Props) {
+export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onChange, onOptionsChange }: Props) {
   const notifications = useNotifications();
   const [quick, setQuick] = useState<QuickState | null>(null);
   const [quickName, setQuickName] = useState('');
@@ -214,9 +229,8 @@ export function LogisticsLoadForm({ prefix, form, options, completed = false, on
                 <AddButton type="button" onClick={() => setQuick({ catalog: 'shipowners', title: 'Novo armador' })}><Plus size={18}/></AddButton></SelectAction>
             </Field>
             <Field $span={4}>Booking coleta<Input maxLength={100} value={form.collectionBookingNumber} onChange={(e) => patch({ collectionBookingNumber: e.target.value })} /></Field>
-            <Field $span={4}>Booking baixa<Input maxLength={100} value={form.bookingNumber} onChange={(e) => patch({ bookingNumber: e.target.value })} /></Field>
-
             <Field $span={4}>Plano<Input maxLength={120} value={form.plan} onChange={(e) => patch({ plan: e.target.value })} /></Field>
+
             <Field $span={4}>Carga / Load
               <Select value={form.loadMode} onChange={(e) => handleLoadMode(e.target.value as LogisticsFormData['loadMode'])}>
                 <option value="">Selecione</option><option value="CARGO">Carga</option><option value="LOAD">Load</option>
@@ -247,6 +261,58 @@ export function LogisticsLoadForm({ prefix, form, options, completed = false, on
               </LoadEntriesArea>
             ) : null}
             {!form.loadMode ? <Field $span={4}><Hint>Selecione Carga ou Load para informar a identificação correspondente.</Hint></Field> : null}
+
+            <GroupTitle>Carregamento</GroupTitle>
+            <Field $span={6}>Local do carregamento<SearchableSelect id={`${prefix}-loading-city`} value={form.loadingCityId} options={cityOptions} onChange={(value) => handleCity('loadingCityId', 'loadingLocation', value)} placeholder="Cidade / UF" searchPlaceholder="Buscar cidade ou UF..." /></Field>
+            {fixedLoadingDate ? (
+              <>
+                <Field $span={3}>Data do carregamento<Input type="date" value={fixedLoadingDate} disabled title="Data definida pelo dia selecionado no calendário" /></Field>
+                <Field $span={3}>Hora do carregamento<Input type="time" value={form.loadingAt.includes('T') ? form.loadingAt.slice(11, 16) : ''} onChange={(e) => patch({ loadingAt: e.target.value ? `${fixedLoadingDate}T${e.target.value}` : fixedLoadingDate })} /></Field>
+              </>
+            ) : (
+              <Field $span={6}>Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(e) => patch({ loadingAt: e.target.value })} /></Field>
+            )}
+          </Grid>
+        </Section>
+
+        <Section>
+          <SectionTitle>Coleta</SectionTitle>
+          <Grid>
+            <Field $span={4}>Local coleta<Input maxLength={180} value={form.collectionTerminal} onChange={(e) => patch({ collectionTerminal: e.target.value, collectionCityId: '' })} placeholder="Digite o local da coleta" /></Field>
+            <Field $span={4}>Data / Hora Coleta<Input type="datetime-local" value={form.collectionAt} onChange={(e) => patch({ collectionAt: e.target.value })} /></Field>
+            <Field $span={4}>Tipo do local
+              <SelectAction><SearchableSelect id={`${prefix}-collection-location-type`} value={form.collectionLocationTypeId} options={collectionTypeOptions} onChange={(value) => patch({ collectionLocationTypeId: value })} placeholder="Selecione" />
+                <AddButton type="button" onClick={() => setQuick({ catalog: 'location-types', title: 'Novo tipo de local de coleta', scope: 'C' })}><Plus size={18}/></AddButton></SelectAction>
+            </Field>
+          </Grid>
+        </Section>
+
+        <Section>
+          <SectionTitle>Baixa / Entrega</SectionTitle>
+          <Grid>
+            <Field $span={3}>Destino<SearchableSelect id={`${prefix}-delivery-city`} value={form.deliveryCityId} options={cityOptions} onChange={(value) => patch({ deliveryCityId: value })} placeholder="Cidade / UF" searchPlaceholder="Buscar cidade ou UF..." /></Field>
+            <Field $span={3}>Local da baixa<Input maxLength={180} value={form.deliveryLocation} onChange={(e) => patch({ deliveryLocation: e.target.value })} placeholder="Digite o local da baixa" /></Field>
+            <Field $span={3}>Data / hora<Input type="datetime-local" value={form.deliveryAt} onChange={(e) => patch({ deliveryAt: e.target.value })} /></Field>
+            <Field $span={3}>Booking de baixa<Input maxLength={100} value={form.bookingNumber} onChange={(e) => patch({ bookingNumber: e.target.value })} /></Field>
+            <Field $span={3}>Tipo de local
+              <SelectAction><SearchableSelect id={`${prefix}-delivery-location-type`} value={form.deliveryLocationTypeId} options={deliveryTypeOptions} onChange={(value) => patch({ deliveryLocationTypeId: value })} placeholder="Selecione" />
+                <AddButton type="button" onClick={() => setQuick({ catalog: 'location-types', title: 'Novo tipo de local de baixa', scope: 'B' })}><Plus size={18}/></AddButton></SelectAction>
+            </Field>
+          </Grid>
+        </Section>
+
+        <Section>
+          <SectionTitle>Container</SectionTitle>
+          <Grid>
+            <Field $span={3}>Nº Container<Input maxLength={11} value={form.containerNumber} onChange={(e) => patch({ containerNumber: normalizeContainerNumber(e.target.value) })} placeholder="ABCD1234567" /></Field>
+            <Field $span={2}>Tara (kg)<Input inputMode="numeric" pattern="[0-9]*" maxLength={4} value={form.containerTareKg} onChange={(e) => patch({ containerTareKg: numericDigits(e.target.value, 4) })} /></Field>
+            <Field $span={2}>Payload (kg)<Input inputMode="numeric" pattern="[0-9]*" maxLength={5} value={form.containerPayloadKg} onChange={(e) => patch({ containerPayloadKg: numericDigits(e.target.value, 5) })} /></Field>
+            <Field $span={5}>Lacre Armador<Input maxLength={100} value={form.shipownerSeal} onChange={(e) => patch({ shipownerSeal: e.target.value })} /></Field>
+            <Field $span={3}>Navio<Input maxLength={140} value={form.vessel} onChange={(e) => patch({ vessel: e.target.value })} /></Field>
+            <Field $span={2}>Deadline<Input type="date" value={form.deadline} onChange={(e) => patch({ deadline: e.target.value })} /></Field>
+            <Field $span={2}>País<Input maxLength={100} value={form.country} onChange={(e) => patch({ country: e.target.value })} /></Field>
+            <Field $span={2}>Temperatura<Input maxLength={40} value={form.temperature} onChange={(e) => patch({ temperature: e.target.value })} placeholder="Ex.: -18°C" /></Field>
+            <Field $span={3}>Lacre SIF<Input maxLength={100} value={form.sifSeal} onChange={(e) => patch({ sifSeal: e.target.value })} /></Field>
           </Grid>
         </Section>
 
@@ -276,68 +342,8 @@ export function LogisticsLoadForm({ prefix, form, options, completed = false, on
         </Section>
 
         <Section>
-          <SectionTitle>Agendar coleta</SectionTitle>
-          <Grid>
-            <Field $span={12}>Data do agendamento<Input type="date" value={form.collectionScheduledAt} onChange={(e) => patch({ collectionScheduledAt: e.target.value })} /><Hint>Este é o campo usado pela aba Agendamento.</Hint></Field>
-          </Grid>
-        </Section>
-
-        <Section>
-          <SectionTitle>Coleta</SectionTitle>
-          <Grid>
-            <Field $span={4}>Local coleta<SearchableSelect id={`${prefix}-collection-city`} value={form.collectionCityId} options={cityOptions} onChange={(value) => handleCity('collectionCityId', 'collectionTerminal', value)} placeholder="Cidade / UF" searchPlaceholder="Buscar cidade ou UF..." /></Field>
-            <Field $span={4}>Data / Hora Coleta<Input type="datetime-local" value={form.collectionAt} onChange={(e) => patch({ collectionAt: e.target.value })} /></Field>
-            <Field $span={4}>Tipo do local
-              <SelectAction><SearchableSelect id={`${prefix}-collection-location-type`} value={form.collectionLocationTypeId} options={collectionTypeOptions} onChange={(value) => patch({ collectionLocationTypeId: value })} placeholder="Selecione" />
-                <AddButton type="button" onClick={() => setQuick({ catalog: 'location-types', title: 'Novo tipo de local de coleta', scope: 'C' })}><Plus size={18}/></AddButton></SelectAction>
-            </Field>
-          </Grid>
-        </Section>
-
-        <Section>
-          <SectionTitle>Carregamento</SectionTitle>
-          <Grid>
-            <Field $span={6}>Local do carregamento<SearchableSelect id={`${prefix}-loading-city`} value={form.loadingCityId} options={cityOptions} onChange={(value) => handleCity('loadingCityId', 'loadingLocation', value)} placeholder="Cidade / UF" searchPlaceholder="Buscar cidade ou UF..." /></Field>
-            <Field $span={6}>Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(e) => patch({ loadingAt: e.target.value })} /></Field>
-          </Grid>
-        </Section>
-
-        <Section>
-          <SectionTitle>Baixa / Entrega</SectionTitle>
-          <Grid>
-            <Field $span={4}>Local da baixa<SearchableSelect id={`${prefix}-delivery-city`} value={form.deliveryCityId} options={cityOptions} onChange={(value) => handleCity('deliveryCityId', 'deliveryLocation', value)} placeholder="Cidade / UF" searchPlaceholder="Buscar cidade ou UF..." /></Field>
-            <Field $span={4}>Data / hora<Input type="datetime-local" value={form.deliveryAt} onChange={(e) => patch({ deliveryAt: e.target.value })} /></Field>
-            <Field $span={4}>Tipo de local
-              <SelectAction><SearchableSelect id={`${prefix}-delivery-location-type`} value={form.deliveryLocationTypeId} options={deliveryTypeOptions} onChange={(value) => patch({ deliveryLocationTypeId: value })} placeholder="Selecione" />
-                <AddButton type="button" onClick={() => setQuick({ catalog: 'location-types', title: 'Novo tipo de local de baixa', scope: 'B' })}><Plus size={18}/></AddButton></SelectAction>
-            </Field>
-          </Grid>
-        </Section>
-
-        <Section>
-          <SectionTitle>Container</SectionTitle>
-          <Grid>
-            <Field $span={3}>Nº Container<Input maxLength={40} value={form.containerNumber} onChange={(e) => patch({ containerNumber: e.target.value.toUpperCase() })} /></Field>
-            <Field $span={2}>Tara (kg)<Input inputMode="decimal" value={form.containerTareKg} onChange={(e) => patch({ containerTareKg: e.target.value })} /></Field>
-            <Field $span={2}>Payload (kg)<Input inputMode="decimal" value={form.containerPayloadKg} onChange={(e) => patch({ containerPayloadKg: e.target.value })} /></Field>
-            <Field $span={5}>Lacre Armador<Input maxLength={100} value={form.shipownerSeal} onChange={(e) => patch({ shipownerSeal: e.target.value })} /></Field>
-            <Field $span={3}>Navio<Input maxLength={140} value={form.vessel} onChange={(e) => patch({ vessel: e.target.value })} /></Field>
-            <Field $span={2}>Deadline<Input type="date" value={form.deadline} onChange={(e) => patch({ deadline: e.target.value })} /></Field>
-            <Field $span={2}>País<Input maxLength={100} value={form.country} onChange={(e) => patch({ country: e.target.value })} /></Field>
-            <Field $span={2}>Temperatura<Input maxLength={40} value={form.temperature} onChange={(e) => patch({ temperature: e.target.value })} placeholder="Ex.: -18°C" /></Field>
-            <Field $span={3}>Lacre SIF<Input maxLength={100} value={form.sifSeal} onChange={(e) => patch({ sifSeal: e.target.value })} /></Field>
-          </Grid>
-        </Section>
-
-        <Section>
           <SectionTitle>Observação</SectionTitle>
           <Textarea maxLength={4000} value={form.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="Observações da operação..." />
-        </Section>
-
-        <Section>
-          <Grid>
-            <Field $span={6}>Etapa<Select disabled={completed} value={form.stage} onChange={(e) => patch({ stage: e.target.value as LogisticsStage })}>{STAGES.map((stage) => <option key={stage.value} value={stage.value}>{stage.label}</option>)}</Select></Field>
-          </Grid>
         </Section>
       </Sections>
 

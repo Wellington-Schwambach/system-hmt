@@ -29,6 +29,8 @@ class LogisticsLoad extends Model
         'shipowner',
         'booking_number',
         'collection_booking_number',
+        'grade_number',
+        'grade_at',
         'shipper_id',
         'cargo_type_id',
         'container_type_id',
@@ -65,10 +67,12 @@ class LogisticsLoad extends Model
         'collection_terminal',
         'collection_scheduled_at',
         'collection_at',
+        'collection_appointments',
         'loading_location',
         'loading_at',
         'delivery_location',
         'delivery_at',
+        'delivery_appointments',
         'scheduled_at',
         'stage',
         'position',
@@ -86,8 +90,11 @@ class LogisticsLoad extends Model
             'scheduled_at' => 'immutable_datetime',
             'collection_scheduled_at' => 'immutable_datetime',
             'collection_at' => 'immutable_datetime',
+            'collection_appointments' => 'array',
+            'grade_at' => 'immutable_datetime',
             'loading_at' => 'immutable_datetime',
             'delivery_at' => 'immutable_datetime',
+            'delivery_appointments' => 'array',
             'deadline' => 'date:Y-m-d',
             'container_tare_kg' => 'decimal:2',
             'container_payload_kg' => 'decimal:2',
@@ -170,5 +177,10 @@ class LogisticsLoad extends Model
     public function events(): HasMany
     {
         return $this->hasMany(LogisticsLoadEvent::class)->orderByDesc('occurred_at')->orderByDesc('id');
+    }
+
+    public function statusNotes(): HasMany
+    {
+        return $this->hasMany(LogisticsLoadStatusNote::class)->orderByDesc('created_at')->orderByDesc('id');
     }
 }

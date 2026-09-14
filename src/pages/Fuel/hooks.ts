@@ -181,11 +181,11 @@ export function useFuelRecords() {
     setSaving(true);
     try {
       const saved = id ? await fuelService.update(id, formData) : await fuelService.create(formData);
-      setRecords((current) => {
-        if (id) return current.map((record) => (record.id === id ? saved : record));
-        return [saved, ...current];
-      });
-      await refreshOptions();
+      const [recalculatedRecords] = await Promise.all([
+        fuelService.list(),
+        refreshOptions(),
+      ]);
+      setRecords(recalculatedRecords);
       return saved;
     } finally {
       setSaving(false);
@@ -208,7 +208,7 @@ export function useFuelRecords() {
     setDeletingId(recordId);
     try {
       await fuelService.remove(recordId);
-      setRecords((current) => current.filter((record) => record.id !== recordId));
+      setRecords(await fuelService.list());
     } finally {
       setDeletingId(null);
     }
@@ -216,6 +216,7 @@ export function useFuelRecords() {
 
   return {
     records: filteredRecords,
+    allRecords: enrichedRecords,
     summary,
     filter,
     plateFilter,

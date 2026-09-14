@@ -10,6 +10,7 @@ import type {
 export interface FuelFormModalProps {
   isOpen: boolean;
   editingRecord?: FuelRecordWithMetrics | null;
+  records: FuelRecordWithMetrics[];
   vehicleOptions: FuelVehicleOption[];
   trailerOptions: FuelTrailerOption[];
   activeSets: FuelActiveSetOption[];

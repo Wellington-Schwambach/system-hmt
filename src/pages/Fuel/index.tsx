@@ -29,6 +29,7 @@ export function Fuel() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const {
     records,
+    allRecords,
     summary,
     filter,
     plateFilter,
@@ -359,6 +360,7 @@ export function Fuel() {
         <FuelFormModal
           isOpen
           editingRecord={editingRecord}
+          records={allRecords}
           vehicleOptions={vehicleOptions}
           trailerOptions={trailerOptions}
           activeSets={activeSets}

@@ -98,6 +98,7 @@ function Control({ icon, children }: { icon: React.ReactNode; children: React.Re
 export function FuelFormModal({
   isOpen,
   editingRecord,
+  records,
   vehicleOptions,
   trailerOptions,
   activeSets,
@@ -136,24 +137,75 @@ export function FuelFormModal({
     const dieselTotalValue = roundExcel(parseDecimalInput(formData.dieselTotalValue));
     const arlaLiters = formData.hasArla ? roundExcel(parseDecimalInput(formData.arlaLiters)) : 0;
     const arlaTotalValue = formData.hasArla ? roundExcel(parseDecimalInput(formData.arlaTotalValue)) : 0;
-    const vehicleCurrentKm =
-      editingRecord && editingRecord.vehicleId === selectedVehicle?.id && editingRecord.vehicleKmReference !== null
-        ? editingRecord.vehicleKmReference
-        : selectedVehicle?.currentKm ?? 0;
+    const selectedVehicleId = selectedVehicle?.id ?? null;
+    const targetRecordId = editingRecord?.id ?? Number.MAX_SAFE_INTEGER;
+    const vehicleRecords = selectedVehicleId === null
+      ? []
+      : records
+        .filter((record) => record.vehicleId === selectedVehicleId && record.id !== editingRecord?.id)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+    const previousRecords = vehicleRecords.filter(
+      (record) => record.date < formData.date || (record.date === formData.date && record.id < targetRecordId),
+    );
+
+    let averageReferenceKm: number | null = null;
+
+    if (previousRecords.length > 0) {
+      const firstPreviousWithKm = previousRecords.find((record) => record.km !== null && record.km > 0);
+      let lastValidKm: number | null = null;
+
+      if (firstPreviousWithKm?.vehicleKmReference != null) {
+        const candidate = firstPreviousWithKm.vehicleKmReference;
+        if (candidate > 0 && candidate <= (firstPreviousWithKm.km ?? 0)) {
+          lastValidKm = candidate;
+        }
+      }
+
+      for (const record of previousRecords) {
+        if (record.km === null) continue;
+        if (lastValidKm === null || record.km >= lastValidKm) {
+          lastValidKm = record.km;
+        }
+      }
+
+      averageReferenceKm = lastValidKm;
+    } else {
+      const firstExistingWithKm = vehicleRecords.find((record) => record.km !== null && record.km > 0);
+      let candidate: number | null = null;
+
+      if (editingRecord?.vehicleId === selectedVehicleId && editingRecord.vehicleKmReference != null) {
+        candidate = editingRecord.vehicleKmReference;
+      } else if (firstExistingWithKm?.vehicleKmReference != null) {
+        candidate = firstExistingWithKm.vehicleKmReference;
+      } else if (vehicleRecords.length === 0 && (!editingRecord || editingRecord.vehicleId !== selectedVehicleId)) {
+        candidate = selectedVehicle?.currentKm && selectedVehicle.currentKm > 0
+          ? selectedVehicle.currentKm
+          : null;
+      }
+
+      // Se o KM informado é anterior ao odômetro que estava salvo como referência,
+      // trata-se de um lançamento retroativo. Nesse caso o primeiro abastecimento
+      // vira a âncora da sequência e não pode calcular média contra um KM futuro.
+      if (candidate !== null && candidate > 0 && (fuelKm === null || candidate <= fuelKm)) {
+        averageReferenceKm = candidate;
+      }
+    }
+
     const distanceKm =
-      fuelKm !== null && vehicleCurrentKm > 0 && fuelKm >= vehicleCurrentKm
-        ? fuelKm - vehicleCurrentKm
+      fuelKm !== null && averageReferenceKm !== null && fuelKm >= averageReferenceKm
+        ? fuelKm - averageReferenceKm
         : null;
 
     return {
       dieselValuePerLiter: calculateValuePerLiter(dieselTotalValue, dieselLiters),
-      average: calculateVehicleAverage(vehicleCurrentKm, fuelKm, dieselLiters),
+      average: calculateVehicleAverage(averageReferenceKm ?? 0, fuelKm, dieselLiters),
       distanceKm,
-      vehicleCurrentKm,
+      averageReferenceKm,
+      vehicleCurrentKm: selectedVehicle?.currentKm ?? 0,
       arlaValuePerLiter: calculateValuePerLiter(arlaTotalValue, arlaLiters),
       totalValue: dieselTotalValue + arlaTotalValue,
     };
-  }, [editingRecord, formData, selectedVehicle]);
+  }, [editingRecord, formData, records, selectedVehicle]);
 
   if (!isOpen) return null;
 
@@ -338,12 +390,12 @@ export function FuelFormModal({
                 <FieldHelp>
                   {!formData.km.trim()
                     ? 'Campo opcional. Sem KM, a média fica 0,00 km/L e o KM atual do veículo não é alterado.'
-                    : calculations.vehicleCurrentKm <= 0
-                      ? 'O abastecimento será salvo. Sem uma referência anterior de KM, a média ficará 0,00 km/L.'
-                      : Number(formData.km) < calculations.vehicleCurrentKm
-                        ? `O abastecimento será salvo, mas o KM atual (${formatInteger(calculations.vehicleCurrentKm)}) não será reduzido e a média ficará 0,00 km/L.`
+                    : calculations.averageReferenceKm === null
+                      ? 'O abastecimento será salvo. Ainda não existe uma referência cronológica anterior de KM para calcular a média.'
+                      : Number(formData.km) < calculations.averageReferenceKm
+                        ? `O KM informado é menor que a referência cronológica (${formatInteger(calculations.averageReferenceKm)} km). A média ficará 0,00 km/L e o KM atual do veículo não será reduzido.`
                         : calculations.distanceKm !== null
-                          ? `Distância usada na média: ${formatInteger(calculations.distanceKm)} km. Este KM pode atualizar o cadastro do veículo.`
+                          ? `Referência cronológica: ${formatInteger(calculations.averageReferenceKm)} km. Distância usada na média: ${formatInteger(calculations.distanceKm)} km.${Number(formData.km) < calculations.vehicleCurrentKm ? ` O KM atual do veículo (${formatInteger(calculations.vehicleCurrentKm)} km) será mantido.` : ' Este KM pode atualizar o cadastro do veículo.'}`
                           : 'Campo opcional. Sem KM, a média fica 0,00 km/L e o KM atual do veículo não é alterado.'}
                 </FieldHelp>
               </Field>

@@ -32,6 +32,16 @@ export const Grid = styled.div`
   @media (max-width: ${breakpoints.mobile}) { grid-template-columns: 1fr; }
 `;
 
+export const GroupTitle = styled.div`
+  grid-column: 1 / -1;
+  margin-top: 0.2rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.8rem;
+  font-weight: 800;
+`;
+
 export const Field = styled.label<{ $span?: number }>`
   min-width: 0;
   grid-column: span ${({ $span = 4 }) => $span};

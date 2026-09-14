@@ -13,6 +13,7 @@ use App\Models\LogisticsLocationType;
 use App\Models\LogisticsShipowner;
 use App\Models\LogisticsLoad;
 use App\Models\LogisticsLoadEvent;
+use App\Models\LogisticsLoadStatusNote;
 use App\Models\Shipper;
 use App\Models\Vehicle;
 use App\Models\VehicleSet;
@@ -23,6 +24,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class LogisticsController extends Controller
@@ -98,6 +100,7 @@ class LogisticsController extends Controller
                 ->orWhere('shipowner', 'ILIKE', "%{$search}%")
                 ->orWhere('booking_number', 'ILIKE', "%{$search}%")
                 ->orWhere('collection_booking_number', 'ILIKE', "%{$search}%")
+                ->orWhere('grade_number', 'ILIKE', "%{$search}%")
                 ->orWhere('collection_terminal', 'ILIKE', "%{$search}%")
                 ->orWhere('loading_location', 'ILIKE', "%{$search}%")
                 ->orWhere('delivery_location', 'ILIKE', "%{$search}%")
@@ -148,6 +151,10 @@ class LogisticsController extends Controller
                     // Não usamos scheduled_at/created_at como fallback para evitar cargas
                     // aparecendo em dias sem coleta, carregamento ou entrega preenchidos.
                     $query->whereBetween('collection_scheduled_at', [$dateFrom, $dateTo])
+                        ->orWhereRaw(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(collection_appointments, '[]'::jsonb)) AS appointment WHERE NULLIF(appointment->>'scheduled_at', '')::timestamp BETWEEN ? AND ?)",
+                            [$dateFrom, $dateTo]
+                        )
                         ->orWhereBetween('collection_at', [$dateFrom, $dateTo])
                         ->orWhereBetween('loading_at', [$dateFrom, $dateTo])
                         ->orWhereBetween('delivery_at', [$dateFrom, $dateTo]);
@@ -461,6 +468,135 @@ class LogisticsController extends Controller
         ]);
     }
 
+    public function updateAppointments(Request $request, LogisticsLoad $logisticsLoad): JsonResponse
+    {
+        $kind = strtoupper(trim((string) $request->input('kind', '')));
+        $scope = $kind === 'DELIVERY' ? 'B' : 'C';
+
+        $validated = $request->validate([
+            'kind' => ['required', Rule::in(['COLLECTION', 'DELIVERY'])],
+            'appointments' => ['nullable', 'array', 'max:20'],
+            'appointments.*.scheduled_at' => ['required', 'date'],
+            'appointments.*.location_type_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('logistics_location_types', 'id')->where(
+                    fn ($query) => $query->where('scope', $scope)->where('active', true)
+                ),
+            ],
+            'appointments.*.location' => ['nullable', 'string', 'max:180'],
+        ], [
+            'appointments.*.scheduled_at.required' => 'Informe a data e hora de todos os agendamentos adicionados.',
+            'appointments.*.scheduled_at.date' => 'Existe um agendamento com data ou hora inválida.',
+            'appointments.*.location.max' => 'O local do agendamento deve possuir no máximo 180 caracteres.',
+        ]);
+
+        $load = DB::transaction(function () use ($request, $validated, $logisticsLoad, $kind): LogisticsLoad {
+            $entries = collect($validated['appointments'] ?? [])
+                ->filter(fn ($entry): bool => is_array($entry) && ! empty($entry['scheduled_at']))
+                ->map(fn (array $entry): array => [
+                    'scheduled_at' => (string) $entry['scheduled_at'],
+                    'location_type_id' => ! empty($entry['location_type_id']) ? (int) $entry['location_type_id'] : null,
+                    'location' => trim((string) ($entry['location'] ?? '')) ?: null,
+                ])
+                ->sortBy('scheduled_at')
+                ->values()
+                ->all();
+
+            $field = $kind === 'COLLECTION' ? 'collection_appointments' : 'delivery_appointments';
+            $changes = [
+                $field => $entries === [] ? null : $entries,
+                'updated_by' => $request->user()?->id,
+            ];
+
+            // Mantém o campo legado somente como resumo do primeiro agendamento de coleta.
+            // O cadastro da carga não escreve mais nesse campo.
+            if ($kind === 'COLLECTION') {
+                $changes['collection_scheduled_at'] = $entries[0]['scheduled_at'] ?? null;
+            }
+
+            $logisticsLoad->forceFill($changes)->save();
+
+            $this->recordEvent(
+                $logisticsLoad,
+                LogisticsLoadEvent::ACTION_UPDATED,
+                $logisticsLoad->stage,
+                $logisticsLoad->stage,
+                [
+                    'message' => $kind === 'COLLECTION'
+                        ? 'Agendamentos de coleta atualizados.'
+                        : 'Agendamentos de baixa atualizados.',
+                    'changed_fields' => [$field],
+                ],
+                $request
+            );
+
+            return $logisticsLoad->fresh($this->relations());
+        });
+
+        return response()->json([
+            'message' => 'Agendamentos atualizados com sucesso.',
+            'load' => $this->loadPayload($load),
+        ]);
+    }
+
+    public function addStatusNote(Request $request, LogisticsLoad $logisticsLoad): JsonResponse
+    {
+        $validated = $request->validate([
+            'observation' => ['required', 'string', 'max:2000'],
+            'is_visible' => ['sometimes', 'boolean'],
+        ], [
+            'observation.required' => 'Informe a observação do status da viagem.',
+            'observation.max' => 'A observação do status deve possuir no máximo 2000 caracteres.',
+        ]);
+
+        $isAdministrator = $this->isAdministrator($request);
+        $isVisible = $isAdministrator ? (bool) ($validated['is_visible'] ?? true) : true;
+
+        $load = DB::transaction(function () use ($request, $validated, $logisticsLoad, $isVisible): LogisticsLoad {
+            $logisticsLoad->statusNotes()->create([
+                'user_id' => $request->user()?->id,
+                'observation' => trim((string) $validated['observation']),
+                'is_visible' => $isVisible,
+            ]);
+
+            $logisticsLoad->forceFill(['updated_by' => $request->user()?->id])->save();
+
+            return $logisticsLoad->fresh($this->relations());
+        });
+
+        return response()->json([
+            'message' => 'Status da viagem registrado com sucesso.',
+            'load' => $this->loadPayload($load),
+        ], 201);
+    }
+
+    public function updateStatusNoteVisibility(
+        Request $request,
+        LogisticsLoad $logisticsLoad,
+        LogisticsLoadStatusNote $statusNote
+    ): JsonResponse {
+        abort_unless($this->isAdministrator($request), 403, 'Apenas administradores podem alterar a visibilidade das observações.');
+        abort_unless((int) $statusNote->logistics_load_id === (int) $logisticsLoad->id, 404);
+
+        $validated = $request->validate([
+            'is_visible' => ['required', 'boolean'],
+        ]);
+
+        $statusNote->forceFill([
+            'is_visible' => (bool) $validated['is_visible'],
+        ])->save();
+
+        $load = $logisticsLoad->fresh($this->relations());
+
+        return response()->json([
+            'message' => $statusNote->is_visible
+                ? 'Observação liberada para os demais usuários.'
+                : 'Observação ocultada dos demais usuários.',
+            'load' => $this->loadPayload($load),
+        ]);
+    }
+
     public function move(
         MoveLogisticsLoadRequest $request,
         LogisticsLoad $logisticsLoad
@@ -476,12 +612,6 @@ class LogisticsController extends Controller
             if ($locked->completed_at !== null) {
                 throw ValidationException::withMessages([
                     'load' => 'Uma carga finalizada não pode ser movimentada entre as etapas.',
-                ]);
-            }
-
-            if ($destinationStage === LogisticsLoad::STAGE_PROGRAMMING && $locked->collection_scheduled_at === null) {
-                throw ValidationException::withMessages([
-                    'collection_scheduled_at' => ['Informe a data em “Agendar coleta” antes de mover a carga para Programação.'],
                 ]);
             }
 
@@ -646,13 +776,17 @@ class LogisticsController extends Controller
             'shipowner',
             'booking_number',
             'collection_booking_number',
+            'grade_number',
+            'grade_at',
             'collection_terminal',
             'collection_scheduled_at',
             'collection_at',
+            'collection_appointments',
             'loading_location',
             'loading_at',
             'delivery_location',
             'delivery_at',
+            'delivery_appointments',
             'plan',
             'load_mode',
             'load_status',
@@ -682,11 +816,31 @@ class LogisticsController extends Controller
             $payload['shipper_id'] = (int) $payload['shipper_id'];
         }
 
-        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate'] as $field) {
+        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'grade_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate'] as $field) {
             if (array_key_exists($field, $payload)) {
                 $value = trim((string) ($payload[$field] ?? ''));
                 $payload[$field] = $value === '' ? null : $value;
             }
+        }
+
+        foreach ([
+            'collection_appointments' => 'C',
+            'delivery_appointments' => 'B',
+        ] as $appointmentField => $scope) {
+            if (! array_key_exists($appointmentField, $validated)) {
+                continue;
+            }
+
+            $entries = collect($validated[$appointmentField] ?? [])
+                ->filter(fn ($entry): bool => is_array($entry) && ! empty($entry['scheduled_at']))
+                ->map(fn (array $entry): array => [
+                    'scheduled_at' => (string) $entry['scheduled_at'],
+                    'location_type_id' => ! empty($entry['location_type_id']) ? (int) $entry['location_type_id'] : null,
+                ])
+                ->sortBy('scheduled_at')
+                ->values()
+                ->all();
+            $payload[$appointmentField] = $entries === [] ? null : $entries;
         }
 
         if (array_key_exists('load_entries', $validated)) {
@@ -718,6 +872,13 @@ class LogisticsController extends Controller
             $payload['load_entries'] = null;
         }
 
+        if (array_key_exists('collection_appointments', $payload)) {
+            $firstCollectionAppointment = is_array($payload['collection_appointments']) ? ($payload['collection_appointments'][0] ?? null) : null;
+            $payload['collection_scheduled_at'] = is_array($firstCollectionAppointment)
+                ? ($firstCollectionAppointment['scheduled_at'] ?? null)
+                : null;
+        }
+
         $plateMode = strtoupper((string) ($payload['plate_mode'] ?? ($validated['plate_mode'] ?? 'FLEET')));
         $payload['plate_mode'] = $plateMode === 'THIRD_PARTY' ? 'THIRD_PARTY' : 'FLEET';
         if ($payload['plate_mode'] === 'THIRD_PARTY') {
@@ -728,7 +889,7 @@ class LogisticsController extends Controller
             $payload['third_party_trailer_plate'] = null;
         }
 
-        foreach (['collection_scheduled_at', 'collection_at', 'loading_at', 'delivery_at', 'deadline'] as $field) {
+        foreach (['collection_scheduled_at', 'collection_at', 'grade_at', 'loading_at', 'delivery_at', 'deadline'] as $field) {
             if (array_key_exists($field, $payload) && empty($payload[$field])) {
                 $payload[$field] = null;
             }
@@ -759,6 +920,7 @@ class LogisticsController extends Controller
             'trailer:id,plate,fleet_number,brand,model,type',
             'completedBy:id,name,username',
             'events.user:id,name,username',
+            'statusNotes.user:id,name,username',
         ];
     }
 
@@ -773,6 +935,18 @@ class LogisticsController extends Controller
             $loadMode = 'LOAD';
         }
 
+        $viewerIsAdministrator = $this->isAdministrator(request());
+        $statusNotes = $load->statusNotes
+            ->filter(fn ($note): bool => $viewerIsAdministrator || (bool) $note->is_visible)
+            ->map(fn ($note): array => [
+                'id' => (int) $note->id,
+                'observation' => (string) $note->observation,
+                'is_visible' => (bool) $note->is_visible,
+                'user_name' => $note->user?->name ?? $note->user?->username ?? 'Usuário',
+                'created_at' => $note->created_at?->toIso8601String(),
+            ])
+            ->values();
+
         return [
             'id' => (int) $load->id,
             'reference_code' => (string) $load->reference_code,
@@ -781,6 +955,8 @@ class LogisticsController extends Controller
             'shipowner' => $load->shipowner,
             'booking_number' => $load->booking_number,
             'collection_booking_number' => $load->collection_booking_number,
+            'grade_number' => $load->grade_number,
+            'grade_at' => $load->grade_at?->toIso8601String(),
             'cargo_type_id' => $load->cargo_type_id ? (int) $load->cargo_type_id : null,
             'cargo_type_name' => $load->cargoType?->name,
             'container_type_id' => $load->container_type_id ? (int) $load->container_type_id : null,
@@ -807,14 +983,18 @@ class LogisticsController extends Controller
             'collection_location_type_name' => $load->collectionLocationType?->name,
             'collection_scheduled_at' => $load->collection_scheduled_at?->toIso8601String(),
             'collection_at' => $load->collection_at?->toIso8601String(),
+            'collection_appointments' => $this->appointmentsPayload($load->collection_appointments),
             'loading_city_id' => $load->loading_city_id ? (int) $load->loading_city_id : null,
-            'loading_location' => $load->loadingCityRelation ? $load->loadingCityRelation->name.' / '.$load->loadingCityRelation->state?->abbreviation : ($load->loading_location ?: $load->loading_city),
+            'loading_city_label' => $load->loadingCityRelation ? $load->loadingCityRelation->name.' / '.$load->loadingCityRelation->state?->abbreviation : ($load->loading_city ?: $load->loading_location),
+            'loading_location' => $load->loading_location ?: $load->loading_city,
             'loading_at' => $load->loading_at?->toIso8601String(),
             'delivery_city_id' => $load->delivery_city_id ? (int) $load->delivery_city_id : null,
-            'delivery_location' => $load->deliveryCityRelation ? $load->deliveryCityRelation->name.' / '.$load->deliveryCityRelation->state?->abbreviation : ($load->delivery_location ?: $load->delivery_city),
+            'delivery_city_label' => $load->deliveryCityRelation ? $load->deliveryCityRelation->name.' / '.$load->deliveryCityRelation->state?->abbreviation : ($load->delivery_city ?: null),
+            'delivery_location' => $load->delivery_location ?: $load->delivery_city,
             'delivery_location_type_id' => $load->delivery_location_type_id ? (int) $load->delivery_location_type_id : null,
             'delivery_location_type_name' => $load->deliveryLocationType?->name,
             'delivery_at' => $load->delivery_at?->toIso8601String(),
+            'delivery_appointments' => $this->appointmentsPayload($load->delivery_appointments),
             'plan' => $load->plan,
             'load_mode' => $loadMode,
             'load_status' => $load->load_status,
@@ -844,9 +1024,30 @@ class LogisticsController extends Controller
                 'occurred_at' => $event->occurred_at?->toIso8601String(),
                 'user_name' => $event->user?->name ?? $event->user?->username,
             ])->values(),
+            'status_notes' => $statusNotes,
             'created_at' => $load->created_at?->toIso8601String(),
             'updated_at' => $load->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function isAdministrator(Request $request): bool
+    {
+        return mb_strtolower(trim((string) ($request->user()?->role ?? ''))) === 'administrador';
+    }
+
+    /** @return array<int, array{scheduled_at: string, location_type_id: ?int, location: ?string}> */
+    private function appointmentsPayload(mixed $rawEntries): array
+    {
+        return collect(is_array($rawEntries) ? $rawEntries : [])
+            ->filter(fn ($entry): bool => is_array($entry) && ! empty($entry['scheduled_at']))
+            ->map(fn (array $entry): array => [
+                'scheduled_at' => (string) $entry['scheduled_at'],
+                'location_type_id' => ! empty($entry['location_type_id']) ? (int) $entry['location_type_id'] : null,
+                'location' => trim((string) ($entry['location'] ?? '')) ?: null,
+            ])
+            ->sortBy('scheduled_at')
+            ->values()
+            ->all();
     }
 
     /** @return array<int, array{status: string, number: ?string}> */

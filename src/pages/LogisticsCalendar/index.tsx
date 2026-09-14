@@ -1,12 +1,15 @@
 import {
+  ArrowLeft,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
-  Copy,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
+  Copy,
   Edit3,
+  Eye,
+  EyeOff,
+  MessageSquareText,
   Plus,
   RefreshCw,
   Save,
@@ -16,27 +19,48 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SearchableSelect } from '../../components/SearchableSelect';
+import { useAuth } from '../../contexts/Auth/useAuth';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
-import { LOGISTICS_SYNC_STORAGE_KEY, logisticsService } from '../Logistic/services';
 import { LogisticsLoadForm } from '../Logistic/components/LogisticsLoadForm';
-import { validateLogisticsForm } from '../Logistic/validation';
+import { LOGISTICS_SYNC_STORAGE_KEY, logisticsService } from '../Logistic/services';
 import type {
+  LogisticsAppointment,
   LogisticsFormData,
   LogisticsLoad,
   LogisticsOptions,
   LogisticsStage,
 } from '../Logistic/types';
+import { validateLogisticsForm } from '../Logistic/validation';
 import {
   AccentPreview,
+  AppointmentAddButton,
+  AppointmentBackdrop,
+  AppointmentBody,
+  AppointmentEmpty,
+  AppointmentFooter,
+  AppointmentHeader,
+  AppointmentModal,
+  AppointmentRemoveButton,
+  AppointmentRow,
   CalendarDayButton,
   CalendarDayFlow,
   CalendarDayFlowColumn,
   CalendarDayFlowTitle,
-  CalendarShipperCount,
   CalendarDropdown,
-  CalendarToggle,
+  CalendarShipperCount,
   DangerButton,
+  DetailBackdrop,
+  DetailBody,
+  DetailDrawer,
+  DetailGrid,
+  DetailHeader,
+  DetailItem,
+  DetailRoute,
+  DetailSection,
+  DetailSectionTitle,
+  DetailStatus,
+  DetailText,
   Drawer,
   DrawerBackdrop,
   DrawerBody,
@@ -45,34 +69,41 @@ import {
   EmptyState,
   FilterBox,
   FinalizeButton,
-  FinalizedBadge,
   Header,
   IconButton,
-  LoadCard,
-  LoadList,
-  LoadListViewport,
-  SketchActionButton,
-  SketchActions,
-  SketchBodyGrid,
-  SketchBodyItem,
-  SketchLoadEntries,
-  SketchObservation,
-  SketchTopBar,
-  SketchTopItem,
+  ListActionButton,
+  ListActions,
+  ListCell,
+  ListHeaderRow,
+  ListRow,
+  ListTable,
+  OperationStageBadge,
+  ListViewport,
+  InlineLocationInput,
+  LoadingState,
   LoadsCount,
   LoadsHeader,
   LoadsSection,
-  LoadingState,
   MonthTitle,
-  OperationalTabButton,
-  OperationalTabs,
   Page,
   PrimaryButton,
   SecondaryButton,
+  ScheduleStatusButton,
+  StatusHistory,
+  StatusHistoryItem,
+  StatusTextarea,
+  StatusTravelButton,
+  StatusVisibilityButton,
+  StatusVisibilityRow,
+  SelectedDateBar,
   Toolbar,
   WeekCalendarHeader,
   WeekControls,
-  WeekDatesGrid,
+  CalendarEmptyDay,
+  CalendarWeekNumber,
+  CalendarWeekNumberHeader,
+  MonthWeekdayGrid,
+  MonthWeekRow,
   WeekDatesScroller,
   WeekRangeText,
 } from './styles';
@@ -97,26 +128,25 @@ const STAGE_LABELS: Record<LogisticsStage, string> = {
   DELIVERY: 'Baixa / Entrega',
 };
 
-const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
-type OperationalTab = 'SCHEDULING' | 'COLLECTION' | 'LOADING' | 'DELIVERY';
-type DrawerMode = 'create' | 'edit' | null;
-
-const TAB_LABELS: Record<OperationalTab, string> = {
-  SCHEDULING: 'Agendamento',
+const LIST_STAGE_LABELS: Record<LogisticsStage, string> = {
+  PROGRAMMING: 'Programação',
   COLLECTION: 'Coleta',
-  LOADING: 'Carregamento',
-  DELIVERY: 'Baixas / Entregas',
+  LOADING: 'Carregando',
+  DELIVERY: 'Baixa',
 };
 
-const TAB_DATE_HINTS: Record<OperationalTab, string> = {
-  SCHEDULING: 'usa o campo Agendar coleta',
-  COLLECTION: 'usa somente a data de coleta informada',
-  LOADING: 'usa somente a data de carregamento informada',
-  DELIVERY: 'usa somente a data de baixa/entrega informada',
-};
+const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+type DrawerMode = 'create' | 'edit' | null;
+type AppointmentKind = 'COLLECTION' | 'DELIVERY';
 
-const TABS: OperationalTab[] = ['SCHEDULING', 'COLLECTION', 'LOADING', 'DELIVERY'];
+interface AppointmentEditorState {
+  kind: AppointmentKind;
+  load: LogisticsLoad;
+}
+
+interface StatusEditorState {
+  load: LogisticsLoad;
+}
 
 function localDateString(date: Date): string {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -134,20 +164,38 @@ function formatMonth(date: Date): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date);
 }
 
-function formatDate(value: string): string {
-  const [year, month, day] = value.split('-');
+function formatDate(value: string | null): string {
+  if (!value) return '—';
+  const raw = value.slice(0, 10);
+  const [year, month, day] = raw.split('-');
+  if (!year || !month || !day) return value;
   return `${day}/${month}/${year}`;
 }
 
-function formatCompactDateTime(value: string | null): string {
+function formatDateTime(value: string | null): string {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(date);
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 }
 
-function formatShortDate(date: Date): string {
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(date);
+function formatTime(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+interface MonthWeek {
+  week: number;
+  year: number;
+  days: Array<Date | null>;
 }
 
 function startOfWeek(date: Date): Date {
@@ -156,13 +204,10 @@ function startOfWeek(date: Date): Date {
   return start;
 }
 
-function buildWeekCells(anchor: Date): Date[] {
-  const start = startOfWeek(anchor);
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
+function monthBounds(anchor: Date): { start: string; end: string } {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12, 0, 0, 0);
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 12, 0, 0, 0);
+  return { start: localDateString(first), end: localDateString(last) };
 }
 
 function isoWeekInfo(date: Date): { week: number; year: number } {
@@ -173,6 +218,34 @@ function isoWeekInfo(date: Date): { week: number; year: number } {
   const firstDay = new Date(Date.UTC(year, 0, 1));
   const week = Math.ceil((((target.getTime() - firstDay.getTime()) / 86_400_000) + 1) / 7);
   return { week, year };
+}
+
+function buildMonthWeeks(anchor: Date): MonthWeek[] {
+  const month = anchor.getMonth();
+  const first = new Date(anchor.getFullYear(), month, 1, 12, 0, 0, 0);
+  const last = new Date(anchor.getFullYear(), month + 1, 0, 12, 0, 0, 0);
+  const cursor = startOfWeek(first);
+  const end = new Date(last);
+  end.setDate(last.getDate() + (6 - last.getDay()));
+
+  const weeks: MonthWeek[] = [];
+  while (cursor <= end) {
+    const rowStart = new Date(cursor);
+    const monday = new Date(rowStart);
+    monday.setDate(rowStart.getDate() + 1);
+    const info = isoWeekInfo(monday);
+    const days: Array<Date | null> = [];
+
+    for (let index = 0; index < 7; index += 1) {
+      const date = new Date(cursor);
+      days.push(date.getMonth() === month ? date : null);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    weeks.push({ week: info.week, year: info.year, days });
+  }
+
+  return weeks;
 }
 
 function shortDriverName(value: string | null): string {
@@ -208,14 +281,16 @@ function toDateInput(value: string | null): string {
   return localDateString(date);
 }
 
-function emptyForm(selectedDate: string, tab: OperationalTab = 'SCHEDULING'): LogisticsFormData {
-  const base: LogisticsFormData = {
+function emptyForm(): LogisticsFormData {
+  return {
     referenceCode: '',
     shipmentNumber: '',
     loadNumber: '',
     shipowner: '',
     bookingNumber: '',
     collectionBookingNumber: '',
+    gradeNumber: '',
+    gradeAt: '',
     cargoTypeId: '',
     containerTypeId: '',
     shipownerId: '',
@@ -232,6 +307,7 @@ function emptyForm(selectedDate: string, tab: OperationalTab = 'SCHEDULING'): Lo
     collectionLocationTypeId: '',
     collectionScheduledAt: '',
     collectionAt: '',
+    collectionAppointments: [],
     loadingCityId: '',
     loadingLocation: '',
     loadingAt: '',
@@ -239,6 +315,7 @@ function emptyForm(selectedDate: string, tab: OperationalTab = 'SCHEDULING'): Lo
     deliveryLocation: '',
     deliveryLocationTypeId: '',
     deliveryAt: '',
+    deliveryAppointments: [],
     plan: '',
     loadMode: '',
     loadStatus: '',
@@ -256,21 +333,6 @@ function emptyForm(selectedDate: string, tab: OperationalTab = 'SCHEDULING'): Lo
     stage: 'PROGRAMMING',
     notes: '',
   };
-
-  if (tab === 'SCHEDULING') {
-    base.collectionScheduledAt = selectedDate;
-  } else if (tab === 'COLLECTION') {
-    base.collectionAt = `${selectedDate}T08:00`;
-    base.stage = 'COLLECTION';
-  } else if (tab === 'LOADING') {
-    base.loadingAt = `${selectedDate}T08:00`;
-    base.stage = 'LOADING';
-  } else if (tab === 'DELIVERY') {
-    base.deliveryAt = `${selectedDate}T08:00`;
-    base.stage = 'DELIVERY';
-  }
-
-  return base;
 }
 
 function formFromLoad(load: LogisticsLoad): LogisticsFormData {
@@ -281,6 +343,8 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     shipowner: load.shipowner ?? '',
     bookingNumber: load.bookingNumber ?? '',
     collectionBookingNumber: load.collectionBookingNumber ?? '',
+    gradeNumber: load.gradeNumber ?? '',
+    gradeAt: toLocalInput(load.gradeAt),
     cargoTypeId: load.cargoTypeId ? String(load.cargoTypeId) : '',
     containerTypeId: load.containerTypeId ? String(load.containerTypeId) : '',
     shipownerId: load.shipownerId ? String(load.shipownerId) : '',
@@ -297,6 +361,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
     collectionScheduledAt: toDateInput(load.collectionScheduledAt),
     collectionAt: toLocalInput(load.collectionAt),
+    collectionAppointments: load.collectionAppointments.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })),
     loadingCityId: load.loadingCityId ? String(load.loadingCityId) : '',
     loadingLocation: load.loadingLocation ?? '',
     loadingAt: toLocalInput(load.loadingAt),
@@ -304,6 +369,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     deliveryLocation: load.deliveryLocation ?? '',
     deliveryLocationTypeId: load.deliveryLocationTypeId ? String(load.deliveryLocationTypeId) : '',
     deliveryAt: toLocalInput(load.deliveryAt),
+    deliveryAppointments: load.deliveryAppointments.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })),
     plan: load.plan ?? '',
     loadMode: load.loadMode ?? '',
     loadStatus: load.loadStatus ?? '',
@@ -321,13 +387,6 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     stage: load.stage,
     notes: load.notes ?? '',
   };
-}
-
-function referenceDateForTab(load: LogisticsLoad, tab: OperationalTab): string | null {
-  if (tab === 'SCHEDULING') return load.collectionScheduledAt;
-  if (tab === 'COLLECTION') return load.collectionAt;
-  if (tab === 'LOADING') return load.loadingAt;
-  return load.deliveryAt;
 }
 
 interface CalendarShipperSummary {
@@ -356,49 +415,89 @@ function pushShipperSummary(
   target[key].count += 1;
 }
 
-function isDateInRange(value: string | null, from: string, to: string): boolean {
-  const key = dateKeyFromIso(value);
-  return Boolean(key && key >= from && key <= to);
+function collectionScheduleDates(load: LogisticsLoad): string[] {
+  const dates = load.collectionAppointments
+    .map((entry) => dateKeyFromIso(entry.scheduledAt))
+    .filter((value): value is string => Boolean(value));
+  const legacyDate = dateKeyFromIso(load.collectionScheduledAt);
+  if (dates.length === 0 && legacyDate) dates.push(legacyDate);
+  return [...new Set(dates)];
+}
+
+function loadMatchesCalendarDate(load: LogisticsLoad, date: string): boolean {
+  return collectionScheduleDates(load).includes(date) || dateKeyFromIso(load.loadingAt) === date;
+}
+
+function loadSortTime(load: LogisticsLoad): number {
+  const candidates = [load.loadingAt, load.collectionAt, load.collectionScheduledAt]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => new Date(value).getTime())
+    .filter((value) => Number.isFinite(value));
+  return candidates.length > 0 ? Math.min(...candidates) : Number.POSITIVE_INFINITY;
+}
+
+function loadIdentifier(load: LogisticsLoad): string {
+  if (load.loadMode === 'CARGO') return load.cargoNumber || '—';
+  if (load.loadMode === 'LOAD') {
+    return load.loadEntries
+      .map((entry) => `${entry.status === 'EMPTY' ? 'Vazio' : 'Cheio'}: ${entry.number || '—'}`)
+      .join(' / ') || '—';
+  }
+  return load.cargoNumber || load.loadNumber || '—';
+}
+
+function formatWeight(value: number | null): string {
+  if (value === null) return '—';
+  return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)} kg`;
 }
 
 export function LogisticsCalendar() {
   const notifications = useNotifications();
+  const { user } = useAuth();
+  const isAdministrator = user?.role?.trim().toLowerCase() === 'administrador';
   const today = useMemo(() => new Date(), []);
-  const [weekAnchor, setWeekAnchor] = useState(() => new Date(today));
+  const [monthAnchor, setMonthAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<OperationalTab>('SCHEDULING');
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [shipperFilter, setShipperFilter] = useState('');
   const [options, setOptions] = useState<LogisticsOptions>(EMPTY_OPTIONS);
   const [loads, setLoads] = useState<LogisticsLoad[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>(null);
   const [selectedLoad, setSelectedLoad] = useState<LogisticsLoad | null>(null);
-  const [form, setForm] = useState<LogisticsFormData>(() => emptyForm(localDateString(today)));
+  const [detailLoad, setDetailLoad] = useState<LogisticsLoad | null>(null);
+  const [form, setForm] = useState<LogisticsFormData>(() => emptyForm());
   const [saving, setSaving] = useState(false);
   const [finishingId, setFinishingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [appointmentEditor, setAppointmentEditor] = useState<AppointmentEditorState | null>(null);
+  const [appointmentEntries, setAppointmentEntries] = useState<LogisticsAppointment[]>([]);
+  const [appointmentSaving, setAppointmentSaving] = useState(false);
+  const [statusEditor, setStatusEditor] = useState<StatusEditorState | null>(null);
+  const [statusObservation, setStatusObservation] = useState('');
+  const [statusVisible, setStatusVisible] = useState(true);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusVisibilitySavingId, setStatusVisibilitySavingId] = useState<number | null>(null);
+  const [deliveryDrafts, setDeliveryDrafts] = useState<Record<number, string>>({});
 
-  const weekCells = useMemo(() => buildWeekCells(weekAnchor), [weekAnchor]);
-  const weekStart = useMemo(() => localDateString(weekCells[0]), [weekCells]);
-  const weekEnd = useMemo(() => localDateString(weekCells[6]), [weekCells]);
-  const weekInfo = useMemo(() => isoWeekInfo(weekCells[3]), [weekCells]);
-  const weekNumber = weekInfo.week;
-  const weekYear = weekInfo.year;
+  const monthWeeks = useMemo(() => buildMonthWeeks(monthAnchor), [monthAnchor]);
+  const monthRange = useMemo(() => monthBounds(monthAnchor), [monthAnchor]);
+  const currentWeekInfo = useMemo(() => isoWeekInfo(today), [today]);
 
   const loadCalendar = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await logisticsService.calendarWeek(weekStart, weekEnd, shipperFilter);
+      const data = await logisticsService.calendarRange(monthRange.start, monthRange.end, shipperFilter);
       setLoads(data);
       setSelectedLoad((current) => current ? data.find((item) => item.id === current.id) ?? current : null);
+      setDetailLoad((current) => current ? data.find((item) => item.id === current.id) ?? current : null);
+      setStatusEditor((current) => current ? { load: data.find((item) => item.id === current.load.id) ?? current.load } : null);
     } catch (error) {
-      const feedback = getApiErrorFeedback(error, 'Não foi possível carregar as cargas da semana.');
+      const feedback = getApiErrorFeedback(error, 'Não foi possível carregar as cargas do mês.');
       notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setLoading(false);
     }
-  }, [notifications, shipperFilter, weekEnd, weekStart]);
+  }, [monthRange.end, monthRange.start, notifications, shipperFilter]);
 
   useEffect(() => {
     void logisticsService.options()
@@ -440,7 +539,7 @@ export function LogisticsCalendar() {
   }, [loadCalendar]);
 
   useEffect(() => {
-    if (!drawerMode) return;
+    if (!drawerMode && !detailLoad && !appointmentEditor && !statusEditor) return;
     const bodyOverflow = document.body.style.overflow;
     const htmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -449,21 +548,50 @@ export function LogisticsCalendar() {
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = htmlOverflow;
     };
-  }, [drawerMode]);
+  }, [appointmentEditor, detailLoad, drawerMode, statusEditor]);
 
-  const tabLoads = useMemo(() => {
-    return loads.filter((load) => {
-      const reference = referenceDateForTab(load, activeTab);
-      return isDateInRange(reference, weekStart, weekEnd);
-    });
-  }, [activeTab, loads, weekEnd, weekStart]);
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
 
-  const tabTotals = useMemo(() => {
-    return TABS.reduce<Record<OperationalTab, number>>((accumulator, tab) => {
-      accumulator[tab] = loads.filter((load) => isDateInRange(referenceDateForTab(load, tab), weekStart, weekEnd)).length;
-      return accumulator;
-    }, { SCHEDULING: 0, COLLECTION: 0, LOADING: 0, DELIVERY: 0 });
-  }, [loads, weekEnd, weekStart]);
+      if (statusEditor) {
+        if (!statusSaving && statusVisibilitySavingId === null) {
+          setStatusEditor(null);
+          setStatusObservation('');
+          setStatusVisible(true);
+        }
+        return;
+      }
+
+      if (appointmentEditor) {
+        if (!appointmentSaving) {
+          setAppointmentEditor(null);
+          setAppointmentEntries([]);
+        }
+        return;
+      }
+
+      if (detailLoad) {
+        setDetailLoad(null);
+        return;
+      }
+
+      if (drawerMode) {
+        if (!saving) {
+          setDrawerMode(null);
+          setSelectedLoad(null);
+        }
+        return;
+      }
+
+      if (selectedDate) {
+        setSelectedDate(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [appointmentEditor, appointmentSaving, detailLoad, drawerMode, saving, selectedDate, statusEditor, statusSaving, statusVisibilitySavingId]);
 
   const daySummaries = useMemo<Record<string, CalendarDaySummary>>(() => {
     const raw: Record<string, {
@@ -472,14 +600,16 @@ export function LogisticsCalendar() {
     }> = {};
 
     loads.forEach((load) => {
-      const scheduledDate = dateKeyFromIso(load.collectionScheduledAt);
+      const scheduledDates = collectionScheduleDates(load);
       const loadingDate = dateKeyFromIso(load.loadingAt);
 
-      if (scheduledDate && scheduledDate >= weekStart && scheduledDate <= weekEnd) {
-        if (!raw[scheduledDate]) raw[scheduledDate] = { scheduled: {}, loading: {} };
-        pushShipperSummary(raw[scheduledDate].scheduled, load);
-      }
-      if (loadingDate && loadingDate >= weekStart && loadingDate <= weekEnd) {
+      scheduledDates.forEach((scheduledDate) => {
+        if (scheduledDate >= monthRange.start && scheduledDate <= monthRange.end) {
+          if (!raw[scheduledDate]) raw[scheduledDate] = { scheduled: {}, loading: {} };
+          pushShipperSummary(raw[scheduledDate].scheduled, load);
+        }
+      });
+      if (loadingDate && loadingDate >= monthRange.start && loadingDate <= monthRange.end) {
         if (!raw[loadingDate]) raw[loadingDate] = { scheduled: {}, loading: {} };
         pushShipperSummary(raw[loadingDate].loading, load);
       }
@@ -494,17 +624,18 @@ export function LogisticsCalendar() {
         },
       ]),
     );
-  }, [loads, weekEnd, weekStart]);
+  }, [loads, monthRange.end, monthRange.start]);
 
   const visibleLoads = useMemo(() => {
-    return tabLoads
-      .filter((load) => !selectedDate || dateKeyFromIso(referenceDateForTab(load, activeTab)) === selectedDate)
+    if (!selectedDate) return [];
+    return loads
+      .filter((load) => loadMatchesCalendarDate(load, selectedDate))
       .sort((a, b) => {
-        const aDate = referenceDateForTab(a, activeTab);
-        const bDate = referenceDateForTab(b, activeTab);
-        return new Date(aDate ?? 0).getTime() - new Date(bDate ?? 0).getTime();
+        const byShipper = a.shipperName.localeCompare(b.shipperName, 'pt-BR', { sensitivity: 'base' });
+        if (byShipper !== 0) return byShipper;
+        return loadSortTime(a) - loadSortTime(b);
       });
-  }, [activeTab, selectedDate, tabLoads]);
+  }, [loads, selectedDate]);
 
   const shipperSelectOptions = useMemo(
     () => options.shippers.map((item) => ({ value: String(item.id), label: item.name })),
@@ -516,51 +647,50 @@ export function LogisticsCalendar() {
   );
   const formAccent = selectedShipper?.displayColor ?? selectedLoad?.shipperColor ?? '#3FA66C';
 
-  function changeWeek(delta: number) {
+  function changeMonth(delta: number) {
     setSelectedDate(null);
-    setWeekAnchor((current) => {
-      const next = new Date(current);
-      next.setDate(current.getDate() + delta * 7);
-      return next;
-    });
+    setMonthAnchor((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1, 12, 0, 0, 0));
   }
 
-  function goCurrentWeek() {
+  function goCurrentMonth() {
     setSelectedDate(null);
-    setWeekAnchor(new Date());
-  }
-
-  function selectTab(tab: OperationalTab) {
-    setActiveTab(tab);
-    setSelectedDate(null);
+    setMonthAnchor(new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0));
   }
 
   function selectCalendarDate(date: Date) {
-    const key = localDateString(date);
-    setSelectedDate((current) => current === key ? null : key);
+    setSelectedDate(localDateString(date));
+  }
+
+  function returnToCalendar() {
+    setDetailLoad(null);
+    setSelectedDate(null);
   }
 
   function openCreate() {
-    const date = selectedDate ?? localDateString(weekAnchor);
+    const next = emptyForm();
+    if (selectedDate) {
+      next.loadingAt = selectedDate;
+    }
+    setDetailLoad(null);
     setSelectedLoad(null);
-    setForm(emptyForm(date, activeTab));
+    setForm(next);
     setDrawerMode('create');
   }
 
   function openEdit(load: LogisticsLoad) {
+    setDetailLoad(null);
     setSelectedLoad(load);
     setForm(formFromLoad(load));
     setDrawerMode('edit');
   }
 
   function openDuplicate(load: LogisticsLoad) {
-    const scheduledDate = toDateInput(load.collectionScheduledAt);
-    const duplicated = emptyForm(scheduledDate || localDateString(weekAnchor), 'SCHEDULING');
+    const duplicated = emptyForm();
+    setDetailLoad(null);
     setSelectedLoad(null);
     setForm({
       ...duplicated,
       shipperId: String(load.shipperId),
-      collectionScheduledAt: scheduledDate,
     });
     setDrawerMode('create');
   }
@@ -569,6 +699,154 @@ export function LogisticsCalendar() {
     if (saving) return;
     setDrawerMode(null);
     setSelectedLoad(null);
+  }
+
+  function openAppointmentEditor(load: LogisticsLoad, kind: AppointmentKind) {
+    setDetailLoad(null);
+    setStatusEditor(null);
+    setAppointmentEditor({ load, kind });
+    const source = kind === 'COLLECTION' ? load.collectionAppointments : load.deliveryAppointments;
+    if (source.length === 0 && kind === 'COLLECTION' && load.collectionScheduledAt) {
+      setAppointmentEntries([{
+        scheduledAt: toLocalInput(load.collectionScheduledAt),
+        locationTypeId: load.collectionLocationTypeId,
+        location: load.collectionTerminal ?? '',
+      }]);
+      return;
+    }
+    setAppointmentEntries(source.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })));
+  }
+
+  function closeAppointmentEditor() {
+    if (appointmentSaving) return;
+    setAppointmentEditor(null);
+    setAppointmentEntries([]);
+  }
+
+  function addAppointmentEntry() {
+    const fallbackLocation = appointmentEditor?.kind === 'COLLECTION'
+      ? appointmentEditor.load.collectionTerminal ?? ''
+      : appointmentEditor?.load.deliveryLocation ?? '';
+    setAppointmentEntries((current) => [
+      ...current,
+      { scheduledAt: selectedDate ? `${selectedDate}T08:00` : '', locationTypeId: null, location: fallbackLocation },
+    ]);
+  }
+
+  function updateAppointmentEntry(index: number, patch: Partial<LogisticsAppointment>) {
+    setAppointmentEntries((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, ...patch } : entry));
+  }
+
+  function removeAppointmentEntry(index: number) {
+    setAppointmentEntries((current) => current.filter((_, entryIndex) => entryIndex !== index));
+  }
+
+  async function saveAppointments() {
+    if (!appointmentEditor) return;
+    const invalid = appointmentEntries.some((entry) => !entry.scheduledAt);
+    if (invalid) {
+      notifications.warning('Agendamento incompleto', 'Informe a data e hora de todos os agendamentos adicionados.');
+      return;
+    }
+
+    const normalized = appointmentEntries.map((entry) => ({ ...entry, location: entry.location.trim() }));
+    setAppointmentSaving(true);
+    try {
+      const updated = await logisticsService.updateAppointments(appointmentEditor.load.id, appointmentEditor.kind, normalized);
+      setLoads((current) => current.map((item) => item.id === updated.id ? updated : item));
+      notifications.success('Agendamentos atualizados', appointmentEditor.kind === 'COLLECTION'
+        ? 'Os horários de coleta foram atualizados sem alterar o cadastro da carga.'
+        : 'Os horários de baixa foram atualizados sem alterar o cadastro da carga.');
+      setAppointmentEditor(null);
+      setAppointmentEntries([]);
+      await loadCalendar();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar os agendamentos.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setAppointmentSaving(false);
+    }
+  }
+
+  function openStatusEditor(load: LogisticsLoad) {
+    setDetailLoad(null);
+    setAppointmentEditor(null);
+    setAppointmentEntries([]);
+    setStatusObservation('');
+    setStatusVisible(true);
+    setStatusEditor({ load });
+  }
+
+  function closeStatusEditor() {
+    if (statusSaving || statusVisibilitySavingId !== null) return;
+    setStatusEditor(null);
+    setStatusObservation('');
+    setStatusVisible(true);
+  }
+
+  async function saveStatusObservation() {
+    if (!statusEditor) return;
+    const observation = statusObservation.trim();
+    if (!observation) {
+      notifications.warning('Observação obrigatória', 'Digite uma observação antes de adicionar ao status da viagem.');
+      return;
+    }
+
+    setStatusSaving(true);
+    try {
+      const updated = await logisticsService.addStatusNote(statusEditor.load.id, observation, isAdministrator ? statusVisible : true);
+      setLoads((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setStatusEditor({ load: updated });
+      setStatusObservation('');
+      setStatusVisible(true);
+      notifications.success('Status registrado', isAdministrator && !statusVisible
+        ? 'A observação foi salva e ficará visível somente para administradores.'
+        : 'A observação foi adicionada ao histórico desta viagem.');
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível registrar o status da viagem.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
+  async function toggleStatusNoteVisibility(noteId: number, nextVisible: boolean) {
+    if (!statusEditor || !isAdministrator || statusVisibilitySavingId !== null) return;
+    setStatusVisibilitySavingId(noteId);
+    try {
+      const updated = await logisticsService.updateStatusNoteVisibility(statusEditor.load.id, noteId, nextVisible);
+      setLoads((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setStatusEditor({ load: updated });
+      notifications.success(
+        nextVisible ? 'Observação liberada' : 'Observação ocultada',
+        nextVisible ? 'Os demais usuários poderão visualizar essa mensagem.' : 'Somente administradores poderão visualizar essa mensagem.',
+      );
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível alterar a visibilidade da observação.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setStatusVisibilitySavingId(null);
+    }
+  }
+
+  async function saveDeliveryLocationInline(load: LogisticsLoad, value: string) {
+    const normalized = value.trim();
+    if (normalized === (load.deliveryLocation ?? '').trim()) return;
+    const payload = formFromLoad(load);
+    payload.deliveryLocation = normalized;
+    try {
+      await logisticsService.update(load.id, payload);
+      setDeliveryDrafts((current) => {
+        const next = { ...current };
+        delete next[load.id];
+        return next;
+      });
+      await loadCalendar();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível atualizar o local da baixa.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+      setDeliveryDrafts((current) => ({ ...current, [load.id]: load.deliveryLocation ?? '' }));
+    }
   }
 
   async function saveLoad() {
@@ -583,20 +861,23 @@ export function LogisticsCalendar() {
       let saved: LogisticsLoad;
       if (drawerMode === 'create') {
         saved = await logisticsService.create(form);
-        notifications.success('Carga criada', `${saved.referenceCode} foi adicionada à logística.`);
+        notifications.success('Carga criada', 'A carga foi adicionada à logística.');
       } else if (selectedLoad) {
         const originalStage = selectedLoad.stage;
         saved = await logisticsService.update(selectedLoad.id, form);
         if (!selectedLoad.completedAt && originalStage !== form.stage) {
           saved = await logisticsService.move(selectedLoad.id, form.stage, 9999);
         }
-        notifications.success('Carga atualizada', `${saved.referenceCode} foi salva com sucesso.`);
+        notifications.success('Carga atualizada', 'As alterações foram salvas com sucesso.');
       } else {
         return;
       }
 
-      const targetDate = dateKeyFromIso(referenceDateForTab(saved, activeTab) ?? saved.collectionScheduledAt ?? saved.loadingAt ?? saved.deliveryAt);
-      if (targetDate) setWeekAnchor(new Date(`${targetDate}T12:00:00`));
+      const targetDate = dateKeyFromIso(saved.loadingAt ?? saved.collectionAt ?? saved.deliveryAt);
+      if (targetDate) {
+        const target = new Date(`${targetDate}T12:00:00`);
+        setMonthAnchor(new Date(target.getFullYear(), target.getMonth(), 1, 12, 0, 0, 0));
+      }
       setDrawerMode(null);
       setSelectedLoad(null);
       await loadCalendar();
@@ -612,7 +893,7 @@ export function LogisticsCalendar() {
     if (load.stage !== 'DELIVERY' || load.completedAt) return;
     const confirmed = await notifications.confirm({
       title: 'Finalizar carga?',
-      message: `A carga ${load.referenceCode} será marcada como finalizada.`,
+      message: 'A carga será marcada como finalizada.',
       details: ['Ela continuará disponível no histórico da logística.'],
       type: 'warning',
       confirmLabel: 'Finalizar carga',
@@ -623,7 +904,7 @@ export function LogisticsCalendar() {
     setFinishingId(load.id);
     try {
       await logisticsService.finish(load.id);
-      notifications.success('Carga finalizada', `${load.referenceCode} foi finalizada com sucesso.`);
+      notifications.success('Carga finalizada', 'A carga foi finalizada com sucesso.');
       closeDrawer();
       await loadCalendar();
     } catch (error) {
@@ -637,7 +918,7 @@ export function LogisticsCalendar() {
   async function deleteLoad(load: LogisticsLoad) {
     const confirmed = await notifications.confirm({
       title: 'Excluir carga?',
-      message: `A carga ${load.referenceCode} sairá do Painel e do Calendário.`,
+      message: 'A carga sairá do Painel e do Calendário.',
       details: ['A exclusão ficará registrada no banco de dados para auditoria.'],
       type: 'error',
       confirmLabel: 'Excluir carga',
@@ -648,7 +929,7 @@ export function LogisticsCalendar() {
     setDeletingId(load.id);
     try {
       await logisticsService.remove(load.id);
-      notifications.success('Carga excluída', `${load.referenceCode} foi removida das telas operacionais.`);
+      notifications.success('Carga excluída', 'A carga foi removida das telas operacionais.');
       closeDrawer();
       await loadCalendar();
     } catch (error) {
@@ -666,224 +947,495 @@ export function LogisticsCalendar() {
         <PrimaryButton type="button" onClick={openCreate}><Plus size={17} /> Nova carga</PrimaryButton>
       </Header>
 
-      <Toolbar>
-        <WeekControls>
-          <SecondaryButton type="button" onClick={goCurrentWeek} title="Voltar para a semana atual">
-            Semana {weekNumber}/{weekYear}
-          </SecondaryButton>
-          <IconButton type="button" onClick={() => changeWeek(-1)} aria-label="Semana anterior"><ChevronLeft size={18} /></IconButton>
-          <IconButton type="button" onClick={() => changeWeek(1)} aria-label="Próxima semana"><ChevronRight size={18} /></IconButton>
-          <MonthTitle>{formatMonth(weekAnchor)}</MonthTitle>
-          <CalendarToggle
-            type="button"
-            $active={isCalendarOpen}
-            onClick={() => setIsCalendarOpen((open) => !open)}
-            aria-expanded={isCalendarOpen}
-          >
-            <CalendarDays size={17} />
-            <span>Calendário</span>
-            {isCalendarOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-          </CalendarToggle>
-        </WeekControls>
+      {!selectedDate ? (
+        <>
+          <Toolbar>
+            <WeekControls>
+              <SecondaryButton type="button" onClick={goCurrentMonth} title="Voltar para o mês atual">
+                Semana {currentWeekInfo.week}/{currentWeekInfo.year}
+              </SecondaryButton>
+              <IconButton type="button" onClick={() => changeMonth(-1)} aria-label="Mês anterior"><ChevronLeft size={18} /></IconButton>
+              <IconButton type="button" onClick={() => changeMonth(1)} aria-label="Próximo mês"><ChevronRight size={18} /></IconButton>
+              <MonthTitle>{formatMonth(monthAnchor)}</MonthTitle>
+            </WeekControls>
 
-        <OperationalTabs aria-label="Etapa operacional das cargas">
-          {TABS.map((tab) => (
-            <OperationalTabButton key={tab} type="button" $active={activeTab === tab} onClick={() => selectTab(tab)}>
-              <span>{TAB_LABELS[tab]}</span>
-              <strong>{tabTotals[tab]}</strong>
-            </OperationalTabButton>
-          ))}
-        </OperationalTabs>
+            <FilterBox>
+              <SearchableSelect
+                id="calendar-shipper-filter"
+                value={shipperFilter}
+                options={shipperSelectOptions}
+                onChange={setShipperFilter}
+                placeholder="Todos os embarcadores"
+                searchPlaceholder="Buscar embarcador..."
+                emptyMessage="Nenhum embarcador encontrado."
+                ariaLabel="Filtrar calendário por embarcador"
+              />
+            </FilterBox>
+          </Toolbar>
 
-        <FilterBox>
-          <SearchableSelect
-            id="calendar-shipper-filter"
-            value={shipperFilter}
-            options={shipperSelectOptions}
-            onChange={setShipperFilter}
-            placeholder="Todos os embarcadores"
-            searchPlaceholder="Buscar embarcador..."
-            emptyMessage="Nenhum embarcador encontrado."
-            ariaLabel="Filtrar calendário por embarcador"
-          />
-        </FilterBox>
-      </Toolbar>
+          <CalendarDropdown>
+            <WeekCalendarHeader>
+              <div>
+                <strong><CalendarDays size={16} /> Datas do mês</strong>
+                <WeekRangeText>
+                  {formatDate(monthRange.start)} até {formatDate(monthRange.end)} · Agendamento e Carregamentos separados por dia
+                </WeekRangeText>
+              </div>
+            </WeekCalendarHeader>
+            {loading ? <LoadingState><RefreshCw size={22} /> Carregando calendário...</LoadingState> : (
+              <WeekDatesScroller>
+                <MonthWeekdayGrid>
+                  <CalendarWeekNumberHeader>Sem.</CalendarWeekNumberHeader>
+                  {WEEK_DAYS.map((day) => <span key={day}>{day}</span>)}
+                </MonthWeekdayGrid>
+                {monthWeeks.map((week) => (
+                  <MonthWeekRow key={`${week.year}-${week.week}`}>
+                    <CalendarWeekNumber title={`Semana ${week.week}/${week.year}`}>
+                      <span>Semana</span>
+                      <strong>{week.week}</strong>
+                    </CalendarWeekNumber>
+                    {week.days.map((date, index) => {
+                      if (!date) return <CalendarEmptyDay key={`empty-${week.year}-${week.week}-${index}`} aria-hidden="true" />;
 
-      {isCalendarOpen ? (
-        <CalendarDropdown>
-          <WeekCalendarHeader>
+                      const key = localDateString(date);
+                      const summary = daySummaries[key] ?? { scheduled: [], loading: [] };
+                      const scheduledTotal = summary.scheduled.reduce((total, item) => total + item.count, 0);
+                      const loadingTotal = summary.loading.reduce((total, item) => total + item.count, 0);
+                      const isToday = key === localDateString(today);
+                      return (
+                        <CalendarDayButton
+                          key={key}
+                          type="button"
+                          $selected={false}
+                          $today={isToday}
+                          $sunday={index === 0}
+                          onClick={() => selectCalendarDate(date)}
+                          aria-label={`${WEEK_DAYS[index]}, ${formatDate(key)}, ${scheduledTotal} agendamento(s), ${loadingTotal} carregamento(s)`}
+                        >
+                          <div className="day-heading">
+                            <span>{WEEK_DAYS[index]}</span>
+                            <strong>{date.getDate()}</strong>
+                          </div>
+                          {index !== 0 ? (
+                          <CalendarDayFlow style={{ gridTemplateColumns: scheduledTotal > 0 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)' }}>
+                            {scheduledTotal > 0 ? (
+                              <CalendarDayFlowColumn>
+                                <CalendarDayFlowTitle>Agendamento <strong>{scheduledTotal}</strong></CalendarDayFlowTitle>
+                                {summary.scheduled.map((item) => (
+                                  <CalendarShipperCount key={`scheduled-${item.name}`}>
+                                    <i style={{ background: item.color }} />
+                                    <span title={item.name}>{item.name}</span>
+                                    <strong>{item.count}</strong>
+                                  </CalendarShipperCount>
+                                ))}
+                              </CalendarDayFlowColumn>
+                            ) : null}
+                            <CalendarDayFlowColumn>
+                              <CalendarDayFlowTitle>Carregamentos <strong>{loadingTotal}</strong></CalendarDayFlowTitle>
+                              {summary.loading.length === 0 ? <em>—</em> : summary.loading.map((item) => (
+                                <CalendarShipperCount key={`loading-${item.name}`}>
+                                  <i style={{ background: item.color }} />
+                                  <span title={item.name}>{item.name}</span>
+                                  <strong>{item.count}</strong>
+                                </CalendarShipperCount>
+                              ))}
+                            </CalendarDayFlowColumn>
+                          </CalendarDayFlow>
+                          ) : null}
+                        </CalendarDayButton>
+                      );
+                    })}
+                  </MonthWeekRow>
+                ))}
+              </WeekDatesScroller>
+            )}
+          </CalendarDropdown>
+        </>
+      ) : (
+        <LoadsSection>
+          <SelectedDateBar>
+            <SecondaryButton type="button" onClick={returnToCalendar}><ArrowLeft size={16} /> Voltar ao calendário</SecondaryButton>
             <div>
-              <strong>Datas da semana</strong>
-              <WeekRangeText>{formatShortDate(weekCells[0])} até {formatShortDate(weekCells[6])} · Agendamento = campo Agendar coleta · Carregamentos = data de carregamento</WeekRangeText>
+              <strong>Cargas de {formatDate(selectedDate)}</strong>
+              <span>Agendamentos e carregamentos do dia em uma única listagem.</span>
             </div>
-            {selectedDate ? <SecondaryButton type="button" onClick={() => setSelectedDate(null)}>Ver semana toda</SecondaryButton> : null}
-          </WeekCalendarHeader>
-          <WeekDatesScroller>
-            <WeekDatesGrid>
-              {weekCells.map((date, index) => {
-                const key = localDateString(date);
-                const summary = daySummaries[key] ?? { scheduled: [], loading: [] };
-                const scheduledTotal = summary.scheduled.reduce((total, item) => total + item.count, 0);
-                const loadingTotal = summary.loading.reduce((total, item) => total + item.count, 0);
-                const isToday = key === localDateString(today);
+            <FilterBox>
+              <SearchableSelect
+                id="list-shipper-filter"
+                value={shipperFilter}
+                options={shipperSelectOptions}
+                onChange={setShipperFilter}
+                placeholder="Todos os embarcadores"
+                searchPlaceholder="Buscar embarcador..."
+                emptyMessage="Nenhum embarcador encontrado."
+                ariaLabel="Filtrar listagem por embarcador"
+              />
+            </FilterBox>
+          </SelectedDateBar>
+
+          <LoadsHeader>
+            <div>
+              <h2>Listagem do dia</h2>
+              <p>Clique em qualquer linha para abrir todos os dados da carga no painel lateral.</p>
+            </div>
+            <LoadsCount>{visibleLoads.length} carga(s)</LoadsCount>
+          </LoadsHeader>
+
+          {loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
+            <ListViewport>
+              {visibleLoads.length === 0 ? (
+                <EmptyState>Nenhum agendamento ou carregamento encontrado para esta data.</EmptyState>
+              ) : (
+                <ListTable>
+                  <ListHeaderRow>
+                    <span>Embarcador</span>
+                    <span>Grade</span>
+                    <span>Hora</span>
+                    <span>Etapa</span>
+                    <span>Origem</span>
+                    <span>Destino</span>
+                    <span>Armador</span>
+                    <span>Local de coleta</span>
+                    <span>Agendamento coleta</span>
+                    <span>Local de baixa</span>
+                    <span>Agendamento baixa</span>
+                    <span>Observação</span>
+                    <span>Status viagem</span>
+                    <span>Ações</span>
+                  </ListHeaderRow>
+                  {visibleLoads.map((load) => {
+                    const collectionCount = load.collectionAppointments.length || (load.collectionScheduledAt ? 1 : 0);
+                    const deliveryCount = load.deliveryAppointments.length;
+                    const collectionScheduled = collectionCount > 0;
+                    const deliveryScheduled = deliveryCount > 0;
+                    const collectionLocation = load.collectionAppointments.find((entry) => entry.location.trim())?.location
+                      || load.collectionTerminal
+                      || '—';
+                    const deliveryDraft = deliveryDrafts[load.id]
+                      ?? load.deliveryLocation
+                      ?? load.deliveryAppointments.find((entry) => entry.location.trim())?.location
+                      ?? '';
+                    return (
+                    <ListRow
+                      key={load.id}
+                      $accent={load.shipperColor}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Abrir detalhes da carga ${loadIdentifier(load)}`}
+                      onClick={() => setDetailLoad(load)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setDetailLoad(load);
+                        }
+                      }}
+                    >
+                      <ListCell $strong>{load.shipperName || '—'}</ListCell>
+                      <ListCell>{formatDate(load.loadingAt)}</ListCell>
+                      <ListCell>{formatTime(load.loadingAt)}</ListCell>
+                      <ListCell><OperationStageBadge $stage={load.stage}>{LIST_STAGE_LABELS[load.stage]}</OperationStageBadge></ListCell>
+                      <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
+                      <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
+                      <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
+                      <ListCell>{collectionLocation}</ListCell>
+                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <ScheduleStatusButton
+                          type="button"
+                          $scheduled={collectionScheduled}
+                          onClick={() => openAppointmentEditor(load, 'COLLECTION')}
+                          title="Abrir agendamentos da coleta"
+                        >
+                          <CalendarDays size={16} />
+                          <span>{collectionScheduled ? `Coleta agendada · ${collectionCount}` : 'Agendar coleta'}</span>
+                        </ScheduleStatusButton>
+                      </ListCell>
+                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <InlineLocationInput
+                          value={deliveryDraft}
+                          placeholder="Local da baixa"
+                          onChange={(event) => setDeliveryDrafts((current) => ({ ...current, [load.id]: event.target.value }))}
+                          onBlur={(event) => void saveDeliveryLocationInline(load, event.currentTarget.value)}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                            if (event.key === 'Enter') event.currentTarget.blur();
+                          }}
+                          aria-label={`Local de baixa de ${load.shipperName}`}
+                        />
+                      </ListCell>
+                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <ScheduleStatusButton
+                          type="button"
+                          $scheduled={deliveryScheduled}
+                          onClick={() => openAppointmentEditor(load, 'DELIVERY')}
+                          title="Abrir agendamentos da baixa"
+                        >
+                          <CalendarDays size={16} />
+                          <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
+                        </ScheduleStatusButton>
+                      </ListCell>
+                      <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
+                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
+                          <MessageSquareText size={16} />
+                          <span>Status viagem</span>
+                          {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
+                        </StatusTravelButton>
+                      </ListCell>
+                      <ListActions onClick={(event) => event.stopPropagation()}>
+                        <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
+                        <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
+                      </ListActions>
+                    </ListRow>
+                    );
+                  })}
+                </ListTable>
+              )}
+            </ListViewport>
+          )}
+        </LoadsSection>
+      )}
+
+      {appointmentEditor ? (
+        <>
+          <AppointmentBackdrop onClick={closeAppointmentEditor} />
+          <AppointmentModal role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title">
+            <AppointmentHeader>
+              <div>
+                <h3 id="appointment-modal-title">{appointmentEditor.kind === 'COLLECTION' ? 'Agendamentos da coleta' : 'Agendamentos da baixa'}</h3>
+                <p>{appointmentEditor.load.shipperName} · {appointmentEditor.kind === 'COLLECTION' ? (appointmentEditor.load.collectionTerminal || 'Local de coleta não informado') : (appointmentEditor.load.deliveryLocation || 'Local de baixa não informado')}</p>
+              </div>
+              <IconButton type="button" onClick={closeAppointmentEditor} disabled={appointmentSaving} aria-label="Fechar agendamentos"><X size={17} /></IconButton>
+            </AppointmentHeader>
+
+            <AppointmentBody>
+              {appointmentEntries.length === 0 ? (
+                <AppointmentEmpty>Nenhum agendamento cadastrado. Clique em “Adicionar horário” para incluir.</AppointmentEmpty>
+              ) : appointmentEntries.map((entry, index) => {
+                const locationTypes = options.locationTypes.filter((item) => item.scope === (appointmentEditor.kind === 'COLLECTION' ? 'C' : 'B'));
                 return (
-                  <CalendarDayButton
-                    key={key}
-                    type="button"
-                    $selected={selectedDate === key}
-                    $today={isToday}
-                    onClick={() => selectCalendarDate(date)}
-                    aria-label={`${WEEK_DAYS[index]}, ${formatDate(key)}, ${scheduledTotal} agendamento(s), ${loadingTotal} carregamento(s)`}
-                  >
-                    <div className="day-heading">
-                      <span>{WEEK_DAYS[index]}</span>
-                      <strong>{date.getDate()}</strong>
-                    </div>
-                    <CalendarDayFlow>
-                      <CalendarDayFlowColumn>
-                        <CalendarDayFlowTitle>Agendamento <strong>{scheduledTotal}</strong></CalendarDayFlowTitle>
-                        {summary.scheduled.length === 0 ? <em>—</em> : summary.scheduled.map((item) => (
-                          <CalendarShipperCount key={`scheduled-${item.name}`}>
-                            <i style={{ background: item.color }} />
-                            <span title={item.name}>{item.name}</span>
-                            <strong>{item.count}</strong>
-                          </CalendarShipperCount>
-                        ))}
-                      </CalendarDayFlowColumn>
-                      <CalendarDayFlowColumn>
-                        <CalendarDayFlowTitle>Carregamentos <strong>{loadingTotal}</strong></CalendarDayFlowTitle>
-                        {summary.loading.length === 0 ? <em>—</em> : summary.loading.map((item) => (
-                          <CalendarShipperCount key={`loading-${item.name}`}>
-                            <i style={{ background: item.color }} />
-                            <span title={item.name}>{item.name}</span>
-                            <strong>{item.count}</strong>
-                          </CalendarShipperCount>
-                        ))}
-                      </CalendarDayFlowColumn>
-                    </CalendarDayFlow>
-                  </CalendarDayButton>
+                  <AppointmentRow key={`${appointmentEditor.kind}-${index}`}>
+                    <label>
+                      {appointmentEditor.kind === 'COLLECTION' ? 'Data / hora da coleta' : 'Data / hora da baixa'}
+                      <input
+                        type="datetime-local"
+                        value={entry.scheduledAt}
+                        onChange={(event) => updateAppointmentEntry(index, { scheduledAt: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      {appointmentEditor.kind === 'COLLECTION' ? 'Local da coleta' : 'Local da baixa'}
+                      <input
+                        type="text"
+                        maxLength={180}
+                        value={entry.location}
+                        onChange={(event) => updateAppointmentEntry(index, { location: event.target.value })}
+                        placeholder={appointmentEditor.kind === 'COLLECTION' ? 'Digite o local da coleta' : 'Digite o local da baixa'}
+                      />
+                    </label>
+                    <label>
+                      Tipo do local
+                      <select
+                        value={entry.locationTypeId ?? ''}
+                        onChange={(event) => updateAppointmentEntry(index, { locationTypeId: event.target.value ? Number(event.target.value) : null })}
+                      >
+                        <option value="">Selecione</option>
+                        {locationTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </select>
+                    </label>
+                    <AppointmentRemoveButton type="button" onClick={() => removeAppointmentEntry(index)} title="Remover horário" aria-label="Remover horário">
+                      <Trash2 size={16} />
+                    </AppointmentRemoveButton>
+                  </AppointmentRow>
                 );
               })}
-            </WeekDatesGrid>
-          </WeekDatesScroller>
-        </CalendarDropdown>
+
+              <AppointmentAddButton type="button" onClick={addAppointmentEntry} disabled={appointmentEntries.length >= 20}>
+                <Plus size={15} /> {appointmentEntries.length >= 20 ? 'Limite atingido' : 'Adicionar horário'}
+              </AppointmentAddButton>
+            </AppointmentBody>
+
+            <AppointmentFooter>
+              <SecondaryButton type="button" onClick={closeAppointmentEditor} disabled={appointmentSaving}>Cancelar</SecondaryButton>
+              <PrimaryButton type="button" onClick={() => void saveAppointments()} disabled={appointmentSaving}>
+                {appointmentSaving ? <RefreshCw size={15} /> : <Save size={15} />} {appointmentSaving ? 'Salvando...' : 'Salvar agendamentos'}
+              </PrimaryButton>
+            </AppointmentFooter>
+          </AppointmentModal>
+        </>
       ) : null}
 
-      <LoadsSection>
-        <LoadsHeader>
-          <div>
-            <h2>{TAB_LABELS[activeTab]}</h2>
-            <p>
-              {selectedDate
-                ? `${formatDate(selectedDate)} · ${TAB_DATE_HINTS[activeTab]} · clique novamente na data para voltar à semana inteira`
-                : `Semana ${weekNumber}/${weekYear} · ${formatShortDate(weekCells[0])} até ${formatShortDate(weekCells[6])} · ${TAB_DATE_HINTS[activeTab]}`}
-            </p>
-          </div>
-          <LoadsCount>{visibleLoads.length} carga(s)</LoadsCount>
-        </LoadsHeader>
+      {statusEditor ? (
+        <>
+          <AppointmentBackdrop onClick={closeStatusEditor} />
+          <AppointmentModal role="dialog" aria-modal="true" aria-labelledby="status-trip-modal-title">
+            <AppointmentHeader>
+              <div>
+                <h3 id="status-trip-modal-title">Status da viagem</h3>
+                <p>{statusEditor.load.shipperName} · {loadIdentifier(statusEditor.load)}</p>
+              </div>
+              <IconButton type="button" onClick={closeStatusEditor} disabled={statusSaving || statusVisibilitySavingId !== null} aria-label="Fechar status da viagem"><X size={17} /></IconButton>
+            </AppointmentHeader>
 
-        {loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
-          <LoadListViewport $scrollable={visibleLoads.length >= 10}>
-            <LoadList>
-              {visibleLoads.length === 0 ? (
-                <EmptyState>Nenhuma carga encontrada para esta etapa e semana.</EmptyState>
-              ) : visibleLoads.map((load) => {
-                const collectionDate = load.collectionAt;
-                return (
-                  <LoadCard key={load.id} $accent={load.shipperColor}>
-                    <SketchTopBar $accent={load.shipperColor}>
-                      <SketchTopItem>
-                        <span>Embarcador</span>
-                        <strong>{load.shipperName}</strong>
-                      </SketchTopItem>
-                      <SketchTopItem>
-                        <span>Tipo de carga</span>
-                        <strong>{load.cargoTypeName || '—'}</strong>
-                      </SketchTopItem>
-                      <SketchTopItem>
-                        <span>Armador</span>
-                        <strong>{load.shipownerName || load.shipowner || '—'}</strong>
-                      </SketchTopItem>
-                      <SketchTopItem>
-                        <span>Coleta</span>
-                        <strong>{load.collectionTerminal || '—'}</strong>
-                      </SketchTopItem>
-                      <SketchTopItem>
-                        <span>Data / hora coleta</span>
-                        <strong>{collectionDate ? formatCompactDateTime(collectionDate) : '---'}</strong>
-                      </SketchTopItem>
-                      <SketchActions>
-                        {load.completedAt ? <FinalizedBadge title="Carga finalizada"><CheckCircle2 size={13} /></FinalizedBadge> : null}
-                        <SketchActionButton type="button" onClick={() => openEdit(load)} aria-label="Editar carga" title="Editar carga"><Edit3 size={14} /> Editar</SketchActionButton>
-                        <SketchActionButton type="button" onClick={() => openDuplicate(load)} aria-label="Duplicar carga" title="Duplicar carga"><Copy size={14} /> Duplicar</SketchActionButton>
-                      </SketchActions>
-                    </SketchTopBar>
+            <AppointmentBody>
+              <label>
+                <strong>Nova observação</strong>
+                <StatusTextarea
+                  maxLength={2000}
+                  value={statusObservation}
+                  onChange={(event) => setStatusObservation(event.target.value)}
+                  placeholder="Descreva a situação atual desta viagem..."
+                />
+              </label>
 
-                    <SketchBodyGrid>
-                      <SketchBodyItem>
-                        <span>Origem</span>
-                        <strong>{load.loadingLocation || '—'}</strong>
-                        <strong>{formatCompactDateTime(load.loadingAt)}</strong>
-                      </SketchBodyItem>
-                      <SketchBodyItem>
-                        <span>Destino</span>
-                        <strong>{load.deliveryLocation || '—'}</strong>
-                        <strong>{formatCompactDateTime(load.deliveryAt)}</strong>
-                      </SketchBodyItem>
-                      <SketchBodyItem>
-                        <span>Booking coleta</span>
-                        <strong>{load.collectionBookingNumber || '—'}</strong>
-                      </SketchBodyItem>
-                      <SketchBodyItem>
-                        <span>Booking baixa</span>
-                        <strong>{load.bookingNumber || '—'}</strong>
-                      </SketchBodyItem>
-                      <SketchBodyItem>
-                        <span>Plano</span>
-                        <strong>{load.plan || '—'}</strong>
-                      </SketchBodyItem>
-                      <SketchBodyItem>
-                        <span>{load.loadMode === 'CARGO' ? 'Carga' : load.loadMode === 'LOAD' ? 'Load' : 'Carga / Load'}</span>
-                        {load.loadMode === 'CARGO' ? (
-                          <strong>{load.cargoNumber || '—'}</strong>
-                        ) : load.loadMode === 'LOAD' && load.loadEntries.length > 0 ? (
-                          <SketchLoadEntries>
-                            {[...load.loadEntries]
-                              .sort((a, b) => (a.status === b.status ? 0 : a.status === 'EMPTY' ? -1 : 1))
-                              .map((entry, index) => (
-                                <div key={`${entry.status}-${entry.number}-${index}`}>
-                                  <small>{entry.status === 'EMPTY' ? 'Vazio' : 'Cheio'}</small>
-                                  <strong>{entry.number || '—'}</strong>
-                                </div>
-                              ))}
-                          </SketchLoadEntries>
-                        ) : (
-                          <strong>—</strong>
-                        )}
-                      </SketchBodyItem>
-                    </SketchBodyGrid>
+              {isAdministrator ? (
+                <StatusVisibilityRow>
+                  <span>Visibilidade para os demais usuários</span>
+                  <StatusVisibilityButton
+                    type="button"
+                    $visible={statusVisible}
+                    onClick={() => setStatusVisible((current) => !current)}
+                    disabled={statusSaving}
+                    title={statusVisible ? 'Clique para não exibir aos demais usuários' : 'Clique para exibir aos demais usuários'}
+                  >
+                    {statusVisible ? <Eye size={15} /> : <EyeOff size={15} />}
+                    {statusVisible ? 'Exibir' : 'Não exibir'}
+                  </StatusVisibilityButton>
+                </StatusVisibilityRow>
+              ) : null}
 
-                    <SketchObservation>
+              <StatusHistory>
+                <h4>Histórico de observações</h4>
+                {statusEditor.load.statusNotes.length === 0 ? (
+                  <AppointmentEmpty>Nenhuma observação de status cadastrada para esta viagem.</AppointmentEmpty>
+                ) : statusEditor.load.statusNotes.map((note) => (
+                  <StatusHistoryItem key={note.id}>
+                    <div>
                       <div>
-                        <span>Observação</span>
-                        <strong>{load.notes || '—'}</strong>
+                        <strong>{note.userName}</strong>
+                        <span>{formatDateTime(note.createdAt)}</span>
                       </div>
-                      <div>
-                        <span>Placas</span>
-                        <strong>{plateSummary(load)}</strong>
-                      </div>
-                      <div>
-                        <span>Motorista</span>
-                        <strong>{driverSummary(load)}</strong>
-                      </div>
-                    </SketchObservation>
-                  </LoadCard>
-                );
-              })}
-            </LoadList>
-          </LoadListViewport>
-        )}
-      </LoadsSection>
+                      {isAdministrator ? (
+                        <StatusVisibilityButton
+                          type="button"
+                          $visible={note.isVisible}
+                          onClick={() => void toggleStatusNoteVisibility(note.id, !note.isVisible)}
+                          disabled={statusVisibilitySavingId !== null}
+                          title={note.isVisible ? 'Ocultar esta observação dos demais usuários' : 'Exibir esta observação aos demais usuários'}
+                        >
+                          {note.isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                          {note.isVisible ? 'Exibir' : 'Não exibir'}
+                        </StatusVisibilityButton>
+                      ) : null}
+                    </div>
+                    <p>{note.observation}</p>
+                  </StatusHistoryItem>
+                ))}
+              </StatusHistory>
+            </AppointmentBody>
+
+            <AppointmentFooter>
+              <SecondaryButton type="button" onClick={closeStatusEditor} disabled={statusSaving || statusVisibilitySavingId !== null}>Fechar</SecondaryButton>
+              <PrimaryButton type="button" onClick={() => void saveStatusObservation()} disabled={statusSaving || statusVisibilitySavingId !== null || !statusObservation.trim()}>
+                {statusSaving ? <RefreshCw size={15} /> : <Plus size={15} />} {statusSaving ? 'Salvando...' : 'Adicionar observação'}
+              </PrimaryButton>
+            </AppointmentFooter>
+          </AppointmentModal>
+        </>
+      ) : null}
+
+      {detailLoad ? (
+        <>
+          <DetailBackdrop onClick={() => setDetailLoad(null)} />
+          <DetailDrawer role="dialog" aria-modal="true" aria-labelledby="load-detail-title">
+            <DetailHeader $accent={detailLoad.shipperColor}>
+              <div>
+                <span>EMBARCADOR</span>
+                <h2 id="load-detail-title">{detailLoad.shipperName}</h2>
+              </div>
+              <IconButton type="button" onClick={() => setDetailLoad(null)} aria-label="Fechar detalhes"><X size={17} /></IconButton>
+            </DetailHeader>
+
+            <DetailBody>
+              <DetailStatus $accent={detailLoad.shipperColor}>
+                <span>{STAGE_LABELS[detailLoad.stage]}</span>
+                <strong>{detailLoad.completedAt ? 'FINALIZADO' : 'EM PROCESSO'}</strong>
+              </DetailStatus>
+
+              <DetailSection>
+                <DetailSectionTitle>Trajeto</DetailSectionTitle>
+                <DetailRoute>
+                  <strong>{detailLoad.loadingCityLabel || detailLoad.loadingLocation || 'Origem não informada'}</strong>
+                  <ArrowRight size={19} />
+                  <strong>{detailLoad.deliveryCityLabel || detailLoad.deliveryLocation || 'Destino não informado'}</strong>
+                </DetailRoute>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Identificação e planejamento</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem><span>Local de carregamento</span><strong>{detailLoad.loadingLocation || '—'}</strong></DetailItem>
+                  <DetailItem><span>Data de carregamento</span><strong>{formatDateTime(detailLoad.loadingAt)}</strong></DetailItem>
+                  <DetailItem><span>Plano</span><strong>{detailLoad.plan || '—'}</strong></DetailItem>
+                  <DetailItem><span>Nº Carga / Load</span><strong>{loadIdentifier(detailLoad)}</strong></DetailItem>
+                  <DetailItem><span>Tipo de carga</span><strong>{detailLoad.cargoTypeName || '—'}</strong></DetailItem>
+                  <DetailItem><span>Remessa</span><strong>{detailLoad.shipmentNumber || '—'}</strong></DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Datas operacionais</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem $full><span>Agendamento da coleta</span><strong>{formatDate(detailLoad.collectionScheduledAt)}</strong></DetailItem>
+                  <DetailItem><span>Local coleta</span><strong>{detailLoad.collectionTerminal || '—'}</strong></DetailItem>
+                  <DetailItem><span>Data / hora coleta</span><strong>{formatDateTime(detailLoad.collectionAt)}</strong></DetailItem>
+                  <DetailItem><span>Local da baixa</span><strong>{detailLoad.deliveryLocation || '—'}</strong></DetailItem>
+                  <DetailItem><span>Data da baixa</span><strong>{formatDateTime(detailLoad.deliveryAt)}</strong></DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Armador e bookings</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem><span>Armador</span><strong>{detailLoad.shipownerName || detailLoad.shipowner || '—'}</strong></DetailItem>
+                  <DetailItem><span>Navio</span><strong>{detailLoad.vessel || '—'}</strong></DetailItem>
+                  <DetailItem><span>Deadline</span><strong>{formatDate(detailLoad.deadline)}</strong></DetailItem>
+                  <DetailItem><span>Booking coleta</span><strong>{detailLoad.collectionBookingNumber || '—'}</strong></DetailItem>
+                  <DetailItem><span>Booking baixa</span><strong>{detailLoad.bookingNumber || '—'}</strong></DetailItem>
+                  <DetailItem><span>País</span><strong>{detailLoad.country || '—'}</strong></DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Container</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem><span>Tipo</span><strong>{detailLoad.containerTypeName || '—'}</strong></DetailItem>
+                  <DetailItem><span>Nº Container</span><strong>{detailLoad.containerNumber || '—'}</strong></DetailItem>
+                  <DetailItem><span>Tara</span><strong>{formatWeight(detailLoad.containerTareKg)}</strong></DetailItem>
+                  <DetailItem><span>Payload</span><strong>{formatWeight(detailLoad.containerPayloadKg)}</strong></DetailItem>
+                  <DetailItem><span>Lacre armador</span><strong>{detailLoad.shipownerSeal || '—'}</strong></DetailItem>
+                  <DetailItem><span>Lacre SIF</span><strong>{detailLoad.sifSeal || '—'}</strong></DetailItem>
+                  <DetailItem><span>Temperatura</span><strong>{detailLoad.temperature || '—'}</strong></DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Equipe e veículos</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem><span>Placas</span><strong>{plateSummary(detailLoad)}</strong></DetailItem>
+                  <DetailItem><span>Motoristas</span><strong>{driverSummary(detailLoad)}</strong></DetailItem>
+                  <DetailItem><span>Tipo das placas</span><strong>{detailLoad.plateMode === 'THIRD_PARTY' ? 'Terceiro' : 'Frota própria'}</strong></DetailItem>
+                </DetailGrid>
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Observação</DetailSectionTitle>
+                <DetailText>{detailLoad.notes || 'Sem observações cadastradas.'}</DetailText>
+              </DetailSection>
+
+            </DetailBody>
+          </DetailDrawer>
+        </>
+      ) : null}
 
       {drawerMode ? (
         <>
@@ -891,15 +1443,15 @@ export function LogisticsCalendar() {
           <Drawer role="dialog" aria-modal="true" aria-labelledby="calendar-load-drawer-title">
             <DrawerHeader>
               <div>
-                <h2 id="calendar-load-drawer-title">{drawerMode === 'create' ? 'Nova carga' : 'Detalhes da carga'}</h2>
-                <p>Os mesmos dados do Painel de Logística, salvos na mesma carga.</p>
+                <h2 id="calendar-load-drawer-title">{drawerMode === 'create' ? 'Nova carga' : 'Editar carga'}</h2>
+                <p>Cadastro operacional da carga.</p>
               </div>
               <IconButton type="button" onClick={closeDrawer} aria-label="Fechar"><X size={17} /></IconButton>
             </DrawerHeader>
 
             <DrawerBody>
               <AccentPreview $accent={formAccent}>
-                <div><strong>{form.shipowner || 'Armador'}</strong><span>{selectedShipper?.name || 'Selecione o embarcador'}</span></div>
+                <div><strong>{selectedShipper?.name || 'Embarcador'}</strong><span>{form.shipowner || 'Selecione o armador'}</span></div>
                 <span>{STAGE_LABELS[form.stage]}</span>
               </AccentPreview>
 
@@ -908,6 +1460,7 @@ export function LogisticsCalendar() {
                 form={form}
                 options={options}
                 completed={Boolean(selectedLoad?.completedAt)}
+                fixedLoadingDate={drawerMode === 'create' ? selectedDate ?? undefined : undefined}
                 onChange={setForm}
                 onOptionsChange={setOptions}
               />
