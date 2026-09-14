@@ -1287,44 +1287,77 @@ export const SelectedDateBar = styled.div`
 
 export const ListViewport = styled.div`
   min-width: 0;
+  width: 100%;
+  height: auto;
+  max-height: none;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-gutter: stable;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: auto;
 
-  @media (max-width: 1180px) {
-    overflow-x: hidden;
-    padding: 0.75rem;
+  /*
+   * Este elemento existe somente para a rolagem horizontal da tabela.
+   * A altura acompanha todo o conteúdo e NUNCA cria uma rolagem vertical
+   * própria; a rolagem vertical permanece exclusivamente na página.
+   */
+  @media (max-width: 1680px) {
+    overflow: visible;
+    padding: 0.78rem;
     background: ${({ theme }) => theme.colors.dashboardSurface};
   }
 `;
 
+export const FixedHorizontalScrollbar = styled.div`
+  position: fixed;
+  bottom: 0;
+  z-index: 999;
+  height: 18px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.08);
+
+  &::-webkit-scrollbar {
+    height: 12px;
+  }
+
+  @media (max-width: 1680px) {
+    display: none;
+  }
+`;
+
+export const FixedHorizontalScrollbarTrack = styled.div`
+  height: 1px;
+`;
+
 const listColumns = `
-  minmax(8.8rem, 1.05fr)
-  minmax(6.3rem, 0.62fr)
-  minmax(5rem, 0.52fr)
-  minmax(7.5rem, 0.72fr)
-  minmax(8.8rem, 0.95fr)
-  minmax(8.8rem, 0.95fr)
-  minmax(8.7rem, 0.95fr)
-  minmax(9.5rem, 1.05fr)
-  minmax(10.2rem, 1.03fr)
-  minmax(10.2rem, 1.08fr)
-  minmax(10.2rem, 1.03fr)
-  minmax(11.5rem, 1.2fr)
-  minmax(10rem, 0.95fr)
-  minmax(11rem, 1fr)
+  minmax(9.2rem, 1.05fr)
+  minmax(7.2rem, 0.82fr)
+  minmax(7.2rem, 0.82fr)
+  minmax(8.4rem, 0.92fr)
+  minmax(6.6rem, 0.72fr)
+  minmax(7.3rem, 0.84fr)
+  minmax(9.4rem, 1.02fr)
+  minmax(9.4rem, 1.02fr)
+  minmax(10rem, 1.08fr)
+  minmax(8.4rem, 0.9fr)
+  minmax(7.8rem, 0.78fr)
+  minmax(14.4rem, 1.28fr)
 `;
 
 export const ListTable = styled.div`
-  width: max(100%, 132rem);
+  width: 100%;
+  min-width: 107.7rem;
   background: ${({ theme }) => theme.colors.dashboardSurface};
 
-  @media (max-width: 1180px) {
+  @media (max-width: 1680px) {
     width: 100%;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.85rem;
     background: transparent;
   }
 `;
@@ -1333,6 +1366,9 @@ export const ListHeaderRow = styled.div`
   display: grid;
   grid-template-columns: ${listColumns};
   align-items: stretch;
+  position: sticky;
+  top: 0;
+  z-index: 4;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   background: ${({ theme }) => theme.colors.surfaceElevated};
 
@@ -1340,20 +1376,20 @@ export const ListHeaderRow = styled.div`
     min-width: 0;
     display: flex;
     align-items: center;
-    padding: 0.78rem 0.68rem;
+    padding: 0.86rem 0.72rem;
     border-right: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
     color: ${({ theme }) => theme.colors.dashboardTextMuted};
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     font-weight: 850;
     letter-spacing: 0.025em;
-    line-height: 1.2;
+    line-height: 1.22;
     text-transform: uppercase;
     overflow-wrap: anywhere;
   }
 
   > span:last-child { border-right: 0; }
 
-  @media (max-width: 1180px) {
+  @media (max-width: 1680px) {
     display: none;
   }
 `;
@@ -1374,8 +1410,15 @@ export const ListRow = styled.div<{ $accent: string }>`
     top: 0;
     bottom: 0;
     left: 0;
-    width: 0.28rem;
+    width: 0.24rem;
     background: ${({ $accent }) => $accent};
+    pointer-events: none;
+  }
+
+  > div:first-child {
+    border-left: 0.24rem solid ${({ $accent }) => $accent};
+    background: ${({ $accent, theme }) =>
+      `color-mix(in srgb, ${$accent} 13%, ${theme.colors.surfaceElevated} 87%)`};
   }
 
   &:hover {
@@ -1390,7 +1433,7 @@ export const ListRow = styled.div<{ $accent: string }>`
 
   &:last-child { border-bottom: 0; }
 
-  @media (max-width: 1180px) {
+  @media (max-width: 1680px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     overflow: hidden;
     border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
@@ -1400,6 +1443,12 @@ export const ListRow = styled.div<{ $accent: string }>`
     box-shadow: 0 0.22rem 0.9rem rgba(8, 24, 14, 0.06);
 
     &::before { display: none; }
+
+    > div:first-child {
+      border-left: 0;
+      background: ${({ $accent, theme }) =>
+        `color-mix(in srgb, ${$accent} 13%, ${theme.colors.surfaceElevated} 87%)`};
+    }
   }
 
   @media (max-width: 680px) {
@@ -1411,30 +1460,30 @@ export const ListCell = styled.div<{ $strong?: boolean; $muted?: boolean }>`
   min-width: 0;
   display: flex;
   align-items: center;
-  padding: 0.82rem 0.68rem;
+  padding: 0.9rem 0.72rem;
   border-right: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   color: ${({ $muted, theme }) => ($muted ? theme.colors.dashboardTextMuted : theme.colors.dashboardText)};
-  font-size: 0.9rem;
-  font-weight: ${({ $strong }) => ($strong ? 800 : 650)};
-  line-height: 1.35;
+  font-size: 0.92rem;
+  font-weight: ${({ $strong }) => ($strong ? 820 : 650)};
+  line-height: 1.38;
   overflow-wrap: anywhere;
 
-  &:first-child { padding-left: 0.85rem; }
+  &:first-child { padding-left: 0.9rem; }
 
-  @media (max-width: 1180px) {
-    min-height: 4.4rem;
+  @media (max-width: 1680px) {
+    min-height: 4.6rem;
     display: grid;
-    grid-template-columns: minmax(7.6rem, 0.42fr) minmax(0, 1fr);
+    grid-template-columns: minmax(8.4rem, 0.42fr) minmax(0, 1fr);
     align-content: center;
-    gap: 0.65rem;
-    padding: 0.7rem 0.85rem;
+    gap: 0.72rem;
+    padding: 0.78rem 0.9rem;
     border-right: 0;
     border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
-    font-size: 0.9rem;
+    font-size: 0.94rem;
 
     &::before {
       color: ${({ theme }) => theme.colors.dashboardTextMuted};
-      font-size: 0.68rem;
+      font-size: 0.72rem;
       font-weight: 850;
       letter-spacing: 0.025em;
       line-height: 1.25;
@@ -1442,39 +1491,52 @@ export const ListCell = styled.div<{ $strong?: boolean; $muted?: boolean }>`
     }
 
     &:nth-child(1)::before { content: 'Embarcador'; }
-    &:nth-child(2)::before { content: 'Grade'; }
-    &:nth-child(3)::before { content: 'Hora'; }
-    &:nth-child(4)::before { content: 'Etapa'; }
-    &:nth-child(5)::before { content: 'Origem'; }
-    &:nth-child(6)::before { content: 'Destino'; }
-    &:nth-child(7)::before { content: 'Armador'; }
-    &:nth-child(8)::before { content: 'Local coleta'; }
-    &:nth-child(9)::before { content: 'Agendamento coleta'; }
-    &:nth-child(10)::before { content: 'Local baixa'; }
-    &:nth-child(11)::before { content: 'Agendamento baixa'; }
-    &:nth-child(12)::before { content: 'Observação'; }
-    &:nth-child(13)::before { content: 'Status viagem'; }
+    &:nth-child(2)::before { content: 'Origem'; }
+    &:nth-child(3)::before { content: 'Destino'; }
+    &:nth-child(4)::before { content: 'Grade de carregamento'; }
+    &:nth-child(5)::before { content: 'Hora'; }
+    &:nth-child(6)::before { content: 'Armador'; }
+    &:nth-child(7)::before { content: 'Agendamento coleta'; }
+    &:nth-child(8)::before { content: 'Agendamento baixa'; }
+    &:nth-child(9)::before { content: 'Observação'; }
+    &:nth-child(10)::before { content: 'Status viagem'; }
+    &:nth-child(11)::before { content: 'Etapa'; }
 
     &:first-child {
-      padding-left: 0.85rem;
+      padding-left: 0.9rem;
       font-size: 1rem;
+    }
+
+    &:first-child::before {
+      color: currentColor;
+      opacity: 0.82;
     }
   }
 
   @media (max-width: 680px) {
     min-height: 0;
-    grid-template-columns: minmax(6.6rem, 0.38fr) minmax(0, 1fr);
+    grid-template-columns: minmax(7.2rem, 0.38fr) minmax(0, 1fr);
   }
+`;
+
+export const ListShipperBadge = styled.span<{ $accent: string }>`
+  width: 100%;
+  min-width: 0;
+  display: block;
+  color: ${({ $accent, theme }) => `color-mix(in srgb, ${$accent} 76%, ${theme.colors.dashboardText} 24%)`};
+  font-weight: 900;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 `;
 
 export const OperationStageBadge = styled.span<{ $stage: 'PROGRAMMING' | 'COLLECTION' | 'LOADING' | 'DELIVERY' }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 1.9rem;
-  padding: 0.32rem 0.58rem;
+  min-height: 2rem;
+  padding: 0.34rem 0.62rem;
   border-radius: 999px;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 850;
   white-space: nowrap;
   color: ${({ $stage }) => ({
@@ -1500,63 +1562,75 @@ export const OperationStageBadge = styled.span<{ $stage: 'PROGRAMMING' | 'COLLEC
 export const ListActions = styled.div`
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.55rem 0.6rem;
+  gap: 0.38rem;
+  padding: 0.58rem 0.62rem;
 
-  @media (max-width: 1180px) {
+  @media (max-width: 1680px) {
     grid-column: 1 / -1;
     justify-content: flex-end;
-    padding: 0.72rem 0.85rem;
+    padding: 0.78rem 0.9rem;
     background: ${({ theme }) => theme.colors.dashboardSurface};
   }
 
   @media (max-width: 680px) {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 `;
 
 export const ListActionButton = styled.button`
   width: 100%;
   min-width: 0;
-  min-height: 2.4rem;
+  min-height: 2.45rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.38rem;
-  padding: 0.5rem 0.52rem;
+  gap: 0.3rem;
+  padding: 0.5rem 0.42rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
   border-radius: 0.72rem;
   color: ${({ theme }) => theme.colors.dashboardText};
   background: ${({ theme }) => theme.colors.surfaceElevated};
   box-shadow: 0 0.12rem 0.35rem rgba(8, 24, 14, 0.06);
-  font-size: 0.84rem;
+  font-size: 0.78rem;
   font-weight: 820;
   white-space: nowrap;
   cursor: pointer;
   transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 
-  &:first-child {
+  &:nth-child(1) {
     color: ${({ theme }) => theme.colors.brandGreen};
     border-color: ${({ theme }) => theme.colors.brandGreenBorder};
     background: ${({ theme }) => theme.colors.brandGreenSoft};
   }
 
-  &:last-child {
+  &:nth-child(2) {
     color: #245c91;
     border-color: rgba(36, 92, 145, 0.28);
     background: rgba(36, 92, 145, 0.08);
   }
 
-  &:hover {
+  &:nth-child(3) {
+    color: ${({ theme }) => theme.colors.danger};
+    border-color: ${({ theme }) => theme.colors.dangerBorder};
+    background: ${({ theme }) => theme.colors.dangerSoft};
+  }
+
+  &:hover:not(:disabled) {
     transform: translateY(-1px);
     box-shadow: 0 0.28rem 0.65rem rgba(8, 24, 14, 0.10);
   }
 
+  &:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+
   @media (max-width: 680px) {
     width: 100%;
+    font-size: 0.76rem;
   }
 `;
 

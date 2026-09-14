@@ -16,7 +16,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { SearchableSelect } from '../../components/SearchableSelect';
 import { useAuth } from '../../contexts/Auth/useAuth';
@@ -69,6 +70,8 @@ import {
   EmptyState,
   FilterBox,
   FinalizeButton,
+  FixedHorizontalScrollbar,
+  FixedHorizontalScrollbarTrack,
   Header,
   IconButton,
   ListActionButton,
@@ -79,16 +82,14 @@ import {
   ListTable,
   OperationStageBadge,
   ListViewport,
-  InlineLocationInput,
   LoadingState,
-  LoadsCount,
-  LoadsHeader,
   LoadsSection,
   MonthTitle,
   Page,
   PrimaryButton,
   SecondaryButton,
   ScheduleStatusButton,
+  ListShipperBadge,
   StatusHistory,
   StatusHistoryItem,
   StatusTextarea,
@@ -424,12 +425,32 @@ function collectionScheduleDates(load: LogisticsLoad): string[] {
   return [...new Set(dates)];
 }
 
-function loadMatchesCalendarDate(load: LogisticsLoad, date: string): boolean {
-  return collectionScheduleDates(load).includes(date) || dateKeyFromIso(load.loadingAt) === date;
+function deliveryScheduleDates(load: LogisticsLoad): string[] {
+  return [...new Set(
+    load.deliveryAppointments
+      .map((entry) => dateKeyFromIso(entry.scheduledAt))
+      .filter((value): value is string => Boolean(value)),
+  )];
 }
 
+function loadMatchesCalendarDate(load: LogisticsLoad, date: string): boolean {
+  return collectionScheduleDates(load).includes(date)
+    || dateKeyFromIso(load.collectionAt) === date
+    || dateKeyFromIso(load.loadingAt) === date
+    || dateKeyFromIso(load.deliveryAt) === date
+    || deliveryScheduleDates(load).includes(date);
+}
+
+function stageForDate(load: LogisticsLoad, date: string): LogisticsStage {
+  if (dateKeyFromIso(load.deliveryAt) === date || deliveryScheduleDates(load).includes(date)) return 'DELIVERY';
+  if (dateKeyFromIso(load.loadingAt) === date) return 'LOADING';
+  if (dateKeyFromIso(load.collectionAt) === date || collectionScheduleDates(load).includes(date)) return 'COLLECTION';
+  return load.stage;
+}
+
+
 function loadSortTime(load: LogisticsLoad): number {
-  const candidates = [load.loadingAt, load.collectionAt, load.collectionScheduledAt]
+  const candidates = [load.loadingAt, load.collectionAt, load.collectionScheduledAt, load.deliveryAt, ...load.deliveryAppointments.map((entry) => entry.scheduledAt)]
     .filter((value): value is string => Boolean(value))
     .map((value) => new Date(value).getTime())
     .filter((value) => Number.isFinite(value));
@@ -477,7 +498,16 @@ export function LogisticsCalendar() {
   const [statusVisible, setStatusVisible] = useState(true);
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusVisibilitySavingId, setStatusVisibilitySavingId] = useState<number | null>(null);
-  const [deliveryDrafts, setDeliveryDrafts] = useState<Record<number, string>>({});
+  const listViewportRef = useRef<HTMLDivElement | null>(null);
+  const listTableRef = useRef<HTMLDivElement | null>(null);
+  const fixedHorizontalScrollbarRef = useRef<HTMLDivElement | null>(null);
+  const syncingHorizontalScrollRef = useRef(false);
+  const [fixedScrollbar, setFixedScrollbar] = useState({
+    visible: false,
+    left: 0,
+    width: 0,
+    contentWidth: 0,
+  });
 
   const monthWeeks = useMemo(() => buildMonthWeeks(monthAnchor), [monthAnchor]);
   const monthRange = useMemo(() => monthBounds(monthAnchor), [monthAnchor]);
@@ -636,6 +666,80 @@ export function LogisticsCalendar() {
         return loadSortTime(a) - loadSortTime(b);
       });
   }, [loads, selectedDate]);
+
+  useEffect(() => {
+    const viewport = listViewportRef.current;
+    const table = listTableRef.current;
+
+    if (!viewport || !table || !selectedDate) {
+      setFixedScrollbar((current) => (current.visible ? { ...current, visible: false } : current));
+      return;
+    }
+
+    const updateFixedScrollbar = () => {
+      const currentViewport = listViewportRef.current;
+      const currentTable = listTableRef.current;
+      if (!currentViewport || !currentTable) return;
+
+      const rect = currentViewport.getBoundingClientRect();
+      const contentWidth = currentTable.scrollWidth;
+      const hasHorizontalOverflow = contentWidth > currentViewport.clientWidth + 2;
+      const listIsOnScreen = rect.top < window.innerHeight && rect.bottom > 18;
+      const desktopTableMode = window.innerWidth > 1680;
+      const left = Math.max(0, rect.left);
+
+      setFixedScrollbar({
+        visible: hasHorizontalOverflow && listIsOnScreen && desktopTableMode,
+        left,
+        width: Math.max(0, Math.min(rect.width, window.innerWidth - left)),
+        contentWidth,
+      });
+    };
+
+    const syncFromTable = () => {
+      const fixedBar = fixedHorizontalScrollbarRef.current;
+      if (!fixedBar || syncingHorizontalScrollRef.current) return;
+      syncingHorizontalScrollRef.current = true;
+      fixedBar.scrollLeft = viewport.scrollLeft;
+      requestAnimationFrame(() => {
+        syncingHorizontalScrollRef.current = false;
+      });
+    };
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateFixedScrollbar) : null;
+    resizeObserver?.observe(viewport);
+    resizeObserver?.observe(table);
+    viewport.addEventListener('scroll', syncFromTable, { passive: true });
+    window.addEventListener('scroll', updateFixedScrollbar, { passive: true });
+    window.addEventListener('resize', updateFixedScrollbar);
+    updateFixedScrollbar();
+
+    return () => {
+      resizeObserver?.disconnect();
+      viewport.removeEventListener('scroll', syncFromTable);
+      window.removeEventListener('scroll', updateFixedScrollbar);
+      window.removeEventListener('resize', updateFixedScrollbar);
+    };
+  }, [selectedDate, visibleLoads.length]);
+
+  useEffect(() => {
+    if (!fixedScrollbar.visible) return;
+    const viewport = listViewportRef.current;
+    const fixedBar = fixedHorizontalScrollbarRef.current;
+    if (viewport && fixedBar) fixedBar.scrollLeft = viewport.scrollLeft;
+  }, [fixedScrollbar.visible]);
+
+  const handleFixedHorizontalScroll = useCallback(() => {
+    const viewport = listViewportRef.current;
+    const fixedBar = fixedHorizontalScrollbarRef.current;
+    if (!viewport || !fixedBar || syncingHorizontalScrollRef.current) return;
+
+    syncingHorizontalScrollRef.current = true;
+    viewport.scrollLeft = fixedBar.scrollLeft;
+    requestAnimationFrame(() => {
+      syncingHorizontalScrollRef.current = false;
+    });
+  }, []);
 
   const shipperSelectOptions = useMemo(
     () => options.shippers.map((item) => ({ value: String(item.id), label: item.name })),
@@ -829,25 +933,6 @@ export function LogisticsCalendar() {
     }
   }
 
-  async function saveDeliveryLocationInline(load: LogisticsLoad, value: string) {
-    const normalized = value.trim();
-    if (normalized === (load.deliveryLocation ?? '').trim()) return;
-    const payload = formFromLoad(load);
-    payload.deliveryLocation = normalized;
-    try {
-      await logisticsService.update(load.id, payload);
-      setDeliveryDrafts((current) => {
-        const next = { ...current };
-        delete next[load.id];
-        return next;
-      });
-      await loadCalendar();
-    } catch (error) {
-      const feedback = getApiErrorFeedback(error, 'Não foi possível atualizar o local da baixa.');
-      notifications.error(feedback.title, feedback.message, feedback.details);
-      setDeliveryDrafts((current) => ({ ...current, [load.id]: load.deliveryLocation ?? '' }));
-    }
-  }
 
   async function saveLoad() {
     const validation = validateLogisticsForm(form);
@@ -1057,7 +1142,7 @@ export function LogisticsCalendar() {
             <SecondaryButton type="button" onClick={returnToCalendar}><ArrowLeft size={16} /> Voltar ao calendário</SecondaryButton>
             <div>
               <strong>Cargas de {formatDate(selectedDate)}</strong>
-              <span>Agendamentos e carregamentos do dia em uma única listagem.</span>
+              <span>{visibleLoads.length} carga(s) nesta data.</span>
             </div>
             <FilterBox>
               <SearchableSelect
@@ -1073,34 +1158,24 @@ export function LogisticsCalendar() {
             </FilterBox>
           </SelectedDateBar>
 
-          <LoadsHeader>
-            <div>
-              <h2>Listagem do dia</h2>
-              <p>Clique em qualquer linha para abrir todos os dados da carga no painel lateral.</p>
-            </div>
-            <LoadsCount>{visibleLoads.length} carga(s)</LoadsCount>
-          </LoadsHeader>
-
           {loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
-            <ListViewport>
+            <ListViewport ref={listViewportRef}>
               {visibleLoads.length === 0 ? (
                 <EmptyState>Nenhum agendamento ou carregamento encontrado para esta data.</EmptyState>
               ) : (
-                <ListTable>
+                <ListTable ref={listTableRef}>
                   <ListHeaderRow>
                     <span>Embarcador</span>
-                    <span>Grade</span>
-                    <span>Hora</span>
-                    <span>Etapa</span>
                     <span>Origem</span>
                     <span>Destino</span>
+                    <span>Grade de carregamento</span>
+                    <span>Hora do carregamento</span>
                     <span>Armador</span>
-                    <span>Local de coleta</span>
                     <span>Agendamento coleta</span>
-                    <span>Local de baixa</span>
                     <span>Agendamento baixa</span>
                     <span>Observação</span>
                     <span>Status viagem</span>
+                    <span>Etapa</span>
                     <span>Ações</span>
                   </ListHeaderRow>
                   {visibleLoads.map((load) => {
@@ -1108,17 +1183,10 @@ export function LogisticsCalendar() {
                     const deliveryCount = load.deliveryAppointments.length;
                     const collectionScheduled = collectionCount > 0;
                     const deliveryScheduled = deliveryCount > 0;
-                    const collectionLocation = load.collectionAppointments.find((entry) => entry.location.trim())?.location
-                      || load.collectionTerminal
-                      || '—';
-                    const deliveryDraft = deliveryDrafts[load.id]
-                      ?? load.deliveryLocation
-                      ?? load.deliveryAppointments.find((entry) => entry.location.trim())?.location
-                      ?? '';
                     return (
                     <ListRow
                       key={load.id}
-                      $accent={load.shipperColor}
+                      $accent={load.shipperColor || '#7d8b82'}
                       tabIndex={0}
                       role="button"
                       aria-label={`Abrir detalhes da carga ${loadIdentifier(load)}`}
@@ -1130,14 +1198,16 @@ export function LogisticsCalendar() {
                         }
                       }}
                     >
-                      <ListCell $strong>{load.shipperName || '—'}</ListCell>
-                      <ListCell>{formatDate(load.loadingAt)}</ListCell>
-                      <ListCell>{formatTime(load.loadingAt)}</ListCell>
-                      <ListCell><OperationStageBadge $stage={load.stage}>{LIST_STAGE_LABELS[load.stage]}</OperationStageBadge></ListCell>
+                      <ListCell $strong>
+                        <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
+                          {load.shipperName || '—'}
+                        </ListShipperBadge>
+                      </ListCell>
                       <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
                       <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
+                      <ListCell>{formatDate(load.loadingAt)}</ListCell>
+                      <ListCell>{formatTime(load.loadingAt)}</ListCell>
                       <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
-                      <ListCell>{collectionLocation}</ListCell>
                       <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         <ScheduleStatusButton
                           type="button"
@@ -1148,19 +1218,6 @@ export function LogisticsCalendar() {
                           <CalendarDays size={16} />
                           <span>{collectionScheduled ? `Coleta agendada · ${collectionCount}` : 'Agendar coleta'}</span>
                         </ScheduleStatusButton>
-                      </ListCell>
-                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <InlineLocationInput
-                          value={deliveryDraft}
-                          placeholder="Local da baixa"
-                          onChange={(event) => setDeliveryDrafts((current) => ({ ...current, [load.id]: event.target.value }))}
-                          onBlur={(event) => void saveDeliveryLocationInline(load, event.currentTarget.value)}
-                          onKeyDown={(event) => {
-                            event.stopPropagation();
-                            if (event.key === 'Enter') event.currentTarget.blur();
-                          }}
-                          aria-label={`Local de baixa de ${load.shipperName}`}
-                        />
                       </ListCell>
                       <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         <ScheduleStatusButton
@@ -1181,9 +1238,23 @@ export function LogisticsCalendar() {
                           {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
                         </StatusTravelButton>
                       </ListCell>
+                      <ListCell>
+                        {(() => {
+                          const stage = stageForDate(load, selectedDate);
+                          return <OperationStageBadge $stage={stage}>{LIST_STAGE_LABELS[stage]}</OperationStageBadge>;
+                        })()}
+                      </ListCell>
                       <ListActions onClick={(event) => event.stopPropagation()}>
                         <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
                         <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
+                        <ListActionButton
+                          type="button"
+                          onClick={() => void deleteLoad(load)}
+                          title="Excluir carga"
+                          disabled={deletingId === load.id}
+                        >
+                          <Trash2 size={15} /> {deletingId === load.id ? 'Excluindo' : 'Excluir'}
+                        </ListActionButton>
                       </ListActions>
                     </ListRow>
                     );
@@ -1192,6 +1263,20 @@ export function LogisticsCalendar() {
               )}
             </ListViewport>
           )}
+
+          {fixedScrollbar.visible && typeof document !== 'undefined'
+            ? createPortal(
+                <FixedHorizontalScrollbar
+                  ref={fixedHorizontalScrollbarRef}
+                  onScroll={handleFixedHorizontalScroll}
+                  style={{ left: fixedScrollbar.left, width: fixedScrollbar.width }}
+                  aria-label="Rolagem horizontal da listagem"
+                >
+                  <FixedHorizontalScrollbarTrack style={{ width: fixedScrollbar.contentWidth }} />
+                </FixedHorizontalScrollbar>,
+                document.body,
+              )
+            : null}
         </LoadsSection>
       )}
 
