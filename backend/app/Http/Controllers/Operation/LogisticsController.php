@@ -157,7 +157,11 @@ class LogisticsController extends Controller
                         )
                         ->orWhereBetween('collection_at', [$dateFrom, $dateTo])
                         ->orWhereBetween('loading_at', [$dateFrom, $dateTo])
-                        ->orWhereBetween('delivery_at', [$dateFrom, $dateTo]);
+                        ->orWhereBetween('delivery_at', [$dateFrom, $dateTo])
+                        ->orWhereRaw(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(delivery_appointments, '[]'::jsonb)) AS appointment WHERE NULLIF(appointment->>'scheduled_at', '')::timestamp BETWEEN ? AND ?)",
+                            [$dateFrom, $dateTo]
+                        );
                 });
 
             if (! empty($validated['shipper_id'])) {
