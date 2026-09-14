@@ -158,6 +158,8 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     shipowner: '',
     bookingNumber: '',
     collectionBookingNumber: '',
+    gradeNumber: '',
+    gradeAt: '',
     cargoTypeId: '',
     containerTypeId: '',
     shipownerId: '',
@@ -174,6 +176,7 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     collectionLocationTypeId: '',
     collectionScheduledAt: '',
     collectionAt: '',
+    collectionAppointments: [],
     loadingCityId: '',
     loadingLocation: '',
     loadingAt: '',
@@ -181,6 +184,7 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     deliveryLocation: '',
     deliveryLocationTypeId: '',
     deliveryAt: '',
+    deliveryAppointments: [],
     plan: '',
     loadMode: '',
     loadStatus: '',
@@ -208,6 +212,8 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     shipowner: load.shipowner ?? '',
     bookingNumber: load.bookingNumber ?? '',
     collectionBookingNumber: load.collectionBookingNumber ?? '',
+    gradeNumber: load.gradeNumber ?? '',
+    gradeAt: toLocalInput(load.gradeAt),
     cargoTypeId: load.cargoTypeId ? String(load.cargoTypeId) : '',
     containerTypeId: load.containerTypeId ? String(load.containerTypeId) : '',
     shipownerId: load.shipownerId ? String(load.shipownerId) : '',
@@ -224,6 +230,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
     collectionScheduledAt: toDateInput(load.collectionScheduledAt),
     collectionAt: toLocalInput(load.collectionAt),
+    collectionAppointments: load.collectionAppointments.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })),
     loadingCityId: load.loadingCityId ? String(load.loadingCityId) : '',
     loadingLocation: load.loadingLocation ?? '',
     loadingAt: toLocalInput(load.loadingAt),
@@ -231,6 +238,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     deliveryLocation: load.deliveryLocation ?? '',
     deliveryLocationTypeId: load.deliveryLocationTypeId ? String(load.deliveryLocationTypeId) : '',
     deliveryAt: toLocalInput(load.deliveryAt),
+    deliveryAppointments: load.deliveryAppointments.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })),
     plan: load.plan ?? '',
     loadMode: load.loadMode ?? '',
     loadStatus: load.loadStatus ?? '',
@@ -467,7 +475,7 @@ export function Logistic() {
         setSelectedLoad(created);
         setForm(formFromLoad(created));
         setPanelMode('edit');
-        notifications.success('Carga criada', `${created.referenceCode} adicionada ao quadro de logística.`);
+        notifications.success('Carga criada', 'A carga foi adicionada ao quadro de logística.');
       } else if (selectedLoad) {
         const originalStage = selectedLoad.stage;
         let updated = await logisticsService.update(selectedLoad.id, form);
@@ -477,7 +485,7 @@ export function Logistic() {
         }
         setSelectedLoad(updated);
         setForm(formFromLoad(updated));
-        notifications.success('Carga atualizada', `${updated.referenceCode} foi salva com sucesso.`);
+        notifications.success('Carga atualizada', 'As alterações foram salvas com sucesso.');
       }
       await loadBoard();
     } catch (error) {
@@ -533,7 +541,7 @@ export function Logistic() {
     if (finishingId !== null || load.stage !== 'DELIVERY' || load.completedAt) return;
     const confirmed = await notifications.confirm({
       title: 'Finalizar carga?',
-      message: `A carga ${load.referenceCode} será encerrada e sairá do quadro de cargas em processo.`,
+      message: 'A carga será encerrada e sairá do quadro de cargas em processo.',
       details: ['Ela continuará disponível no filtro de cargas finalizadas e manterá todo o histórico da operação.'],
       type: 'warning',
       confirmLabel: 'Finalizar carga',
@@ -544,7 +552,7 @@ export function Logistic() {
     setFinishingId(load.id);
     try {
       const finalized = await logisticsService.finish(load.id);
-      notifications.success('Carga finalizada', `${finalized.referenceCode} foi movida para as cargas finalizadas.`);
+      notifications.success('Carga finalizada', 'A carga foi movida para as cargas finalizadas.');
       if (selectedLoad?.id === load.id && filters.status === 'PROCESSING') closePanel();
       else if (selectedLoad?.id === load.id) {
         setSelectedLoad(finalized);
@@ -562,7 +570,7 @@ export function Logistic() {
   async function deleteLoad(load: LogisticsLoad) {
     const confirmed = await notifications.confirm({
       title: 'Excluir carga?',
-      message: `A carga ${load.referenceCode} sairá do Painel e do Calendário.`,
+      message: 'A carga sairá do Painel e do Calendário.',
       details: ['A exclusão continuará registrada no banco de dados para auditoria.'],
       type: 'error',
       confirmLabel: 'Excluir carga',
@@ -572,7 +580,7 @@ export function Logistic() {
     setDeletingId(load.id);
     try {
       await logisticsService.remove(load.id);
-      notifications.success('Carga excluída', `${load.referenceCode} foi removida das telas operacionais.`);
+      notifications.success('Carga excluída', 'A carga foi removida das telas operacionais.');
       closePanel();
       await loadBoard();
     } catch (error) {
@@ -622,7 +630,7 @@ export function Logistic() {
       >
         <CardHead>
           <CardReference $accent={load.shipperColor}>
-            <strong>{load.referenceCode}</strong>
+            <strong>{load.cargoNumber || load.loadEntries[0]?.number || load.shipmentNumber || 'Carga'}</strong>
             <span>{load.shipperName}</span>
           </CardReference>
           {finalized ? <CompletedBadge><CheckCircle2 size={12} /> Finalizada</CompletedBadge> : null}
@@ -719,7 +727,7 @@ export function Logistic() {
         <SecondaryButton type="button" onClick={clearFilters}><X size={15} /> Limpar</SecondaryButton>
         <Field style={{ gridColumn: '1 / -1' }}>
           Busca rápida
-          <Input value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} placeholder="Referência, remessa, load, booking, armador, placa ou embarcador..." />
+          <Input value={filters.search} onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))} placeholder="Remessa, carga, load, booking, armador, placa ou embarcador..." />
         </Field>
       </FilterPanel>
 
@@ -791,7 +799,7 @@ export function Logistic() {
               </PanelHeader>
               <PanelBody>
                 <AccentPreview $accent={formAccent}>
-                  <div><strong>{form.referenceCode || 'Nova carga'}</strong><span>{selectedShipper?.name || 'Escolha o embarcador'}</span></div>
+                  <div><strong>{selectedShipper?.name || 'Nova carga'}</strong><span>{form.shipowner || 'Selecione o armador'}</span></div>
                   <span>{selectedLoad?.completedAt ? 'Finalizada' : STAGES[form.stage].shortLabel}</span>
                 </AccentPreview>
 

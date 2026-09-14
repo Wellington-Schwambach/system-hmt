@@ -122,6 +122,9 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::get('/', [LogisticsController::class, 'index']);
             Route::post('/', [LogisticsController::class, 'store']);
             Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);
+            Route::patch('/{logisticsLoad}/appointments', [LogisticsController::class, 'updateAppointments']);
+            Route::post('/{logisticsLoad}/status-notes', [LogisticsController::class, 'addStatusNote']);
+            Route::patch('/{logisticsLoad}/status-notes/{statusNote}/visibility', [LogisticsController::class, 'updateStatusNoteVisibility'])->whereNumber('statusNote');
             Route::patch('/{logisticsLoad}/move', [LogisticsController::class, 'move']);
             Route::patch('/{logisticsLoad}/finish', [LogisticsController::class, 'finish']);
             Route::delete('/{logisticsLoad}', [LogisticsController::class, 'destroy']);

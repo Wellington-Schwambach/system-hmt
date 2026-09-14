@@ -74,6 +74,20 @@ export interface LogisticsLoadEntry {
   number: string;
 }
 
+export interface LogisticsAppointment {
+  scheduledAt: string;
+  locationTypeId: number | null;
+  location: string;
+}
+
+export interface LogisticsStatusNote {
+  id: number;
+  observation: string;
+  isVisible: boolean;
+  userName: string;
+  createdAt: string | null;
+}
+
 export interface LogisticsLoad {
   id: number;
   referenceCode: string;
@@ -82,6 +96,8 @@ export interface LogisticsLoad {
   shipowner: string | null;
   bookingNumber: string | null;
   collectionBookingNumber: string | null;
+  gradeNumber: string | null;
+  gradeAt: string | null;
   cargoTypeId: number | null;
   cargoTypeName: string | null;
   containerTypeId: number | null;
@@ -108,14 +124,18 @@ export interface LogisticsLoad {
   collectionLocationTypeName: string | null;
   collectionScheduledAt: string | null;
   collectionAt: string | null;
+  collectionAppointments: LogisticsAppointment[];
   loadingCityId: number | null;
+  loadingCityLabel: string | null;
   loadingLocation: string | null;
   loadingAt: string | null;
   deliveryCityId: number | null;
+  deliveryCityLabel: string | null;
   deliveryLocation: string | null;
   deliveryLocationTypeId: number | null;
   deliveryLocationTypeName: string | null;
   deliveryAt: string | null;
+  deliveryAppointments: LogisticsAppointment[];
   plan: string | null;
   loadMode: 'CARGO' | 'LOAD' | null;
   loadStatus: 'EMPTY' | 'FULL' | null;
@@ -137,6 +157,7 @@ export interface LogisticsLoad {
   completedAt: string | null;
   completedByName: string | null;
   events: LogisticsLoadEvent[];
+  statusNotes: LogisticsStatusNote[];
   createdAt: string;
   updatedAt: string;
 }
@@ -160,6 +181,8 @@ export interface LogisticsFormData {
   shipowner: string;
   bookingNumber: string;
   collectionBookingNumber: string;
+  gradeNumber: string;
+  gradeAt: string;
   cargoTypeId: string;
   containerTypeId: string;
   shipownerId: string;
@@ -176,6 +199,7 @@ export interface LogisticsFormData {
   collectionLocationTypeId: string;
   collectionScheduledAt: string;
   collectionAt: string;
+  collectionAppointments: LogisticsAppointment[];
   loadingCityId: string;
   loadingLocation: string;
   loadingAt: string;
@@ -183,6 +207,7 @@ export interface LogisticsFormData {
   deliveryLocation: string;
   deliveryLocationTypeId: string;
   deliveryAt: string;
+  deliveryAppointments: LogisticsAppointment[];
   plan: string;
   loadMode: '' | 'CARGO' | 'LOAD';
   loadStatus: '' | 'EMPTY' | 'FULL';

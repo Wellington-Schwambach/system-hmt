@@ -25,8 +25,17 @@ class SaveLogisticsLoadRequest extends FormRequest
             return $normalized === '' ? null : $normalized;
         };
 
+        $containerNumber = strtoupper(trim((string) $this->input('container_number', '')));
+        $driverId = $this->input('driver_id');
+        $driverTwoId = $this->input('driver_two_id');
+        if (empty($driverId) || (string) $driverId === (string) $driverTwoId) {
+            $driverTwoId = null;
+        }
+
         $this->merge([
+            'container_number' => $containerNumber === '' ? null : $containerNumber,
             'plate_mode' => $plateMode,
+            'driver_two_id' => $driverTwoId,
             'tractor_id' => $plateMode === 'FLEET' ? $this->input('tractor_id') : null,
             'trailer_id' => $plateMode === 'FLEET' ? $this->input('trailer_id') : null,
             'third_party_tractor_plate' => $plateMode === 'THIRD_PARTY'
@@ -42,8 +51,6 @@ class SaveLogisticsLoadRequest extends FormRequest
     {
         $load = $this->route('logisticsLoad');
         $loadId = is_object($load) ? $load->id : null;
-        $effectiveStage = (string) ($this->input('stage') ?? (is_object($load) ? $load->stage : LogisticsLoad::STAGE_PROGRAMMING));
-
         return [
             'reference_code' => [
                 'nullable',
@@ -56,6 +63,8 @@ class SaveLogisticsLoadRequest extends FormRequest
             'shipowner' => ['nullable', 'string', 'max:140'],
             'booking_number' => ['nullable', 'string', 'max:100'],
             'collection_booking_number' => ['nullable', 'string', 'max:100'],
+            'grade_number' => ['nullable', 'string', 'max:100'],
+            'grade_at' => ['nullable', 'date'],
             'cargo_type_id' => ['nullable', 'integer', 'exists:logistics_cargo_types,id'],
             'container_type_id' => ['nullable', 'integer', 'exists:logistics_container_types,id'],
             'shipowner_id' => ['nullable', 'integer', 'exists:logistics_shipowners,id'],
@@ -71,12 +80,10 @@ class SaveLogisticsLoadRequest extends FormRequest
             ],
             'driver_two_id' => [
                 'nullable',
-                Rule::prohibitedIf(fn (): bool => ! $this->filled('driver_id')),
                 'integer',
-                'different:driver_id',
                 Rule::exists('employees', 'id')->where(fn ($query) => $query->where('status', 'ACTIVE')),
             ],
-            'plate_mode' => ['required', Rule::in(['FLEET', 'THIRD_PARTY'])],
+            'plate_mode' => ['nullable', Rule::in(['FLEET', 'THIRD_PARTY'])],
             'tractor_id' => [
                 Rule::excludeIf(fn (): bool => $this->input('plate_mode') === 'THIRD_PARTY'),
                 'nullable',
@@ -96,7 +103,7 @@ class SaveLogisticsLoadRequest extends FormRequest
             ],
             'third_party_tractor_plate' => [
                 Rule::excludeIf(fn (): bool => $this->input('plate_mode') !== 'THIRD_PARTY'),
-                'required',
+                'nullable',
                 'string',
                 'max:40',
             ],
@@ -107,7 +114,6 @@ class SaveLogisticsLoadRequest extends FormRequest
                 'max:40',
             ],
             'collection_terminal' => ['nullable', 'string', 'max:180'],
-            'collection_scheduled_at' => ['nullable', 'date', Rule::requiredIf($effectiveStage === LogisticsLoad::STAGE_PROGRAMMING)],
             'collection_at' => ['nullable', 'date'],
             'loading_location' => ['nullable', 'string', 'max:180'],
             'loading_at' => ['nullable', 'date'],
@@ -117,12 +123,12 @@ class SaveLogisticsLoadRequest extends FormRequest
             'load_mode' => ['nullable', Rule::in(['CARGO', 'LOAD'])],
             'load_status' => ['exclude_unless:load_mode,LOAD', 'nullable', Rule::in(['EMPTY', 'FULL'])],
             'cargo_number' => ['exclude_unless:load_mode,CARGO', 'nullable', 'string', 'max:100'],
-            'load_entries' => ['exclude_unless:load_mode,LOAD', 'required', 'array', 'min:1', 'max:10'],
+            'load_entries' => ['exclude_unless:load_mode,LOAD', 'nullable', 'array', 'max:10'],
             'load_entries.*.status' => ['required', Rule::in(['EMPTY', 'FULL'])],
             'load_entries.*.number' => ['nullable', 'string', 'max:100'],
-            'container_number' => ['nullable', 'string', 'max:40'],
-            'container_tare_kg' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
-            'container_payload_kg' => ['nullable', 'numeric', 'min:0', 'max:999999999.99'],
+            'container_number' => ['nullable', 'string', 'size:11', 'regex:/^[A-Z]{4}[0-9]{7}$/'],
+            'container_tare_kg' => ['nullable', 'integer', 'min:0', 'max:9999'],
+            'container_payload_kg' => ['nullable', 'integer', 'min:0', 'max:99999'],
             'shipowner_seal' => ['nullable', 'string', 'max:100'],
             'vessel' => ['nullable', 'string', 'max:140'],
             'deadline' => ['nullable', 'date_format:Y-m-d'],
@@ -138,21 +144,20 @@ class SaveLogisticsLoadRequest extends FormRequest
     {
         return [
             'reference_code.unique' => 'Já existe uma carga com esta referência.',
-            'plate_mode.required' => 'Selecione se as placas são da frota própria ou de terceiro.',
             'plate_mode.in' => 'Selecione uma opção válida para as placas.',
-            'third_party_tractor_plate.required' => 'Informe a placa principal do terceiro.',
             'third_party_tractor_plate.max' => 'A descrição da placa principal do terceiro deve possuir no máximo 40 caracteres.',
             'third_party_trailer_plate.max' => 'A descrição da placa da carreta do terceiro deve possuir no máximo 40 caracteres.',
             'shipper_id.required' => 'Selecione o embarcador da carga.',
             'shipper_id.exists' => 'O embarcador selecionado não está ativo.',
-            'driver_two_id.prohibited' => 'Selecione o primeiro motorista antes de informar o segundo.',
-            'driver_two_id.different' => 'O segundo motorista deve ser diferente do primeiro.',
-            'collection_scheduled_at.required' => 'Informe a data do agendamento da coleta.',
-            'collection_scheduled_at.date' => 'A data do agendamento da coleta é inválida.',
             'collection_at.date' => 'A data da coleta realizada é inválida.',
-            'load_entries.required' => 'Adicione ao menos uma Load quando selecionar o tipo Load.',
-            'load_entries.min' => 'Adicione ao menos uma Load.',
+            'grade_at.date' => 'A data/hora da grade é inválida.',
             'load_entries.*.status.required' => 'Informe se cada Load está vazia ou cheia.',
+            'container_number.size' => 'O número do container deve ter exatamente 11 caracteres.',
+            'container_number.regex' => 'O número do container deve conter 4 letras seguidas de 7 números.',
+            'container_tare_kg.integer' => 'A tara deve conter somente números inteiros.',
+            'container_tare_kg.max' => 'A tara deve ter no máximo 4 dígitos.',
+            'container_payload_kg.integer' => 'O payload deve conter somente números inteiros.',
+            'container_payload_kg.max' => 'O payload deve ter no máximo 5 dígitos.',
             'loading_at.date' => 'A data do carregamento é inválida.',
             'delivery_at.date' => 'A data da baixa/entrega é inválida.',
         ];
