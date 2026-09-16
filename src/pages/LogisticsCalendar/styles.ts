@@ -773,6 +773,7 @@ export const Drawer = styled.aside`
   border-radius: 1.25rem;
   background: ${({ theme }) => theme.colors.surfaceElevated};
   box-shadow: 0 1.75rem 5rem rgba(5, 20, 12, 0.32);
+  text-transform: uppercase;
 
   @media (max-width: 900px) {
     width: min(48rem, calc(100vw - 1.5rem));
@@ -1294,6 +1295,12 @@ export const ListViewport = styled.div`
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-gutter: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
 
   /*
    * Este elemento existe somente para a rolagem horizontal da tabela.
@@ -1309,18 +1316,26 @@ export const ListViewport = styled.div`
 
 export const FixedHorizontalScrollbar = styled.div`
   position: fixed;
-  bottom: 0;
+  bottom: 0.65rem;
   z-index: 999;
-  height: 18px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
-  background: ${({ theme }) => theme.colors.surfaceElevated};
-  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.08);
+  min-height: 3rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.85rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  background: color-mix(in srgb, ${({ theme }) => theme.colors.surfaceElevated} 94%, transparent 6%);
+  box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(8px);
 
-  &::-webkit-scrollbar {
-    height: 12px;
+  > span {
+    font-size: 0.72rem;
+    font-weight: 850;
+    white-space: nowrap;
+    text-transform: uppercase;
   }
 
   @media (max-width: 1680px) {
@@ -1328,28 +1343,69 @@ export const FixedHorizontalScrollbar = styled.div`
   }
 `;
 
-export const FixedHorizontalScrollbarTrack = styled.div`
-  height: 1px;
+export const FixedHorizontalScrollbarTrack = styled.input.attrs({ type: 'range' })`
+  width: 100%;
+  min-width: 0;
+  height: 1.4rem;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+
+  &::-webkit-slider-runnable-track {
+    height: 0.48rem;
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
+
+  &::-webkit-slider-thumb {
+    width: 2.3rem;
+    height: 1.15rem;
+    margin-top: -0.34rem;
+    border: 2px solid ${({ theme }) => theme.colors.surfaceElevated};
+    border-radius: 999px;
+    appearance: none;
+    -webkit-appearance: none;
+    background: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0.16rem 0.5rem rgba(0, 0, 0, 0.22);
+  }
+
+  &::-moz-range-track {
+    height: 0.48rem;
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.dashboardBorderStrong};
+  }
+
+  &::-moz-range-thumb {
+    width: 2.3rem;
+    height: 1.15rem;
+    border: 2px solid ${({ theme }) => theme.colors.surfaceElevated};
+    border-radius: 999px;
+    background: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0.16rem 0.5rem rgba(0, 0, 0, 0.22);
+  }
 `;
 
 const listColumns = `
-  minmax(9.2rem, 1.05fr)
-  minmax(7.2rem, 0.82fr)
-  minmax(7.2rem, 0.82fr)
-  minmax(8.4rem, 0.92fr)
-  minmax(6.6rem, 0.72fr)
-  minmax(7.3rem, 0.84fr)
-  minmax(9.4rem, 1.02fr)
-  minmax(9.4rem, 1.02fr)
+  minmax(9rem, 1fr)
+  minmax(7.6rem, 0.82fr)
   minmax(10rem, 1.08fr)
-  minmax(8.4rem, 0.9fr)
-  minmax(7.8rem, 0.78fr)
-  minmax(14.4rem, 1.28fr)
+  minmax(7.6rem, 0.82fr)
+  minmax(10rem, 1.08fr)
+  minmax(7.4rem, 0.76fr)
+  minmax(7.6rem, 0.84fr)
+  minmax(9.5rem, 1.02fr)
+  minmax(9.5rem, 1.02fr)
+  minmax(8.4rem, 0.86fr)
+  minmax(8.6rem, 0.9fr)
+  minmax(14.5rem, 1.25fr)
 `;
 
 export const ListTable = styled.div`
   width: 100%;
-  min-width: 107.7rem;
+  min-width: 109.7rem;
   background: ${({ theme }) => theme.colors.dashboardSurface};
 
   @media (max-width: 1680px) {
@@ -1492,15 +1548,15 @@ export const ListCell = styled.div<{ $strong?: boolean; $muted?: boolean }>`
 
     &:nth-child(1)::before { content: 'Embarcador'; }
     &:nth-child(2)::before { content: 'Origem'; }
-    &:nth-child(3)::before { content: 'Destino'; }
-    &:nth-child(4)::before { content: 'Grade de carregamento'; }
-    &:nth-child(5)::before { content: 'Hora'; }
-    &:nth-child(6)::before { content: 'Armador'; }
-    &:nth-child(7)::before { content: 'Agendamento coleta'; }
-    &:nth-child(8)::before { content: 'Agendamento baixa'; }
-    &:nth-child(9)::before { content: 'Observação'; }
-    &:nth-child(10)::before { content: 'Status viagem'; }
-    &:nth-child(11)::before { content: 'Etapa'; }
+    &:nth-child(3)::before { content: 'Observação origem'; }
+    &:nth-child(4)::before { content: 'Destino'; }
+    &:nth-child(5)::before { content: 'Observação destino'; }
+    &:nth-child(6)::before { content: 'Hora carregamento'; }
+    &:nth-child(7)::before { content: 'Armador'; }
+    &:nth-child(8)::before { content: 'Coleta'; }
+    &:nth-child(9)::before { content: 'Baixa'; }
+    &:nth-child(10)::before { content: 'Tipo container'; }
+    &:nth-child(11)::before { content: 'Status viagem'; }
 
     &:first-child {
       padding-left: 0.9rem;

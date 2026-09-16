@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\FuelRecord;
 use App\Models\LogisticsLoad;
 use App\Models\Travel;
+use App\Models\User;
+use App\Services\Dashboard\DailyNotesService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request, DailyNotesService $dailyNotes): JsonResponse
     {
         $now = CarbonImmutable::now();
         $monthStart = $now->startOfMonth()->startOfDay();
@@ -25,19 +29,41 @@ class DashboardController extends Controller
             ->whereBetween('fuel_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
             ->count();
 
-        $loads = LogisticsLoad::query()
-            ->with([
-                'shipper:id,name,display_color',
-                'driver:id,full_name',
-                'driverTwo:id,full_name',
-                'tractor:id,plate',
-                'trailer:id,plate',
-            ])
+        $loadsCount = LogisticsLoad::query()
             ->whereNotNull('loading_at')
             ->whereBetween('loading_at', [$monthStart, $monthEnd])
-            ->orderBy('loading_at')
-            ->orderBy('id')
-            ->get();
+            ->count();
+
+        /** @var User $user */
+        $user = $request->user();
+
+        try {
+            $notePayload = $dailyNotes->dashboardPayload($user, $monthStart, $monthEnd, $now);
+        } catch (\Throwable $exception) {
+            // Notas/alertas são complementares ao Dashboard. Uma inconsistência ou migration
+            // pendente nesse módulo não pode derrubar os indicadores principais da tela.
+            Log::warning('Falha ao montar Notas do Dia do Dashboard.', [
+                'user_id' => $user->id,
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $notePayload = [
+                'daily_notes' => [],
+                'calendar_notes' => [],
+                'note_counts' => [],
+            ];
+        }
+
+        $noteUsers = User::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(static fn (User $noteUser): array => [
+                'id' => (int) $noteUser->id,
+                'name' => (string) $noteUser->name,
+            ])
+            ->values();
 
         return response()->json([
             'period' => [
@@ -48,15 +74,17 @@ class DashboardController extends Controller
                 'end' => $monthEnd->toDateString(),
             ],
             'metrics' => [
-                'loads' => $loads->count(),
+                'loads' => $loadsCount,
                 'travels' => $travels->filter(fn (Travel $travel): bool => $this->countsAsTrip($travel))->count(),
                 'fuelings' => $fuelings,
             ],
-            'load_counts' => $loads
-                ->groupBy(fn (LogisticsLoad $load): string => $load->loading_at?->format('Y-m-d') ?? '')
-                ->filter(fn ($items, string $date): bool => $date !== '')
-                ->map(fn ($items): int => $items->count()),
-            'loads' => $loads->map(fn (LogisticsLoad $load): array => $this->loadPayload($load))->values(),
+            'daily_notes' => $notePayload['daily_notes'],
+            'calendar_notes' => $notePayload['calendar_notes'],
+            'note_counts' => $notePayload['note_counts'],
+            'note_users' => $noteUsers,
+        ])->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
@@ -71,26 +99,4 @@ class DashboardController extends Controller
         return strtoupper((string) $travel->cte_type) === 'NORMAL';
     }
 
-    /** @return array<string, mixed> */
-    private function loadPayload(LogisticsLoad $load): array
-    {
-        return [
-            'id' => (int) $load->id,
-            'reference_code' => (string) $load->reference_code,
-            'loading_at' => $load->loading_at?->toIso8601String(),
-            'shipment_number' => $load->shipment_number,
-            'load_number' => $load->load_number,
-            'shipowner' => $load->shipowner,
-            'booking_number' => $load->booking_number,
-            'shipper_name' => (string) ($load->shipper?->name ?? 'Sem embarcador'),
-            'shipper_color' => (string) ($load->shipper?->display_color ?: '#3FA66C'),
-            'origin' => $load->loading_location ?: $load->collection_terminal ?: $load->collection_city,
-            'destination' => $load->delivery_location ?: $load->delivery_city,
-            'tractor_plate' => $load->plate_mode === 'THIRD_PARTY' ? $load->third_party_tractor_plate : $load->tractor?->plate,
-            'trailer_plate' => $load->plate_mode === 'THIRD_PARTY' ? $load->third_party_trailer_plate : $load->trailer?->plate,
-            'driver_name' => $load->driver?->full_name,
-            'driver_two_name' => $load->driverTwo?->full_name,
-            'completed_at' => $load->completed_at?->toIso8601String(),
-        ];
-    }
 }

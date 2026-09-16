@@ -2,6 +2,41 @@ import { api } from './api';
 
 export type ThemePreference = 'light' | 'dark';
 
+export interface DailyNotePreferenceSetting {
+  alert_type: string;
+  enabled: boolean;
+  days_before: number;
+}
+
+
+export interface CustomDailyAlert {
+  id: number;
+  title: string;
+  observation: string;
+  scheduled_at: string;
+  days_before: number;
+  is_active: boolean;
+  created_by: number;
+  creator_name: string;
+  recipient_ids: number[];
+  recipient_names: string[];
+}
+
+export interface SaveCustomDailyAlertPayload {
+  title: string;
+  observation: string;
+  scheduled_at: string;
+  days_before: number;
+  is_active: boolean;
+  recipient_ids: number[];
+}
+export interface DailyNotePreferenceCatalogItem {
+  alert_type: string;
+  label: string;
+  description: string;
+  default_days: number;
+}
+
 export interface SecurityUser {
   id: number;
   name: string;
@@ -25,6 +60,7 @@ export interface SecurityUser {
   temporary_access_until: string | null;
   temporary_access_ip: string | null;
   last_login_at: string | null;
+  daily_note_preferences: DailyNotePreferenceSetting[];
 }
 
 export interface PermissionCatalogItem {
@@ -82,6 +118,8 @@ export interface SecurityOverview {
   policy: SecurityPolicy;
   permission_catalog: PermissionCatalogItem[];
   access_profiles: AccessProfile[];
+  daily_note_preference_catalog: DailyNotePreferenceCatalogItem[];
+  custom_daily_alerts: CustomDailyAlert[];
 }
 
 export interface SaveUserPayload {
@@ -159,6 +197,44 @@ export const securityService = {
       payload,
     );
 
+    return response.data;
+  },
+
+  async updateDailyNotePreferences(
+    userId: number,
+    preferences: DailyNotePreferenceSetting[],
+  ): Promise<UserMutationResponse> {
+    const response = await api.put<UserMutationResponse>(
+      `/api/admin/security/users/${userId}/daily-note-preferences`,
+      { preferences },
+    );
+
+    return response.data;
+  },
+
+  async createCustomDailyAlert(payload: SaveCustomDailyAlertPayload): Promise<{ message: string; alert: CustomDailyAlert }> {
+    const response = await api.post<{ message: string; alert: CustomDailyAlert }>(
+      '/api/admin/security/custom-alerts',
+      payload,
+    );
+    return response.data;
+  },
+
+  async updateCustomDailyAlert(
+    alertId: number,
+    payload: SaveCustomDailyAlertPayload,
+  ): Promise<{ message: string; alert: CustomDailyAlert }> {
+    const response = await api.put<{ message: string; alert: CustomDailyAlert }>(
+      `/api/admin/security/custom-alerts/${alertId}`,
+      payload,
+    );
+    return response.data;
+  },
+
+  async deleteCustomDailyAlert(alertId: number): Promise<{ message: string }> {
+    const response = await api.delete<{ message: string }>(
+      `/api/admin/security/custom-alerts/${alertId}`,
+    );
     return response.data;
   },
 

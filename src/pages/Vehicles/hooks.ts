@@ -45,22 +45,40 @@ export function useVehicleRecords() {
 
   const records = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR');
+    const typeOrder: Record<VehicleRecord['type'], number> = {
+      TRACTOR: 0,
+      TRAILER: 1,
+      OTHER: 2,
+    };
 
-    return allRecords.filter((record) => {
-      const matchesStatus = statusFilter === 'ALL' || record.status === statusFilter;
-      const matchesPlateEnd =
-        plateEndFilter === 'ALL' || record.plate.slice(-1) === plateEndFilter;
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.fleetNumber.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.brand.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.model.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.renavam.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
-        record.chassis.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
+    return allRecords
+      .filter((record) => {
+        const matchesStatus = statusFilter === 'ALL' || record.status === statusFilter;
+        const matchesPlateEnd =
+          plateEndFilter === 'ALL' || record.plate.slice(-1) === plateEndFilter;
+        const matchesSearch =
+          normalizedSearch.length === 0 ||
+          record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+          record.fleetNumber.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+          record.brand.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+          record.model.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+          record.renavam.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
+          record.chassis.toLocaleLowerCase('pt-BR').includes(normalizedSearch);
 
-      return matchesStatus && matchesPlateEnd && matchesSearch;
-    });
+        return matchesStatus && matchesPlateEnd && matchesSearch;
+      })
+      .sort((first, second) => {
+        const typeComparison = typeOrder[first.type] - typeOrder[second.type];
+        if (typeComparison !== 0) return typeComparison;
+
+        const fleetComparison = first.fleetNumber.localeCompare(second.fleetNumber, 'pt-BR', {
+          numeric: true,
+          sensitivity: 'base',
+        });
+        return fleetComparison !== 0
+          ? fleetComparison
+          : first.plate.localeCompare(second.plate, 'pt-BR', { sensitivity: 'base' });
+      });
   }, [allRecords, plateEndFilter, searchTerm, statusFilter]);
 
   const saveRecord = useCallback(

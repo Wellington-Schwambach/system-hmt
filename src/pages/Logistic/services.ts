@@ -93,6 +93,7 @@ interface ApiLoad {
   stage: LogisticsStage;
   position: number;
   notes: string | null;
+  destination_notes: string | null;
   completed_at: string | null;
   completed_by_name: string | null;
   events: ApiLoadEvent[];
@@ -201,6 +202,7 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     stage: item.stage,
     position: Number(item.position ?? 0),
     notes: item.notes,
+    destinationNotes: item.destination_notes,
     completedAt: item.completed_at,
     completedByName: item.completed_by_name,
     events: (item.events ?? []).map((event) => ({
@@ -296,6 +298,7 @@ function formPayload(data: LogisticsFormData) {
     sif_seal: nullableText(data.sifSeal),
     stage: data.stage,
     notes: nullableText(data.notes),
+    destination_notes: nullableText(data.destinationNotes),
   };
 }
 

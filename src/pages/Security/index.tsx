@@ -1,5 +1,6 @@
 import {
   Ban,
+  BellRing,
   Eye,
   EyeOff,
   History,
@@ -21,6 +22,8 @@ import {
   securityService,
   type AccessProfile,
   type PermissionCatalogItem,
+  type CustomDailyAlert,
+  type DailyNotePreferenceSetting,
   type SaveUserPayload,
   type SecurityOverview,
   type SecurityUser,
@@ -29,6 +32,25 @@ import { getApiErrorFeedback } from '../../utils/apiError';
 import {
   BlockActionGroup,
   BlockReason,
+  AlertRecipientGrid,
+  AlertRecipientOption,
+  AlertTextarea,
+  AlertDaysInput,
+  AlertDaysLabel,
+  AlertPreferenceControl,
+  AlertPreferenceInfo,
+  AlertPreferenceList,
+  AlertPreferenceRow,
+  AlertSettingsCard,
+  AlertSettingsGrid,
+  AlertToggle,
+  CustomAlertActions,
+  CustomAlertCard,
+  CustomAlertGrid,
+  CustomAlertHeader,
+  CustomAlertMeta,
+  CustomAlertObservation,
+  CustomAlertTitle,
   Button,
   DayButton,
   Days,
@@ -109,9 +131,55 @@ const FAILURE_LABELS: Record<string, string> = {
   outside_schedule: 'Fora do horário',
 };
 
+interface CustomAlertFormState {
+  id: number | null;
+  title: string;
+  observation: string;
+  date: string;
+  time: string;
+  daysBefore: number;
+  isActive: boolean;
+  recipientIds: number[];
+}
+
+function emptyCustomAlertForm(userIds: number[] = []): CustomAlertFormState {
+  return {
+    id: null,
+    title: '',
+    observation: '',
+    date: '',
+    time: '08:00',
+    daysBefore: 0,
+    isActive: true,
+    recipientIds: userIds,
+  };
+}
+
+function customAlertFormFromAlert(alert: CustomDailyAlert): CustomAlertFormState {
+  const parsed = new Date(alert.scheduled_at);
+  const localDate = Number.isNaN(parsed.getTime())
+    ? alert.scheduled_at.slice(0, 10)
+    : `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+  const localTime = Number.isNaN(parsed.getTime())
+    ? alert.scheduled_at.slice(11, 16) || '08:00'
+    : `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+
+  return {
+    id: alert.id,
+    title: alert.title,
+    observation: alert.observation,
+    date: localDate,
+    time: localTime,
+    daysBefore: alert.days_before,
+    isActive: alert.is_active,
+    recipientIds: alert.recipient_ids,
+  };
+}
+
 const TABS: Array<{ id: SecurityTab; label: string; icon: typeof Users }> = [
   { id: 'users', label: 'Usuários', icon: Users },
   { id: 'rules', label: 'Regras de acesso', icon: ShieldCheck },
+  { id: 'alerts', label: 'Alertas e notas', icon: BellRing },
   { id: 'blocks', label: 'Bloqueios', icon: Ban },
   { id: 'tryacess', label: 'Tentativas de Acesso', icon: History },
 ];
@@ -202,6 +270,10 @@ export function Security() {
   const [formError, setFormError] = useState('');
   const [unblockingKey, setUnblockingKey] = useState('');
   const [releaseDurations, setReleaseDurations] = useState<Record<string, number>>({});
+  const [savingAlertUserId, setSavingAlertUserId] = useState<number | null>(null);
+  const [customAlertForm, setCustomAlertForm] = useState<CustomAlertFormState | null>(null);
+  const [isSavingCustomAlert, setIsSavingCustomAlert] = useState(false);
+  const [deletingCustomAlertId, setDeletingCustomAlertId] = useState<number | null>(null);
 
   const loadOverview = useCallback(async () => {
     setIsLoading(true);
@@ -406,6 +478,142 @@ export function Security() {
     }
   }
 
+  function updateAlertPreference(
+    userId: number,
+    alertType: string,
+    changes: Partial<Pick<DailyNotePreferenceSetting, 'enabled' | 'days_before'>>,
+  ) {
+    setOverview((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        users: current.users.map((user) =>
+          user.id !== userId
+            ? user
+            : {
+                ...user,
+                daily_note_preferences: user.daily_note_preferences.map((preference) =>
+                  preference.alert_type === alertType
+                    ? { ...preference, ...changes }
+                    : preference,
+                ),
+              },
+        ),
+      };
+    });
+  }
+
+  async function saveAlertPreferences(user: SecurityUser) {
+    if (savingAlertUserId !== null) return;
+
+    setSavingAlertUserId(user.id);
+    try {
+      const response = await securityService.updateDailyNotePreferences(
+        user.id,
+        user.daily_note_preferences,
+      );
+
+      setOverview((current) =>
+        current
+          ? {
+              ...current,
+              users: current.users.map((item) =>
+                item.id === response.user.id ? response.user : item,
+              ),
+            }
+          : current,
+      );
+
+      notifications.success('Alertas atualizados', response.message);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar os alertas do usuário.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setSavingAlertUserId(null);
+    }
+  }
+
+  function openNewCustomAlert() {
+    const defaultRecipients = overview?.users.filter((item) => item.is_active).map((item) => item.id) ?? [];
+    setCustomAlertForm(emptyCustomAlertForm(defaultRecipients));
+  }
+
+  function toggleCustomAlertRecipient(userId: number) {
+    setCustomAlertForm((current) => {
+      if (!current) return current;
+      const recipientIds = current.recipientIds.includes(userId)
+        ? current.recipientIds.filter((id) => id !== userId)
+        : [...current.recipientIds, userId];
+      return { ...current, recipientIds };
+    });
+  }
+
+  async function saveCustomAlert(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!customAlertForm || isSavingCustomAlert) return;
+
+    if (!customAlertForm.title.trim() || !customAlertForm.observation.trim()) {
+      notifications.error('Preencha o alerta', 'Informe um título e a observação que deve aparecer na notificação.');
+      return;
+    }
+
+    if (!customAlertForm.date) {
+      notifications.error('Informe a data', 'Todo alerta personalizado precisa ter uma data de referência.');
+      return;
+    }
+
+    if (customAlertForm.recipientIds.length === 0) {
+      notifications.error('Selecione os usuários', 'Escolha pelo menos um usuário para receber o alerta.');
+      return;
+    }
+
+    setIsSavingCustomAlert(true);
+    try {
+      const payload = {
+        title: customAlertForm.title.trim(),
+        observation: customAlertForm.observation.trim(),
+        scheduled_at: `${customAlertForm.date}T${customAlertForm.time || '08:00'}:00`,
+        days_before: Math.max(0, Math.min(365, customAlertForm.daysBefore)),
+        is_active: customAlertForm.isActive,
+        recipient_ids: customAlertForm.recipientIds,
+      };
+
+      const response = customAlertForm.id
+        ? await securityService.updateCustomDailyAlert(customAlertForm.id, payload)
+        : await securityService.createCustomDailyAlert(payload);
+
+      notifications.success(
+        customAlertForm.id ? 'Alerta atualizado' : 'Alerta criado',
+        response.message,
+      );
+      setCustomAlertForm(null);
+      await loadOverview();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar o alerta personalizado.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setIsSavingCustomAlert(false);
+    }
+  }
+
+  async function deleteCustomAlert(alert: CustomDailyAlert) {
+    if (deletingCustomAlertId !== null) return;
+    if (!window.confirm(`Excluir o alerta "${alert.title}"?`)) return;
+
+    setDeletingCustomAlertId(alert.id);
+    try {
+      const response = await securityService.deleteCustomDailyAlert(alert.id);
+      notifications.success('Alerta removido', response.message);
+      await loadOverview();
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível excluir o alerta personalizado.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setDeletingCustomAlertId(null);
+    }
+  }
+
   async function unblock(username: string, ipAddress: string) {
     const key = `${username}|${ipAddress}`;
     const durationMinutes = releaseDurations[key] ?? 120;
@@ -493,9 +701,6 @@ export function Security() {
             <SectionHeader>
               <div>
                 <SectionTitle>Contas do sistema</SectionTitle>
-                <Hint>
-                  Edite os dados ou redefina a senha deixando uma nova senha no formulário.
-                </Hint>
               </div>
               <Button type="button" $variant="primary" onClick={openCreateUser}>
                 <Plus size={17} aria-hidden="true" /> Cadastrar usuário
@@ -541,9 +746,6 @@ export function Security() {
           <SectionHeader>
             <div>
               <SectionTitle>Horários, menus e tema por usuário</SectionTitle>
-              <Hint>
-                A interface oculta os menus não liberados e as rotas também verificam a permissão.
-              </Hint>
             </div>
           </SectionHeader>
 
@@ -587,6 +789,155 @@ export function Security() {
         </Section>
       ) : null}
 
+      {activeTab === 'alerts' && overview ? (
+        <Section>
+          <SectionHeader>
+            <div>
+              <SectionTitle>Alertas das Notas do dia</SectionTitle>
+            </div>
+          </SectionHeader>
+
+          <SectionHeader>
+            <div>
+              <SectionTitle>Alertas personalizados</SectionTitle>
+            </div>
+            <Button type="button" $variant="primary" onClick={openNewCustomAlert}>
+              <Plus size={16} aria-hidden="true" /> Novo alerta
+            </Button>
+          </SectionHeader>
+
+          {overview.custom_daily_alerts.length ? (
+            <CustomAlertGrid>
+              {overview.custom_daily_alerts.map((alert) => (
+                <CustomAlertCard key={alert.id}>
+                  <CustomAlertHeader>
+                    <div>
+                      <CustomAlertTitle>{alert.title}</CustomAlertTitle>
+                      <CustomAlertMeta>
+                        <span>{formatDateTime(alert.scheduled_at)}</span>
+                        <span>{alert.days_before} dia(s) antes</span>
+                        <span>{alert.recipient_names.length} destinatário(s)</span>
+                      </CustomAlertMeta>
+                    </div>
+                    <StatusBadge $active={alert.is_active}>
+                      {alert.is_active ? 'Ativo' : 'Pausado'}
+                    </StatusBadge>
+                  </CustomAlertHeader>
+
+                  <CustomAlertObservation>{alert.observation}</CustomAlertObservation>
+                  <CustomAlertMeta>
+                    <span>Para: {alert.recipient_names.join(', ') || '—'}</span>
+                    <span>Criado por: {alert.creator_name}</span>
+                  </CustomAlertMeta>
+
+                  <CustomAlertActions>
+                    <Button
+                      type="button"
+                      onClick={() => setCustomAlertForm(customAlertFormFromAlert(alert))}
+                    >
+                      <Pencil size={15} aria-hidden="true" /> Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      $variant="danger"
+                      disabled={deletingCustomAlertId !== null}
+                      onClick={() => void deleteCustomAlert(alert)}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                      {deletingCustomAlertId === alert.id ? 'Excluindo...' : 'Excluir'}
+                    </Button>
+                  </CustomAlertActions>
+                </CustomAlertCard>
+              ))}
+            </CustomAlertGrid>
+          ) : (
+            <EmptyState>Nenhum alerta personalizado cadastrado.</EmptyState>
+          )}
+
+          <SectionHeader>
+            <div>
+              <SectionTitle>Alertas automáticos por usuário</SectionTitle>
+            </div>
+          </SectionHeader>
+
+          <AlertSettingsGrid>
+            {overview.users.map((user) => (
+              <AlertSettingsCard key={user.id}>
+                <UserCardHeader>
+                  <UserIdentity>
+                    <UserName>{user.name}</UserName>
+                    <UserMeta>@{user.username} · {user.role}</UserMeta>
+                  </UserIdentity>
+                  <StatusBadge $active={user.is_active}>
+                    {user.is_active ? 'Ativo' : 'Inativo'}
+                  </StatusBadge>
+                </UserCardHeader>
+
+                <AlertPreferenceList>
+                  {overview.daily_note_preference_catalog.map((catalogItem) => {
+                    const preference = user.daily_note_preferences.find(
+                      (item) => item.alert_type === catalogItem.alert_type,
+                    ) ?? {
+                      alert_type: catalogItem.alert_type,
+                      enabled: true,
+                      days_before: catalogItem.default_days,
+                    };
+
+                    return (
+                      <AlertPreferenceRow key={catalogItem.alert_type}>
+                        <AlertPreferenceInfo>
+                          <strong>{catalogItem.label}</strong>
+                        </AlertPreferenceInfo>
+
+                        <AlertPreferenceControl>
+                          <AlertToggle>
+                            <input
+                              type="checkbox"
+                              checked={preference.enabled}
+                              onChange={(event) =>
+                                updateAlertPreference(user.id, catalogItem.alert_type, {
+                                  enabled: event.target.checked,
+                                })
+                              }
+                            />
+                            Receber
+                          </AlertToggle>
+
+                          <AlertDaysInput
+                            type="number"
+                            min={0}
+                            max={365}
+                            value={preference.days_before}
+                            disabled={!preference.enabled}
+                            onChange={(event) =>
+                              updateAlertPreference(user.id, catalogItem.alert_type, {
+                                days_before: Math.max(0, Math.min(365, Number(event.target.value) || 0)),
+                              })
+                            }
+                            aria-label={`Dias de antecedência para ${catalogItem.label} de ${user.name}`}
+                          />
+                          <AlertDaysLabel>dias antes</AlertDaysLabel>
+                        </AlertPreferenceControl>
+                      </AlertPreferenceRow>
+                    );
+                  })}
+                </AlertPreferenceList>
+
+                <Button
+                  type="button"
+                  $variant="primary"
+                  disabled={savingAlertUserId !== null}
+                  onClick={() => void saveAlertPreferences(user)}
+                >
+                  <BellRing size={16} aria-hidden="true" />
+                  {savingAlertUserId === user.id ? 'Salvando...' : 'Salvar alertas'}
+                </Button>
+              </AlertSettingsCard>
+            ))}
+          </AlertSettingsGrid>
+        </Section>
+      ) : null}
+
       {activeTab === 'blocks' && overview ? (
         <>
           <PolicyGrid>
@@ -612,10 +963,6 @@ export function Security() {
             <SectionHeader>
               <div>
                 <SectionTitle>Bloqueios ativos</SectionTitle>
-                <Hint>
-                  Ao liberar, escolha o período. O usuário poderá ignorar a regra de horário somente
-                  nesse IP, mas ainda precisará informar a senha correta e estar ativo.
-                </Hint>
               </div>
             </SectionHeader>
             {overview.active_blocks.length ? (
@@ -708,7 +1055,6 @@ export function Security() {
           <SectionHeader>
             <div>
               <SectionTitle>Últimas tentativas de acesso</SectionTitle>
-              <Hint>O histórico registra usuário, IP, resultado, data e motivo da recusa.</Hint>
             </div>
           </SectionHeader>
 
@@ -757,6 +1103,147 @@ export function Security() {
         </Section>
       ) : null}
 
+      {customAlertForm && overview ? (
+        <ModalBackdrop
+          role="presentation"
+          onMouseDown={() => !isSavingCustomAlert && setCustomAlertForm(null)}
+        >
+          <Modal
+            onSubmit={(event) => void saveCustomAlert(event)}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <ModalHeader>
+              <TitleGroup>
+                <ModalTitle>
+                  {customAlertForm.id ? 'Editar alerta personalizado' : 'Novo alerta personalizado'}
+                </ModalTitle>
+              </TitleGroup>
+              <IconButton
+                type="button"
+                onClick={() => setCustomAlertForm(null)}
+                disabled={isSavingCustomAlert}
+                aria-label="Fechar alerta"
+              >
+                <X size={19} />
+              </IconButton>
+            </ModalHeader>
+
+            <ModalBody>
+              <FormSection>
+                <legend>Alerta</legend>
+                <FormGrid>
+                  <Field>
+                    Nome do alerta
+                    <Input
+                      value={customAlertForm.title}
+                      onChange={(event) =>
+                        setCustomAlertForm((current) => current ? { ...current, title: event.target.value } : current)
+                      }
+                      placeholder="Ex.: Revisão preventiva do caminhão"
+                      maxLength={160}
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    Data do evento / vencimento
+                    <Input
+                      type="date"
+                      value={customAlertForm.date}
+                      onChange={(event) =>
+                        setCustomAlertForm((current) => current ? { ...current, date: event.target.value } : current)
+                      }
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    Horário
+                    <Input
+                      type="time"
+                      value={customAlertForm.time}
+                      onChange={(event) =>
+                        setCustomAlertForm((current) => current ? { ...current, time: event.target.value } : current)
+                      }
+                    />
+                  </Field>
+                  <Field>
+                    Avisar com antecedência
+                    <Input
+                      type="number"
+                      min={0}
+                      max={365}
+                      value={customAlertForm.daysBefore}
+                      onChange={(event) =>
+                        setCustomAlertForm((current) => current ? {
+                          ...current,
+                          daysBefore: Math.max(0, Math.min(365, Number(event.target.value) || 0)),
+                        } : current)
+                      }
+                    />
+                  </Field>
+                </FormGrid>
+
+                <Field>
+                  Observação da notificação
+                  <AlertTextarea
+                    value={customAlertForm.observation}
+                    onChange={(event) =>
+                      setCustomAlertForm((current) => current ? { ...current, observation: event.target.value } : current)
+                    }
+                    placeholder="Escreva exatamente o que os usuários devem visualizar no alerta..."
+                    maxLength={4000}
+                    required
+                  />
+                </Field>
+
+                <ToggleLabel>
+                  <input
+                    type="checkbox"
+                    checked={customAlertForm.isActive}
+                    onChange={(event) =>
+                      setCustomAlertForm((current) => current ? { ...current, isActive: event.target.checked } : current)
+                    }
+                  />
+                  Alerta ativo
+                </ToggleLabel>
+              </FormSection>
+
+              <FormSection>
+                <legend>Quem recebe</legend>
+                <AlertRecipientGrid>
+                  {overview.users.filter((item) => item.is_active).map((user) => (
+                    <AlertRecipientOption key={user.id}>
+                      <input
+                        type="checkbox"
+                        checked={customAlertForm.recipientIds.includes(user.id)}
+                        onChange={() => toggleCustomAlertRecipient(user.id)}
+                      />
+                      <span>{user.name} · @{user.username}</span>
+                    </AlertRecipientOption>
+                  ))}
+                </AlertRecipientGrid>
+              </FormSection>
+            </ModalBody>
+
+            <ModalFooter>
+              <Button
+                type="button"
+                onClick={() => setCustomAlertForm(null)}
+                disabled={isSavingCustomAlert}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" $variant="primary" disabled={isSavingCustomAlert}>
+                {isSavingCustomAlert
+                  ? 'Salvando...'
+                  : customAlertForm.id
+                    ? 'Salvar alerta'
+                    : 'Criar alerta'}
+              </Button>
+            </ModalFooter>
+          </Modal>
+        </ModalBackdrop>
+      ) : null}
+
       {form && overview ? (
         <ModalBackdrop role="presentation" onMouseDown={() => !isSaving && setForm(null)}>
           <Modal
@@ -766,11 +1253,6 @@ export function Security() {
             <ModalHeader>
               <TitleGroup>
                 <ModalTitle>{form.id ? 'Editar usuário' : 'Cadastrar novo usuário'}</ModalTitle>
-                <Hint>
-                  {form.id
-                    ? 'Deixe a senha vazia para manter a atual.'
-                    : 'A senha será convertida automaticamente pelo Sistema.'}
-                </Hint>
               </TitleGroup>
               <IconButton
                 type="button"

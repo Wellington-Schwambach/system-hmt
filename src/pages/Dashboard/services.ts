@@ -1,23 +1,32 @@
 import { api } from '../../services/api';
-import type { DashboardData, DashboardLoad } from './types';
+import type {
+  DashboardData,
+  DashboardNote,
+  DashboardNoteIcon,
+  DashboardNoteUser,
+} from './types';
 
-interface ApiDashboardLoad {
+interface ApiDashboardNote {
+  id: string;
+  manual_note_id?: number | null;
+  alert_type: string;
+  icon: DashboardNoteIcon;
+  title: string;
+  observation: string;
+  due_date: string | null;
+  due_at: string | null;
+  source: string;
+  is_manual: boolean;
+  can_delete?: boolean;
+  is_completed?: boolean;
+  completed_at?: string | null;
+  completed_by_name?: string | null;
+  can_complete?: boolean;
+}
+
+interface ApiDashboardNoteUser {
   id: number;
-  reference_code: string;
-  loading_at: string | null;
-  shipment_number: string | null;
-  load_number: string | null;
-  shipowner: string | null;
-  booking_number: string | null;
-  shipper_name: string;
-  shipper_color: string;
-  origin: string | null;
-  destination: string | null;
-  tractor_plate: string | null;
-  trailer_plate: string | null;
-  driver_name: string | null;
-  driver_two_name: string | null;
-  completed_at: string | null;
+  name: string;
 }
 
 interface ApiDashboardResponse {
@@ -27,33 +36,50 @@ interface ApiDashboardResponse {
     travels: number;
     fuelings: number;
   };
-  load_counts: Record<string, number>;
-  loads: ApiDashboardLoad[];
+  daily_notes: ApiDashboardNote[];
+  calendar_notes: ApiDashboardNote[];
+  note_counts: Record<string, number>;
+  note_users: ApiDashboardNoteUser[];
 }
 
-function mapLoad(load: ApiDashboardLoad): DashboardLoad {
+export interface CreateDashboardNotePayload {
+  title: string;
+  observation: string;
+  scheduled_at: string | null;
+  recipient_ids: number[];
+}
+
+function mapNote(note: ApiDashboardNote): DashboardNote {
   return {
-    id: Number(load.id),
-    referenceCode: load.reference_code,
-    loadingAt: load.loading_at,
-    shipmentNumber: load.shipment_number,
-    loadNumber: load.load_number,
-    shipowner: load.shipowner,
-    bookingNumber: load.booking_number,
-    shipperName: load.shipper_name || 'Sem embarcador',
-    shipperColor: load.shipper_color || '#3FA66C',
-    origin: load.origin,
-    destination: load.destination,
-    tractorPlate: load.tractor_plate,
-    trailerPlate: load.trailer_plate,
-    driverName: load.driver_name,
-    driverTwoName: load.driver_two_name,
-    completedAt: load.completed_at,
+    id: String(note.id),
+    manualNoteId: note.manual_note_id ? Number(note.manual_note_id) : null,
+    alertType: note.alert_type,
+    icon: note.icon,
+    title: note.title,
+    observation: note.observation,
+    dueDate: note.due_date,
+    dueAt: note.due_at,
+    source: note.source,
+    isManual: Boolean(note.is_manual),
+    canDelete: Boolean(note.can_delete),
+    isCompleted: Boolean(note.is_completed),
+    completedAt: note.completed_at ?? null,
+    completedByName: note.completed_by_name ?? null,
+    canComplete: note.can_complete !== false,
+  };
+}
+
+function mapNoteUser(user: ApiDashboardNoteUser): DashboardNoteUser {
+  return {
+    id: Number(user.id),
+    name: user.name,
   };
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const response = await api.get<ApiDashboardResponse>('/api/dashboard');
+  const response = await api.get<ApiDashboardResponse>('/api/dashboard', {
+    params: { _refresh: Date.now() },
+  });
   return {
     period: {
       year: Number(response.data.period.year),
@@ -67,7 +93,23 @@ export async function getDashboardData(): Promise<DashboardData> {
       travels: Number(response.data.metrics.travels ?? 0),
       fuelings: Number(response.data.metrics.fuelings ?? 0),
     },
-    loadCounts: response.data.load_counts ?? {},
-    loads: (response.data.loads ?? []).map(mapLoad),
+    dailyNotes: (response.data.daily_notes ?? []).map(mapNote),
+    calendarNotes: (response.data.calendar_notes ?? []).map(mapNote),
+    noteCounts: response.data.note_counts ?? {},
+    noteUsers: (response.data.note_users ?? []).map(mapNoteUser),
   };
+}
+
+export async function createDashboardNote(payload: CreateDashboardNotePayload): Promise<void> {
+  await api.post('/api/dashboard/notes', payload);
+}
+
+export async function deleteDashboardNote(noteId: number): Promise<void> {
+  await api.delete(`/api/dashboard/notes/${noteId}`);
+}
+export async function setDashboardNoteCompletion(noteKey: string, completed: boolean): Promise<void> {
+  await api.put('/api/dashboard/note-completion', {
+    note_key: noteKey,
+    completed,
+  });
 }

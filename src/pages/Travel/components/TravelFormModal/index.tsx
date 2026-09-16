@@ -257,15 +257,6 @@ export function TravelFormModal({
   const hasAutomaticReceiptDate = selectedShipper?.receiptTermDays !== null && selectedShipper?.receiptTermDays !== undefined;
 
   useEffect(() => {
-    if (!isOpen || !formData.date || !hasAutomaticReceiptDate || !selectedShipper) return;
-
-    const calculatedDate = addDaysToIsoDate(formData.date, selectedShipper.receiptTermDays ?? 0);
-    if (!calculatedDate || calculatedDate === formData.receivedDate) return;
-
-    setFormData((current) => ({ ...current, receivedDate: calculatedDate }));
-  }, [formData.date, formData.receivedDate, hasAutomaticReceiptDate, isOpen, selectedShipper]);
-
-  useEffect(() => {
     if (!isOpen) return undefined;
 
     let active = true;
@@ -649,7 +640,6 @@ export function TravelFormModal({
                   id="travel-received-date"
                   value={formData.receivedDate}
                   onValueChange={(value) => handleChange('receivedDate', value)}
-                  disabled={hasAutomaticReceiptDate}
                 />
               </Field>
             </FieldGrid>

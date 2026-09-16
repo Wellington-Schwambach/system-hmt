@@ -72,7 +72,15 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
   const tractorOptions = useMemo(() => options.tractors.map((item) => ({ value: String(item.id), label: `${item.plate}${item.fleetNumber ? ` · Frota ${item.fleetNumber}` : ''}`, searchText: `${item.brand} ${item.model}` })), [options.tractors]);
   const trailerOptions = useMemo(() => options.trailers.map((item) => ({ value: String(item.id), label: `${item.plate}${item.fleetNumber ? ` · Frota ${item.fleetNumber}` : ''}`, searchText: `${item.brand} ${item.model}` })), [options.trailers]);
 
-  const patch = (values: Partial<LogisticsFormData>) => onChange((current) => ({ ...current, ...values }));
+  const patch = (values: Partial<LogisticsFormData>) => onChange((current) => {
+    const normalized = Object.fromEntries(
+      Object.entries(values).map(([key, value]) => [
+        key,
+        typeof value === 'string' ? value.toLocaleUpperCase('pt-BR') : value,
+      ]),
+    ) as Partial<LogisticsFormData>;
+    return { ...current, ...normalized };
+  });
 
   function handleLoadMode(value: LogisticsFormData['loadMode']) {
     onChange((current) => {
@@ -92,7 +100,7 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
   function updateLoadEntry(index: number, values: Partial<LogisticsFormData['loadEntries'][number]>) {
     onChange((current) => ({
       ...current,
-      loadEntries: current.loadEntries.map((entry, entryIndex) => entryIndex === index ? { ...entry, ...values } : entry),
+      loadEntries: current.loadEntries.map((entry, entryIndex) => entryIndex === index ? { ...entry, ...values, number: typeof values.number === 'string' ? values.number.toLocaleUpperCase('pt-BR') : (values.number ?? entry.number) } : entry),
     }));
   }
 
@@ -181,7 +189,7 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
 
   async function createQuick() {
     if (!quick) return;
-    const normalizedName = quickName.trim();
+    const normalizedName = quickName.trim().toLocaleUpperCase('pt-BR');
     const maxLength = QUICK_CATALOG_MAX_LENGTH[quick.catalog];
     if (normalizedName.length < 2 || normalizedName.length > maxLength) return;
     setQuickSaving(true);
@@ -342,15 +350,22 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
         </Section>
 
         <Section>
-          <SectionTitle>Observação</SectionTitle>
-          <Textarea maxLength={4000} value={form.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="Observações da operação..." />
+          <SectionTitle>Observações</SectionTitle>
+          <Grid>
+            <Field $span={6}>Observação origem
+              <Textarea maxLength={4000} value={form.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="OBSERVAÇÃO DA ORIGEM..." />
+            </Field>
+            <Field $span={6}>Observação destino
+              <Textarea maxLength={4000} value={form.destinationNotes} onChange={(e) => patch({ destinationNotes: e.target.value })} placeholder="OBSERVAÇÃO DO DESTINO..." />
+            </Field>
+          </Grid>
         </Section>
       </Sections>
 
       {quick ? <QuickBackdrop onMouseDown={closeQuick}>
         <QuickModal onMouseDown={(e) => e.stopPropagation()}>
           <QuickTitle>{quick.title}</QuickTitle>
-          <Input autoFocus maxLength={QUICK_CATALOG_MAX_LENGTH[quick.catalog]} value={quickName} onChange={(e) => setQuickName(e.target.value)} placeholder="Nome do cadastro" />
+          <Input autoFocus maxLength={QUICK_CATALOG_MAX_LENGTH[quick.catalog]} value={quickName} onChange={(e) => setQuickName(e.target.value.toLocaleUpperCase('pt-BR'))} placeholder="Nome do cadastro" />
           <Hint>O item será salvo no banco e selecionado automaticamente nesta carga.</Hint>
           <QuickActions>
             <QuickButton type="button" onClick={closeQuick} disabled={quickSaving}>Cancelar</QuickButton>

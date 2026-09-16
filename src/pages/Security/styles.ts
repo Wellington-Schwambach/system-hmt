@@ -555,3 +555,197 @@ export const BlockReason = styled.div`
     line-height: 1.35;
   }
 `;
+
+export const AlertSettingsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 27rem), 1fr));
+  gap: 0.9rem;
+`;
+
+export const AlertSettingsCard = styled.article`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+`;
+
+export const AlertPreferenceList = styled.div`
+  display: grid;
+  gap: 0.55rem;
+`;
+
+export const AlertPreferenceRow = styled.div`
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.dashboardBackground};
+
+  @media (max-width: 36rem) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const AlertPreferenceInfo = styled.div`
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.87rem;
+  }
+
+  span {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+`;
+
+export const AlertPreferenceControl = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+
+  @media (max-width: 36rem) {
+    justify-content: flex-start;
+  }
+`;
+
+export const AlertToggle = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.76rem;
+  font-weight: 800;
+  cursor: pointer;
+
+  input {
+    accent-color: ${({ theme }) => theme.colors.brandGreen};
+  }
+`;
+
+export const AlertDaysInput = styled.input`
+  width: 4.4rem;
+  min-height: 2.3rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+`;
+
+export const AlertDaysLabel = styled.span`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+export const CustomAlertGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 0.8rem;
+`;
+
+export const CustomAlertCard = styled.article`
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.9rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.dashboardBackground};
+`;
+
+export const CustomAlertHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.7rem;
+`;
+
+export const CustomAlertTitle = styled.strong`
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.92rem;
+`;
+
+export const CustomAlertMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.75rem;
+  line-height: 1.4;
+`;
+
+export const CustomAlertObservation = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.82rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+`;
+
+export const CustomAlertActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+`;
+
+export const AlertTextarea = styled.textarea`
+  width: 100%;
+  min-height: 7rem;
+  resize: vertical;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: ${({ theme }) => theme.radius.md};
+  outline: none;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardBackground};
+  font: inherit;
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+  }
+`;
+
+export const AlertRecipientGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.45rem;
+  max-height: 13rem;
+  padding: 0.7rem;
+  overflow-y: auto;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.colors.dashboardBackground};
+`;
+
+export const AlertRecipientOption = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  input {
+    accent-color: ${({ theme }) => theme.colors.brandGreen};
+  }
+`;

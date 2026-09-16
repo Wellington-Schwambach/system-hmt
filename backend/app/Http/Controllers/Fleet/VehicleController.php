@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Fleet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Fleet\StoreVehicleRequest;
 use App\Http\Requests\Fleet\UpdateVehicleRequest;
+use App\Models\FuelRecord;
 use App\Models\Vehicle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,12 @@ class VehicleController extends Controller
         $search = trim((string) $request->query('search', ''));
         $status = trim((string) $request->query('status', ''));
 
-        $vehicles = Vehicle::query()
+        $vehicleQuery = Vehicle::query();
+        if (Schema::hasTable('fuel_records')) {
+            $vehicleQuery->withMax('fuelRecords as highest_fuel_km', 'km');
+        }
+
+        $vehicles = $vehicleQuery
             ->when($search !== '', function ($query) use ($search): void {
                 $like = '%'.mb_strtolower($search).'%';
 
@@ -40,6 +46,7 @@ class VehicleController extends Controller
             ->when(in_array($status, ['ACTIVE', 'MAINTENANCE', 'INACTIVE'], true), function ($query) use ($status): void {
                 $query->where('status', $status);
             })
+            ->orderByRaw("CASE type WHEN 'TRACTOR' THEN 0 WHEN 'TRAILER' THEN 1 ELSE 2 END")
             ->orderByRaw('fleet_number NULLS LAST')
             ->orderBy('plate')
             ->get()
@@ -97,7 +104,7 @@ class VehicleController extends Controller
                 &$newPath,
                 &$deleteOldAfterSave
             ): void {
-                $attributes = $this->attributes($request);
+                $attributes = $this->attributes($request, $vehicle);
                 $attributes['updated_by'] = $request->user()?->id;
 
                 if ($request->boolean('remove_crlv') && ! $request->hasFile('crlv')) {
@@ -175,9 +182,20 @@ class VehicleController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function attributes(StoreVehicleRequest $request): array
+    private function attributes(StoreVehicleRequest $request, ?Vehicle $vehicle = null): array
     {
         $validated = $request->safe()->except(['crlv', 'remove_crlv']);
+        $requestedKm = (int) ($validated['current_km'] ?? 0);
+        $currentKm = $requestedKm;
+
+        if ($vehicle !== null) {
+            $highestFuelKm = Schema::hasTable('fuel_records')
+                ? (int) (FuelRecord::query()->where('vehicle_id', $vehicle->id)->max('km') ?? 0)
+                : 0;
+
+            // O odômetro atual nunca deve regredir por edição manual ou lançamento retroativo.
+            $currentKm = max($requestedKm, (int) $vehicle->current_km, $highestFuelKm);
+        }
 
         return [
             ...$validated,
@@ -187,7 +205,7 @@ class VehicleController extends Controller
             'renavam' => $validated['renavam'] ?: null,
             'load_capacity_kg' => (int) ($validated['load_capacity_kg'] ?? 0),
             'tare_kg' => (int) ($validated['tare_kg'] ?? 0),
-            'current_km' => (int) ($validated['current_km'] ?? 0),
+            'current_km' => $currentKm,
             'notes' => $validated['notes'] ?: null,
             'opentech_expiry_date' => $validated['opentech_expiry_date'] ?: null,
             'angellira_expiry_date' => $validated['angellira_expiry_date'] ?: null,
@@ -249,7 +267,13 @@ class VehicleController extends Controller
             'fuel_type' => $vehicle->fuel_type,
             'load_capacity_kg' => $vehicle->load_capacity_kg,
             'tare_kg' => $vehicle->tare_kg,
-            'current_km' => $vehicle->current_km,
+            'current_km' => max(
+                (int) $vehicle->current_km,
+                (int) ($vehicle->getAttribute('highest_fuel_km') ?? 0),
+                Schema::hasTable('fuel_records') && $vehicle->getAttribute('highest_fuel_km') === null
+                    ? (int) (FuelRecord::query()->where('vehicle_id', $vehicle->id)->max('km') ?? 0)
+                    : 0,
+            ),
             'status' => $vehicle->status,
             'opentech_expiry_date' => $vehicle->opentech_expiry_date?->format('Y-m-d'),
             'angellira_expiry_date' => $vehicle->angellira_expiry_date?->format('Y-m-d'),

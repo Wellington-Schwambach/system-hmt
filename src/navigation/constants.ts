@@ -11,7 +11,6 @@ import {
   Truck,
   Users,
   Building2,
-  CalendarDays,
   Wrench,
 } from 'lucide-react';
 

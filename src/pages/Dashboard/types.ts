@@ -1,5 +1,30 @@
 import type { LucideIcon } from 'lucide-react';
 
+export type DashboardNoteIcon = 'truck' | 'clipboard' | 'cake' | 'clock' | 'calendar' | 'note';
+
+export interface DashboardNote {
+  id: string;
+  manualNoteId: number | null;
+  alertType: string;
+  icon: DashboardNoteIcon;
+  title: string;
+  observation: string;
+  dueDate: string | null;
+  dueAt: string | null;
+  source: string;
+  isManual: boolean;
+  canDelete: boolean;
+  isCompleted: boolean;
+  completedAt: string | null;
+  completedByName: string | null;
+  canComplete: boolean;
+}
+
+export interface DashboardNoteUser {
+  id: number;
+  name: string;
+}
+
 export interface DashboardMetric {
   id: string;
   title: string;
@@ -7,25 +32,6 @@ export interface DashboardMetric {
   caption: string;
   icon: LucideIcon;
   path?: string;
-}
-
-export interface DashboardLoad {
-  id: number;
-  referenceCode: string;
-  loadingAt: string | null;
-  shipmentNumber: string | null;
-  loadNumber: string | null;
-  shipowner: string | null;
-  bookingNumber: string | null;
-  shipperName: string;
-  shipperColor: string;
-  origin: string | null;
-  destination: string | null;
-  tractorPlate: string | null;
-  trailerPlate: string | null;
-  driverName: string | null;
-  driverTwoName: string | null;
-  completedAt: string | null;
 }
 
 export interface DashboardData {
@@ -41,8 +47,10 @@ export interface DashboardData {
     travels: number;
     fuelings: number;
   };
-  loadCounts: Record<string, number>;
-  loads: DashboardLoad[];
+  dailyNotes: DashboardNote[];
+  calendarNotes: DashboardNote[];
+  noteCounts: Record<string, number>;
+  noteUsers: DashboardNoteUser[];
 }
 
 export interface CalendarDay {
@@ -51,5 +59,5 @@ export interface CalendarDay {
   dayNumber: number;
   isCurrentMonth: boolean;
   isToday: boolean;
-  loadCount: number;
+  noteCount: number;
 }

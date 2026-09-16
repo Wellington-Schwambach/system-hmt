@@ -65,6 +65,23 @@ export function getEmployeeStatusLabel(status: EmployeeStatus): string {
   return EMPLOYEE_STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
 }
 
+export type EmployeeExpiryTone = 'WARNING' | 'DANGER' | 'NEUTRAL';
+
+export function getEmployeeExpiryTone(value: string, today = new Date()): EmployeeExpiryTone {
+  if (!value) return 'NEUTRAL';
+
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return 'NEUTRAL';
+
+  const expiry = Date.UTC(year, month - 1, day);
+  const current = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const daysUntilExpiry = Math.round((expiry - current) / 86_400_000);
+
+  if (daysUntilExpiry <= 7) return 'DANGER';
+  if (daysUntilExpiry <= 30) return 'WARNING';
+  return 'NEUTRAL';
+}
+
 export function formatDate(value: string): string {
   if (!value) return 'Não informado';
   const [year, month, day] = value.split('-');

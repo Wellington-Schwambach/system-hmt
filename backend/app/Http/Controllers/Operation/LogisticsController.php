@@ -805,6 +805,7 @@ class LogisticsController extends Controller
             'temperature',
             'sif_seal',
             'notes',
+            'destination_notes',
             'plate_mode',
             'third_party_tractor_plate',
             'third_party_trailer_plate',
@@ -820,7 +821,7 @@ class LogisticsController extends Controller
             $payload['shipper_id'] = (int) $payload['shipper_id'];
         }
 
-        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'grade_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate'] as $field) {
+        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'grade_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'destination_notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate'] as $field) {
             if (array_key_exists($field, $payload)) {
                 $value = trim((string) ($payload[$field] ?? ''));
                 $payload[$field] = $value === '' ? null : $value;
@@ -1017,6 +1018,7 @@ class LogisticsController extends Controller
             'stage' => (string) $load->stage,
             'position' => (int) $load->position,
             'notes' => $load->notes,
+            'destination_notes' => $load->destination_notes,
             'completed_at' => $load->completed_at?->toIso8601String(),
             'completed_by_name' => $load->completedBy?->name ?? $load->completedBy?->username,
             'events' => $load->events->map(fn (LogisticsLoadEvent $event): array => [

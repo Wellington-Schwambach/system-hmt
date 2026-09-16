@@ -154,6 +154,7 @@ export interface LogisticsLoad {
   stage: LogisticsStage;
   position: number;
   notes: string | null;
+  destinationNotes: string | null;
   completedAt: string | null;
   completedByName: string | null;
   events: LogisticsLoadEvent[];
@@ -224,4 +225,5 @@ export interface LogisticsFormData {
   sifSeal: string;
   stage: LogisticsStage;
   notes: string;
+  destinationNotes: string;
 }
