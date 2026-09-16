@@ -201,6 +201,7 @@ function emptyForm(stage: LogisticsStage = 'PROGRAMMING'): LogisticsFormData {
     sifSeal: '',
     stage,
     notes: '',
+    destinationNotes: '',
   };
 }
 
@@ -255,6 +256,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     sifSeal: load.sifSeal ?? '',
     stage: load.stage,
     notes: load.notes ?? '',
+    destinationNotes: load.destinationNotes ?? '',
   };
 }
 

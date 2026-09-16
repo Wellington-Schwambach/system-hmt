@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vehicle extends Model
 {
@@ -55,6 +56,12 @@ class Vehicle extends Model
             'tachograph_expiry_date' => 'date:Y-m-d',
             'crlv_valid_until' => 'date:Y-m-d',
         ];
+    }
+
+
+    public function fuelRecords(): HasMany
+    {
+        return $this->hasMany(FuelRecord::class);
     }
 
     public function creator(): BelongsTo

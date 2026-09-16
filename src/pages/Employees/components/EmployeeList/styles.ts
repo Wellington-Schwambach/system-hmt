@@ -154,6 +154,32 @@ export const Td = styled.td`
   vertical-align: middle;
 `;
 
+export const ExpiryDate = styled.span<{ $tone: 'WARNING' | 'DANGER' | 'NEUTRAL' }>`
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0.22rem 0.48rem;
+  border: 1px solid
+    ${({ $tone, theme }) => {
+      if ($tone === 'DANGER') return theme.mode === 'dark' ? 'rgba(239, 107, 107, 0.48)' : '#efb0b0';
+      if ($tone === 'WARNING') return theme.mode === 'dark' ? 'rgba(245, 190, 70, 0.5)' : '#e7c96a';
+      return 'transparent';
+    }};
+  border-radius: 0.55rem;
+  color: ${({ $tone, theme }) => {
+    if ($tone === 'DANGER') return theme.mode === 'dark' ? '#ff9b9b' : '#b42323';
+    if ($tone === 'WARNING') return theme.mode === 'dark' ? '#ffd56a' : '#8a6400';
+    return theme.colors.dashboardText;
+  }};
+  background: ${({ $tone, theme }) => {
+    if ($tone === 'DANGER') return theme.colors.dangerSoft;
+    if ($tone === 'WARNING') return theme.mode === 'dark' ? 'rgba(245, 190, 70, 0.12)' : '#fff8d9';
+    return 'transparent';
+  }};
+  font-weight: 800;
+  white-space: nowrap;
+`;
+
 export const EmployeeMain = styled.div`
   min-width: 0;
 `;

@@ -3,6 +3,7 @@ import { breakpoints } from '../../../../styles/breakpoints';
 
 export const Sections = styled.div`
   display: flex;
+  text-transform: uppercase;
   flex-direction: column;
   gap: 0.9rem;
   min-width: 0;
@@ -130,6 +131,7 @@ export const QuickBackdrop = styled.div`
   background: rgba(8, 18, 13, 0.58);
 `;
 export const QuickModal = styled.div`
+  text-transform: uppercase;
   width: min(100%, 28rem);
   padding: 1rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};

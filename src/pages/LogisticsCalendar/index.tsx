@@ -61,7 +61,6 @@ import {
   DetailSection,
   DetailSectionTitle,
   DetailStatus,
-  DetailText,
   Drawer,
   DrawerBackdrop,
   DrawerBody,
@@ -80,7 +79,6 @@ import {
   ListHeaderRow,
   ListRow,
   ListTable,
-  OperationStageBadge,
   ListViewport,
   LoadingState,
   LoadsSection,
@@ -129,15 +127,9 @@ const STAGE_LABELS: Record<LogisticsStage, string> = {
   DELIVERY: 'Baixa / Entrega',
 };
 
-const LIST_STAGE_LABELS: Record<LogisticsStage, string> = {
-  PROGRAMMING: 'Programação',
-  COLLECTION: 'Coleta',
-  LOADING: 'Carregando',
-  DELIVERY: 'Baixa',
-};
 
 const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-type DrawerMode = 'create' | 'edit' | null;
+type DrawerMode = 'create' | 'edit' | 'duplicate' | null;
 type AppointmentKind = 'COLLECTION' | 'DELIVERY';
 
 interface AppointmentEditorState {
@@ -333,6 +325,7 @@ function emptyForm(): LogisticsFormData {
     sifSeal: '',
     stage: 'PROGRAMMING',
     notes: '',
+    destinationNotes: '',
   };
 }
 
@@ -387,6 +380,7 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     sifSeal: load.sifSeal ?? '',
     stage: load.stage,
     notes: load.notes ?? '',
+    destinationNotes: load.destinationNotes ?? '',
   };
 }
 
@@ -441,13 +435,6 @@ function loadMatchesCalendarDate(load: LogisticsLoad, date: string): boolean {
     || deliveryScheduleDates(load).includes(date);
 }
 
-function stageForDate(load: LogisticsLoad, date: string): LogisticsStage {
-  if (dateKeyFromIso(load.deliveryAt) === date || deliveryScheduleDates(load).includes(date)) return 'DELIVERY';
-  if (dateKeyFromIso(load.loadingAt) === date) return 'LOADING';
-  if (dateKeyFromIso(load.collectionAt) === date || collectionScheduleDates(load).includes(date)) return 'COLLECTION';
-  return load.stage;
-}
-
 
 function loadSortTime(load: LogisticsLoad): number {
   const candidates = [load.loadingAt, load.collectionAt, load.collectionScheduledAt, load.deliveryAt, ...load.deliveryAppointments.map((entry) => entry.scheduledAt)]
@@ -500,13 +487,12 @@ export function LogisticsCalendar() {
   const [statusVisibilitySavingId, setStatusVisibilitySavingId] = useState<number | null>(null);
   const listViewportRef = useRef<HTMLDivElement | null>(null);
   const listTableRef = useRef<HTMLDivElement | null>(null);
-  const fixedHorizontalScrollbarRef = useRef<HTMLDivElement | null>(null);
-  const syncingHorizontalScrollRef = useRef(false);
   const [fixedScrollbar, setFixedScrollbar] = useState({
     visible: false,
     left: 0,
     width: 0,
-    contentWidth: 0,
+    maxScroll: 0,
+    scrollLeft: 0,
   });
 
   const monthWeeks = useMemo(() => buildMonthWeeks(monthAnchor), [monthAnchor]);
@@ -683,7 +669,8 @@ export function LogisticsCalendar() {
 
       const rect = currentViewport.getBoundingClientRect();
       const contentWidth = currentTable.scrollWidth;
-      const hasHorizontalOverflow = contentWidth > currentViewport.clientWidth + 2;
+      const maxScroll = Math.max(0, contentWidth - currentViewport.clientWidth);
+      const hasHorizontalOverflow = maxScroll > 2;
       const listIsOnScreen = rect.top < window.innerHeight && rect.bottom > 18;
       const desktopTableMode = window.innerWidth > 1680;
       const left = Math.max(0, rect.left);
@@ -692,18 +679,18 @@ export function LogisticsCalendar() {
         visible: hasHorizontalOverflow && listIsOnScreen && desktopTableMode,
         left,
         width: Math.max(0, Math.min(rect.width, window.innerWidth - left)),
-        contentWidth,
+        maxScroll,
+        scrollLeft: Math.min(currentViewport.scrollLeft, maxScroll),
       });
     };
 
     const syncFromTable = () => {
-      const fixedBar = fixedHorizontalScrollbarRef.current;
-      if (!fixedBar || syncingHorizontalScrollRef.current) return;
-      syncingHorizontalScrollRef.current = true;
-      fixedBar.scrollLeft = viewport.scrollLeft;
-      requestAnimationFrame(() => {
-        syncingHorizontalScrollRef.current = false;
-      });
+      const currentViewport = listViewportRef.current;
+      if (!currentViewport) return;
+      setFixedScrollbar((current) => ({
+        ...current,
+        scrollLeft: Math.min(currentViewport.scrollLeft, current.maxScroll),
+      }));
     };
 
     const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateFixedScrollbar) : null;
@@ -722,23 +709,11 @@ export function LogisticsCalendar() {
     };
   }, [selectedDate, visibleLoads.length]);
 
-  useEffect(() => {
-    if (!fixedScrollbar.visible) return;
+  const handleFixedHorizontalScroll = useCallback((nextScrollLeft: number) => {
     const viewport = listViewportRef.current;
-    const fixedBar = fixedHorizontalScrollbarRef.current;
-    if (viewport && fixedBar) fixedBar.scrollLeft = viewport.scrollLeft;
-  }, [fixedScrollbar.visible]);
-
-  const handleFixedHorizontalScroll = useCallback(() => {
-    const viewport = listViewportRef.current;
-    const fixedBar = fixedHorizontalScrollbarRef.current;
-    if (!viewport || !fixedBar || syncingHorizontalScrollRef.current) return;
-
-    syncingHorizontalScrollRef.current = true;
-    viewport.scrollLeft = fixedBar.scrollLeft;
-    requestAnimationFrame(() => {
-      syncingHorizontalScrollRef.current = false;
-    });
+    if (!viewport) return;
+    viewport.scrollLeft = nextScrollLeft;
+    setFixedScrollbar((current) => ({ ...current, scrollLeft: nextScrollLeft }));
   }, []);
 
   const shipperSelectOptions = useMemo(
@@ -795,8 +770,9 @@ export function LogisticsCalendar() {
     setForm({
       ...duplicated,
       shipperId: String(load.shipperId),
+      loadingAt: selectedDate ? selectedDate : '',
     });
-    setDrawerMode('create');
+    setDrawerMode('duplicate');
   }
 
   function closeDrawer() {
@@ -944,9 +920,14 @@ export function LogisticsCalendar() {
     setSaving(true);
     try {
       let saved: LogisticsLoad;
-      if (drawerMode === 'create') {
+      if (drawerMode === 'create' || drawerMode === 'duplicate') {
         saved = await logisticsService.create(form);
-        notifications.success('Carga criada', 'A carga foi adicionada à logística.');
+        notifications.success(
+          drawerMode === 'duplicate' ? 'Carga duplicada' : 'Carga criada',
+          drawerMode === 'duplicate'
+            ? 'A nova carga foi criada a partir do embarcador selecionado, sem copiar agendamentos ou status.'
+            : 'A carga foi adicionada à logística.',
+        );
       } else if (selectedLoad) {
         const originalStage = selectedLoad.stage;
         saved = await logisticsService.update(selectedLoad.id, form);
@@ -1167,15 +1148,15 @@ export function LogisticsCalendar() {
                   <ListHeaderRow>
                     <span>Embarcador</span>
                     <span>Origem</span>
-                    <span>Destino</span>
-                    <span>Grade de carregamento</span>
-                    <span>Hora do carregamento</span>
-                    <span>Armador</span>
-                    <span>Agendamento coleta</span>
-                    <span>Agendamento baixa</span>
                     <span>Observação</span>
+                    <span>Destino</span>
+                    <span>Observação</span>
+                    <span>Hora carregamento</span>
+                    <span>Armador</span>
+                    <span>Coleta</span>
+                    <span>Baixa</span>
+                    <span>Tipo container</span>
                     <span>Status viagem</span>
-                    <span>Etapa</span>
                     <span>Ações</span>
                   </ListHeaderRow>
                   {visibleLoads.map((load) => {
@@ -1204,8 +1185,9 @@ export function LogisticsCalendar() {
                         </ListShipperBadge>
                       </ListCell>
                       <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
+                      <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
                       <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
-                      <ListCell>{formatDate(load.loadingAt)}</ListCell>
+                      <ListCell $muted={!load.destinationNotes}>{load.destinationNotes || '—'}</ListCell>
                       <ListCell>{formatTime(load.loadingAt)}</ListCell>
                       <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
                       <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
@@ -1230,19 +1212,13 @@ export function LogisticsCalendar() {
                           <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
                         </ScheduleStatusButton>
                       </ListCell>
-                      <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
+                      <ListCell>{load.containerTypeName || '—'}</ListCell>
                       <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
                         <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
                           <MessageSquareText size={16} />
                           <span>Status viagem</span>
                           {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
                         </StatusTravelButton>
-                      </ListCell>
-                      <ListCell>
-                        {(() => {
-                          const stage = stageForDate(load, selectedDate);
-                          return <OperationStageBadge $stage={stage}>{LIST_STAGE_LABELS[stage]}</OperationStageBadge>;
-                        })()}
                       </ListCell>
                       <ListActions onClick={(event) => event.stopPropagation()}>
                         <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
@@ -1267,12 +1243,19 @@ export function LogisticsCalendar() {
           {fixedScrollbar.visible && typeof document !== 'undefined'
             ? createPortal(
                 <FixedHorizontalScrollbar
-                  ref={fixedHorizontalScrollbarRef}
-                  onScroll={handleFixedHorizontalScroll}
                   style={{ left: fixedScrollbar.left, width: fixedScrollbar.width }}
                   aria-label="Rolagem horizontal da listagem"
                 >
-                  <FixedHorizontalScrollbarTrack style={{ width: fixedScrollbar.contentWidth }} />
+                  <span>ARRASTE</span>
+                  <FixedHorizontalScrollbarTrack
+                    min={0}
+                    max={Math.max(1, fixedScrollbar.maxScroll)}
+                    step={1}
+                    value={Math.min(fixedScrollbar.scrollLeft, fixedScrollbar.maxScroll)}
+                    onChange={(event) => handleFixedHorizontalScroll(Number(event.target.value))}
+                    aria-label="Mover colunas da listagem para os lados"
+                  />
+                  <span>↔</span>
                 </FixedHorizontalScrollbar>,
                 document.body,
               )
@@ -1513,8 +1496,11 @@ export function LogisticsCalendar() {
               </DetailSection>
 
               <DetailSection>
-                <DetailSectionTitle>Observação</DetailSectionTitle>
-                <DetailText>{detailLoad.notes || 'Sem observações cadastradas.'}</DetailText>
+                <DetailSectionTitle>Observações</DetailSectionTitle>
+                <DetailGrid>
+                  <DetailItem $full><span>Observação origem</span><strong>{detailLoad.notes || '—'}</strong></DetailItem>
+                  <DetailItem $full><span>Observação destino</span><strong>{detailLoad.destinationNotes || '—'}</strong></DetailItem>
+                </DetailGrid>
               </DetailSection>
 
             </DetailBody>
@@ -1528,8 +1514,8 @@ export function LogisticsCalendar() {
           <Drawer role="dialog" aria-modal="true" aria-labelledby="calendar-load-drawer-title">
             <DrawerHeader>
               <div>
-                <h2 id="calendar-load-drawer-title">{drawerMode === 'create' ? 'Nova carga' : 'Editar carga'}</h2>
-                <p>Cadastro operacional da carga.</p>
+                <h2 id="calendar-load-drawer-title">{drawerMode === 'edit' ? 'EDITAR CARGA' : drawerMode === 'duplicate' ? 'DUPLICAR CARGA' : 'NOVA CARGA'}</h2>
+                <p>CADASTRO OPERACIONAL DA CARGA.</p>
               </div>
               <IconButton type="button" onClick={closeDrawer} aria-label="Fechar"><X size={17} /></IconButton>
             </DrawerHeader>
@@ -1545,7 +1531,7 @@ export function LogisticsCalendar() {
                 form={form}
                 options={options}
                 completed={Boolean(selectedLoad?.completedAt)}
-                fixedLoadingDate={drawerMode === 'create' ? selectedDate ?? undefined : undefined}
+                fixedLoadingDate={drawerMode !== 'edit' ? selectedDate ?? undefined : undefined}
                 onChange={setForm}
                 onOptionsChange={setOptions}
               />

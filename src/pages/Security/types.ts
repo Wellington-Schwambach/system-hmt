@@ -1,6 +1,6 @@
 import type { SecurityUser, ThemePreference } from '../../services/securityService';
 
-export type SecurityTab = 'users' | 'rules' | 'blocks' | 'tryacess';
+export type SecurityTab = 'users' | 'rules' | 'alerts' | 'blocks' | 'tryacess';
 
 export interface UserFormState {
   id: number | null;

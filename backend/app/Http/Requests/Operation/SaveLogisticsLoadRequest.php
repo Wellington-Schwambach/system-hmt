@@ -137,6 +137,7 @@ class SaveLogisticsLoadRequest extends FormRequest
             'sif_seal' => ['nullable', 'string', 'max:100'],
             'stage' => ['nullable', Rule::in(LogisticsLoad::STAGES)],
             'notes' => ['nullable', 'string', 'max:4000'],
+            'destination_notes' => ['nullable', 'string', 'max:4000'],
         ];
     }
 

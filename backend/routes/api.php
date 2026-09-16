@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\SecurityController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DashboardNoteController;
 use App\Http\Controllers\Fleet\EmployeeController;
 use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
@@ -17,6 +18,12 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])
         ->middleware('permission:dashboard');
+    Route::post('/dashboard/notes', [DashboardNoteController::class, 'store'])
+        ->middleware('permission:dashboard');
+    Route::put('/dashboard/note-completion', [DashboardNoteController::class, 'setCompletion'])
+        ->middleware('permission:dashboard');
+    Route::delete('/dashboard/notes/{dailyNote}', [DashboardNoteController::class, 'destroy'])
+        ->middleware('permission:dashboard');
 
     Route::get('/bi/operational', [OperationalBIController::class, 'index'])
         ->middleware('permission:bi');
@@ -28,6 +35,10 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::post('/users', [SecurityController::class, 'store']);
             Route::put('/users/{user}', [SecurityController::class, 'update']);
             Route::put('/users/{user}/access-schedule', [SecurityController::class, 'updateSchedule']);
+            Route::put('/users/{user}/daily-note-preferences', [SecurityController::class, 'updateDailyNotePreferences']);
+            Route::post('/custom-alerts', [SecurityController::class, 'storeCustomDailyAlert']);
+            Route::put('/custom-alerts/{dailyNote}', [SecurityController::class, 'updateCustomDailyAlert']);
+            Route::delete('/custom-alerts/{dailyNote}', [SecurityController::class, 'destroyCustomDailyAlert']);
             Route::post('/blocks/unblock', [SecurityController::class, 'unblock']);
         });
 

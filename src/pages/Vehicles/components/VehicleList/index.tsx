@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, Edit3, FileDown, Plus, Search, Sheet, Trash2, Truck } from 'lucide-react';
 
 import { VEHICLE_STATUS_OPTIONS } from '../../constants';
-import { formatDate, formatInteger, getVehicleTypeLabel } from '../../utils';
+import { formatDate, formatInteger, getVehicleExpiryTone, getVehicleTypeLabel } from '../../utils';
 import type { VehicleListProps } from './types';
 import {
   ActionButton,
@@ -12,6 +12,7 @@ import {
   EmptyState,
   EmptyText,
   EmptyTitle,
+  ExpiryDate,
   ExportButton,
   FilterSelect,
   Filters,
@@ -193,8 +194,8 @@ export function VehicleList({
                     </Td>
                     <Td>{getVehicleTypeLabel(record.type)}</Td>
                     <Td>{formatInteger(record.currentKm)} km</Td>
-                    <Td>{formatDate(record.opentechExpiryDate)}</Td>
-                    <Td>{formatDate(record.angelliraExpiryDate)}</Td>
+                    <Td><ExpiryDate $tone={getVehicleExpiryTone(record.opentechExpiryDate)}>{formatDate(record.opentechExpiryDate)}</ExpiryDate></Td>
+                    <Td><ExpiryDate $tone={getVehicleExpiryTone(record.angelliraExpiryDate)}>{formatDate(record.angelliraExpiryDate)}</ExpiryDate></Td>
                     <Td>
                       {record.manufactureYear}/{record.modelYear}
                     </Td>
@@ -212,7 +213,7 @@ export function VehicleList({
                         <MutedValue>Não informado</MutedValue>
                       )}
                     </Td>
-                    <Td>{formatDate(record.licensingExpiryDate)}</Td>
+                    <Td><ExpiryDate $tone={getVehicleExpiryTone(record.licensingExpiryDate)}>{formatDate(record.licensingExpiryDate)}</ExpiryDate></Td>
                     <Td>
                       <Actions>
                         <ActionButton
@@ -273,11 +274,11 @@ export function VehicleList({
                   </MobileItem>
                   <MobileItem>
                     <MobileLabel>Opentech</MobileLabel>
-                    <MobileValue>{formatDate(record.opentechExpiryDate)}</MobileValue>
+                    <MobileValue><ExpiryDate $tone={getVehicleExpiryTone(record.opentechExpiryDate)}>{formatDate(record.opentechExpiryDate)}</ExpiryDate></MobileValue>
                   </MobileItem>
                   <MobileItem>
                     <MobileLabel>Angellira</MobileLabel>
-                    <MobileValue>{formatDate(record.angelliraExpiryDate)}</MobileValue>
+                    <MobileValue><ExpiryDate $tone={getVehicleExpiryTone(record.angelliraExpiryDate)}>{formatDate(record.angelliraExpiryDate)}</ExpiryDate></MobileValue>
                   </MobileItem>
                   <MobileItem>
                     <MobileLabel>RENAVAM</MobileLabel>
@@ -285,7 +286,7 @@ export function VehicleList({
                   </MobileItem>
                   <MobileItem>
                     <MobileLabel>Licenciamento</MobileLabel>
-                    <MobileValue>{formatDate(record.licensingExpiryDate)}</MobileValue>
+                    <MobileValue><ExpiryDate $tone={getVehicleExpiryTone(record.licensingExpiryDate)}>{formatDate(record.licensingExpiryDate)}</ExpiryDate></MobileValue>
                   </MobileItem>
                 </MobileGrid>
 

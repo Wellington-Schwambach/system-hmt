@@ -6,6 +6,7 @@ interface DayProps {
   $isCurrentMonth: boolean;
   $isToday: boolean;
   $hasLoads: boolean;
+  $hasNotes: boolean;
 }
 
 export const Card = styled.article`
@@ -66,15 +67,19 @@ export const Day = styled.button<DayProps>`
   display: grid;
   place-items: center;
   padding: 0;
-  border: 1px solid ${({ $hasLoads, $isCurrentMonth, theme }) =>
-    $isCurrentMonth && $hasLoads ? theme.colors.brandGreenBorder : 'transparent'};
+  border: 1px solid ${({ $hasLoads, $hasNotes, $isCurrentMonth, theme }) => {
+    if (! $isCurrentMonth) return 'transparent';
+    if ($hasNotes) return '#e7a923';
+    return $hasLoads ? theme.colors.brandGreenBorder : 'transparent';
+  }};
   border-radius: 50%;
   color: ${({ $isCurrentMonth, $isToday, theme }) => {
     if ($isToday) return theme.colors.white;
     return $isCurrentMonth ? theme.colors.dashboardText : theme.colors.dashboardTextSoft;
   }};
-  background: ${({ $isToday, $hasLoads, $isCurrentMonth, theme }) => {
+  background: ${({ $isToday, $hasLoads, $hasNotes, $isCurrentMonth, theme }) => {
     if ($isToday) return theme.colors.brandGreen;
+    if ($isCurrentMonth && $hasNotes) return 'rgba(231, 169, 35, 0.12)';
     if ($isCurrentMonth && $hasLoads) return theme.colors.brandGreenSoft;
     return 'transparent';
   }};
@@ -120,6 +125,66 @@ export const DayCount = styled.span`
   line-height: 1;
 `;
 
+
+export const NoteCount = styled.span`
+  position: absolute;
+  left: -0.15rem;
+  top: -0.05rem;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0 0.28rem;
+  border: 2px solid ${({ theme }) => theme.colors.surfaceElevated};
+  border-radius: 999px;
+  color: #fff;
+  background: #c98912;
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+`;
+
+export const SectionLabel = styled.h4`
+  margin: 0.15rem 0 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+`;
+
+export const NoteCard = styled.article<{ $completed: boolean }>`
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid ${({ $completed, theme }) =>
+    $completed ? theme.colors.brandGreen : 'rgba(231, 169, 35, 0.35)'};
+  border-left: 0.28rem solid ${({ $completed, theme }) =>
+    $completed ? theme.colors.brandGreen : '#c98912'};
+  border-radius: 1rem;
+  background: ${({ $completed, theme }) =>
+    $completed ? theme.colors.brandGreenSoft : theme.colors.dashboardSurface};
+`;
+
+export const NoteCardTitle = styled.strong`
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.9rem;
+`;
+
+export const NoteCardMeta = styled.span`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 0.72rem;
+  font-weight: 700;
+`;
+
+export const NoteCardText = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.8rem;
+  line-height: 1.45;
+`;
 export const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;

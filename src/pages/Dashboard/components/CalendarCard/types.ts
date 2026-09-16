@@ -1,7 +1,7 @@
-import type { CalendarDay, DashboardLoad } from '../../types';
+import type { CalendarDay, DashboardNote } from '../../types';
 
 export interface CalendarCardProps {
   monthLabel: string;
   days: CalendarDay[];
-  loads: DashboardLoad[];
+  notes: DashboardNote[];
 }

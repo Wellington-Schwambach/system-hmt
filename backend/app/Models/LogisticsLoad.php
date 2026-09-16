@@ -77,6 +77,7 @@ class LogisticsLoad extends Model
         'stage',
         'position',
         'notes',
+        'destination_notes',
         'completed_at',
         'completed_by',
         'created_by',

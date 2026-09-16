@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Fuel, PackageCheck, Truck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { useAuth } from '../../contexts/Auth/useAuth';
+
 import { CalendarCard } from './components/CalendarCard';
 import { MetricCard } from './components/MetricCard';
 import { NotesCard } from './components/NotesCard';
@@ -24,7 +26,10 @@ function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function getCalendarDays(referenceDate: Date, counts: Record<string, number>): CalendarDay[] {
+function getCalendarDays(
+  referenceDate: Date,
+  noteCounts: Record<string, number>,
+): CalendarDay[] {
   const year = referenceDate.getFullYear();
   const month = referenceDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1);
@@ -44,13 +49,14 @@ function getCalendarDays(referenceDate: Date, counts: Record<string, number>): C
         currentDate.getFullYear() === today.getFullYear() &&
         currentDate.getMonth() === today.getMonth() &&
         currentDate.getDate() === today.getDate(),
-      loadCount: counts[date] ?? 0,
+      noteCount: noteCounts[date] ?? 0,
     };
   });
 }
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,27 +84,34 @@ export function Dashboard() {
   }, [currentMonthKey, refreshDashboard]);
 
   useEffect(() => {
-    const syncClock = () => setCurrentDate(new Date());
-
-    const onFocus = () => {
-      syncClock();
-      void refreshDashboard();
+    const refreshVisibleDashboard = () => {
+      setCurrentDate(new Date());
+      if (!document.hidden) {
+        void refreshDashboard();
+      }
     };
 
-    const timer = window.setInterval(syncClock, 60_000);
+    const onFocus = () => refreshVisibleDashboard();
+    const onVisibilityChange = () => {
+      if (!document.hidden) refreshVisibleDashboard();
+    };
+
+    // Mantém notas e alertas criados por outros usuários sincronizados mesmo quando
+    // o Dashboard permanece aberto durante o expediente.
+    const timer = window.setInterval(refreshVisibleDashboard, 60_000);
     window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [refreshDashboard]);
 
   const calendarDays = useMemo(
-    () => getCalendarDays(currentDate, data?.loadCounts ?? {}),
-    [currentDate, data?.loadCounts],
+    () => getCalendarDays(currentDate, data?.noteCounts ?? {}),
+    [currentDate, data?.noteCounts],
   );
 
   const monthLabel = useMemo(
@@ -151,8 +164,17 @@ export function Dashboard() {
       />
 
       <WidgetsGrid>
-        <CalendarCard monthLabel={monthLabel} days={calendarDays} loads={data?.loads ?? []} />
-        <NotesCard />
+        <CalendarCard
+          monthLabel={monthLabel}
+          days={calendarDays}
+          notes={data?.calendarNotes ?? []}
+        />
+        <NotesCard
+          notes={data?.dailyNotes ?? []}
+          users={data?.noteUsers ?? []}
+          currentUserId={user?.id ?? null}
+          onRefresh={refreshDashboard}
+        />
       </WidgetsGrid>
 
       <SupportButton />

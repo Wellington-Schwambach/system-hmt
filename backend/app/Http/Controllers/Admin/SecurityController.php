@@ -7,19 +7,26 @@ use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UnblockLoginRequest;
 use App\Http\Requests\Admin\UpdateUserAccessScheduleRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Models\DailyNote;
+use App\Models\DailyNoteCompletion;
+use App\Models\DailyNotePreference;
 use App\Models\LoginAttempt;
 use App\Models\User;
 use App\Services\Access\UserMenuAccessService;
 use App\Services\Auth\UserAccessScheduleService;
+use App\Services\Dashboard\DailyNotesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class SecurityController extends Controller
 {
     public function __construct(
         private readonly UserMenuAccessService $menuAccess,
-        private readonly UserAccessScheduleService $accessSchedule
+        private readonly UserAccessScheduleService $accessSchedule,
+        private readonly DailyNotesService $dailyNotes
     ) {
     }
 
@@ -27,8 +34,12 @@ class SecurityController extends Controller
     {
         $limit = min(max((int) $request->integer('limit', 100), 10), 250);
 
-        $users = User::query()
-            ->orderBy('name')
+        $usersQuery = User::query()->orderBy('name');
+        if (Schema::hasTable('daily_note_preferences')) {
+            $usersQuery->with('dailyNotePreferences');
+        }
+
+        $users = $usersQuery
             ->get()
             ->map(fn (User $user): array => $this->userSecurityPayload($user));
 
@@ -53,10 +64,29 @@ class SecurityController extends Controller
 
         $activeBlocks = $this->activeBlocks();
 
+        $customDailyAlerts = collect();
+        if (
+            Schema::hasTable('daily_notes')
+            && Schema::hasTable('daily_note_recipients')
+            && Schema::hasColumn('daily_notes', 'note_type')
+            && Schema::hasColumn('daily_notes', 'is_active')
+        ) {
+            $customDailyAlerts = DailyNote::query()
+                ->where('note_type', 'custom')
+                ->with(['creator:id,name', 'recipients:id,name'])
+                ->orderByDesc('is_active')
+                ->orderBy('scheduled_at')
+                ->orderBy('title')
+                ->get()
+                ->map(fn (DailyNote $note): array => $this->customDailyAlertPayload($note))
+                ->values();
+        }
+
         return response()->json([
             'users' => $users,
             'attempts' => $attempts,
             'active_blocks' => $activeBlocks,
+            'custom_daily_alerts' => $customDailyAlerts,
             'policy' => [
                 'max_failed_attempts' => (int) config('hmt.security.max_failed_login_attempts', 10),
                 'attempt_window_minutes' => (int) config('hmt.security.login_attempt_window_minutes', 15),
@@ -76,6 +106,14 @@ class SecurityController extends Controller
                     'label' => $profile['label'] ?? $key,
                     'description' => $profile['description'] ?? '',
                     'default_permissions' => array_values($profile['permissions'] ?? []),
+                ])
+                ->values(),
+            'daily_note_preference_catalog' => collect(DailyNotesService::preferenceCatalog())
+                ->map(static fn (array $definition, string $type): array => [
+                    'alert_type' => $type,
+                    'label' => $definition['label'],
+                    'description' => $definition['description'],
+                    'default_days' => (int) $definition['default_days'],
                 ])
                 ->values(),
         ]);
@@ -153,6 +191,148 @@ class SecurityController extends Controller
         return response()->json([
             'message' => 'Horário de acesso atualizado com sucesso.',
             'user' => $this->userSecurityPayload($user->fresh()),
+        ]);
+    }
+
+    public function updateDailyNotePreferences(Request $request, User $user): JsonResponse
+    {
+        abort_unless(
+            Schema::hasTable('daily_note_preferences'),
+            503,
+            'A configuração de alertas ainda não está disponível. Execute php artisan migrate.'
+        );
+
+        $allowedTypes = array_keys(DailyNotesService::preferenceCatalog());
+        $validated = $request->validate([
+            'preferences' => ['required', 'array'],
+            'preferences.*.alert_type' => ['required', 'string', \Illuminate\Validation\Rule::in($allowedTypes)],
+            'preferences.*.enabled' => ['required', 'boolean'],
+            'preferences.*.days_before' => ['required', 'integer', 'min:0', 'max:365'],
+        ]);
+
+        foreach ($validated['preferences'] as $preference) {
+            DailyNotePreference::query()->updateOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'alert_type' => $preference['alert_type'],
+                ],
+                [
+                    'enabled' => (bool) $preference['enabled'],
+                    'days_before' => (int) $preference['days_before'],
+                ]
+            );
+        }
+
+        $fresh = $user->fresh('dailyNotePreferences');
+
+        return response()->json([
+            'message' => 'Preferências de alertas atualizadas com sucesso.',
+            'user' => $this->userSecurityPayload($fresh),
+        ]);
+    }
+
+    public function storeCustomDailyAlert(Request $request): JsonResponse
+    {
+        $this->ensureCustomAlertSchema();
+        $validated = $this->validateCustomDailyAlert($request);
+
+        $note = DB::transaction(function () use ($validated, $request): DailyNote {
+            $created = DailyNote::query()->create([
+                'note_type' => 'custom',
+                'title' => trim((string) $validated['title']),
+                'observation' => trim((string) $validated['observation']),
+                'scheduled_at' => $validated['scheduled_at'],
+                'days_before' => (int) $validated['days_before'],
+                'is_active' => (bool) $validated['is_active'],
+                'created_by' => $request->user()->id,
+            ]);
+
+            $created->recipients()->sync(array_values(array_map('intval', $validated['recipient_ids'])));
+
+            return $created;
+        });
+
+        $note->load(['creator:id,name', 'recipients:id,name']);
+
+        return response()->json([
+            'message' => 'Alerta personalizado cadastrado com sucesso.',
+            'alert' => $this->customDailyAlertPayload($note),
+        ], 201);
+    }
+
+    public function updateCustomDailyAlert(Request $request, DailyNote $dailyNote): JsonResponse
+    {
+        $this->ensureCustomAlertSchema();
+        abort_unless((string) $dailyNote->note_type === 'custom', 404);
+        $validated = $this->validateCustomDailyAlert($request);
+
+        DB::transaction(function () use ($dailyNote, $validated): void {
+            $dailyNote->forceFill([
+                'title' => trim((string) $validated['title']),
+                'observation' => trim((string) $validated['observation']),
+                'scheduled_at' => $validated['scheduled_at'],
+                'days_before' => (int) $validated['days_before'],
+                'is_active' => (bool) $validated['is_active'],
+            ])->save();
+
+            $dailyNote->recipients()->sync(array_values(array_map('intval', $validated['recipient_ids'])));
+            if (Schema::hasTable('daily_note_completions')) {
+                DailyNoteCompletion::query()->where('note_key', 'manual:'.$dailyNote->id)->delete();
+            }
+        });
+
+        $dailyNote->load(['creator:id,name', 'recipients:id,name']);
+
+        return response()->json([
+            'message' => 'Alerta personalizado atualizado com sucesso.',
+            'alert' => $this->customDailyAlertPayload($dailyNote),
+        ]);
+    }
+
+    public function destroyCustomDailyAlert(DailyNote $dailyNote): JsonResponse
+    {
+        $this->ensureCustomAlertSchema();
+        abort_unless((string) $dailyNote->note_type === 'custom', 404);
+
+        DB::transaction(function () use ($dailyNote): void {
+            if (Schema::hasTable('daily_note_completions')) {
+                DailyNoteCompletion::query()->where('note_key', 'manual:'.$dailyNote->id)->delete();
+            }
+            $dailyNote->delete();
+        });
+
+        return response()->json(['message' => 'Alerta personalizado removido com sucesso.']);
+    }
+
+    private function ensureCustomAlertSchema(): void
+    {
+        abort_unless(
+            Schema::hasTable('daily_notes')
+            && Schema::hasTable('daily_note_recipients')
+            && Schema::hasColumn('daily_notes', 'note_type')
+            && Schema::hasColumn('daily_notes', 'days_before')
+            && Schema::hasColumn('daily_notes', 'is_active'),
+            503,
+            'A estrutura de alertas personalizados ainda não está completa. Execute php artisan migrate.'
+        );
+    }
+
+    /** @return array<string, mixed> */
+    private function validateCustomDailyAlert(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:160'],
+            'observation' => ['required', 'string', 'max:4000'],
+            'scheduled_at' => ['required', 'date'],
+            'days_before' => ['required', 'integer', 'min:0', 'max:365'],
+            'is_active' => ['required', 'boolean'],
+            'recipient_ids' => ['required', 'array', 'min:1'],
+            'recipient_ids.*' => [
+                'integer',
+                'distinct',
+                \Illuminate\Validation\Rule::exists('users', 'id')
+                    ->where(fn ($query) => $query->where('is_active', true)),
+            ],
         ]);
     }
 
@@ -363,6 +543,8 @@ class SecurityController extends Controller
      */
     private function userSecurityPayload(User $user): array
     {
+        $dailyNotePreferences = $this->dailyNotes->preferencesForUser($user);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
@@ -388,6 +570,35 @@ class SecurityController extends Controller
             'temporary_access_until' => $user->temporary_access_until?->toIso8601String(),
             'temporary_access_ip' => $user->temporary_access_ip,
             'last_login_at' => $user->last_login_at?->toIso8601String(),
+            'daily_note_preferences' => collect(DailyNotesService::preferenceCatalog())
+                ->map(function (array $definition, string $type) use ($dailyNotePreferences): array {
+                    $preference = $dailyNotePreferences[$type];
+
+                    return [
+                        'alert_type' => $type,
+                        'enabled' => (bool) $preference['enabled'],
+                        'days_before' => (int) $preference['days_before'],
+                    ];
+                })
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function customDailyAlertPayload(DailyNote $note): array
+    {
+        return [
+            'id' => (int) $note->id,
+            'title' => (string) $note->title,
+            'observation' => (string) $note->observation,
+            'scheduled_at' => $note->scheduled_at?->toIso8601String(),
+            'days_before' => (int) $note->days_before,
+            'is_active' => (bool) $note->is_active,
+            'created_by' => (int) $note->created_by,
+            'creator_name' => $note->creator?->name ?? 'Sistema',
+            'recipient_ids' => $note->recipients->pluck('id')->map(fn ($id): int => (int) $id)->values()->all(),
+            'recipient_names' => $note->recipients->pluck('name')->values()->all(),
         ];
     }
 

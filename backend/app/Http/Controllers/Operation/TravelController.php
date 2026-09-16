@@ -41,7 +41,7 @@ class TravelController extends Controller
         $cteType = strtoupper(trim((string) $request->query('cte_type', '')));
         $hasTravelCtes = Schema::hasTable('travel_ctes');
 
-        $query = Travel::query()->with('shipperRelation:id,display_color');
+        $query = Travel::query()->with('shipperRelation:id,name,display_color');
 
         if ($hasTravelCtes) {
             $query->with('ctes');
@@ -67,6 +67,7 @@ class TravelController extends Controller
                         ->whereRaw('LOWER(origin) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(destination) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(shipper) LIKE ?', [$like])
+                        ->orWhereHas('shipperRelation', fn ($shipperQuery) => $shipperQuery->whereRaw('LOWER(name) LIKE ?', [$like]))
                         ->orWhereRaw('LOWER(plate_snapshot) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(COALESCE(driver_one_name, \'\')) LIKE ?', [$like])
                         ->orWhereRaw('LOWER(COALESCE(driver_two_name, \'\')) LIKE ?', [$like])
@@ -385,7 +386,7 @@ class TravelController extends Controller
 
         $shipper = Shipper::query()->findOrFail((int) $validated['shipper_id']);
         $receiptDate = $validated['receipt_date'] ?? null;
-        if ($shipper->receipt_term_days !== null) {
+        if (($receiptDate === null || $receiptDate === '') && $shipper->receipt_term_days !== null) {
             $travelDate = CarbonImmutable::createFromFormat('Y-m-d', (string) $validated['travel_date']);
             $receiptDate = $travelDate->addDays((int) $shipper->receipt_term_days)->format('Y-m-d');
         }
@@ -582,7 +583,7 @@ class TravelController extends Controller
             'cte_series' => $travel->cte_series,
             'ctes' => $ctes->map(fn (TravelCte $cte): array => $this->ctePayload($cte))->values(),
             'shipper_id' => $travel->shipper_id,
-            'shipper' => $travel->shipper,
+            'shipper' => $travel->shipperRelation?->name ?? $travel->shipper,
             'shipper_color' => $travel->shipperRelation?->display_color ?? '#009E60',
             'operation_type' => $travel->operation_type,
             'freight_type' => $travel->freight_type,

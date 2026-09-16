@@ -18,6 +18,7 @@ import {
   calculateTenure,
   formatCpf,
   formatDate,
+  getEmployeeExpiryTone,
 } from '../../utils';
 import { EmployeeStatusBadge } from '../EmployeeStatusBadge';
 import type { EmployeeListProps } from './types';
@@ -33,6 +34,7 @@ import {
   EmployeeDetail,
   EmployeeMain,
   EmployeeName,
+  ExpiryDate,
   ExportButton,
   Filters,
   FilterSelect,
@@ -203,10 +205,10 @@ export function EmployeeList({
                     <Td><EmployeeStatusBadge status={record.status} /></Td>
                     <Td>{formatCpf(record.cpf)}</Td>
                     <Td>{formatDate(record.birthDate)}</Td>
-                    <Td>{formatDate(record.asoExpiryDate)}</Td>
-                    <Td>{formatDate(record.opentechExpiryDate)}</Td>
-                    <Td>{formatDate(record.angelliraExpiryDate)}</Td>
-                    <Td>{formatDate(record.toxicologicalExpiryDate)}</Td>
+                    <Td><ExpiryDate $tone={getEmployeeExpiryTone(record.asoExpiryDate)}>{formatDate(record.asoExpiryDate)}</ExpiryDate></Td>
+                    <Td><ExpiryDate $tone={getEmployeeExpiryTone(record.opentechExpiryDate)}>{formatDate(record.opentechExpiryDate)}</ExpiryDate></Td>
+                    <Td><ExpiryDate $tone={getEmployeeExpiryTone(record.angelliraExpiryDate)}>{formatDate(record.angelliraExpiryDate)}</ExpiryDate></Td>
+                    <Td><ExpiryDate $tone={getEmployeeExpiryTone(record.toxicologicalExpiryDate)}>{formatDate(record.toxicologicalExpiryDate)}</ExpiryDate></Td>
                     <Td>{calculateTenure(record.admissionDate, record.terminationDate)}</Td>
                     <Td>
                       <DocumentButtons>
@@ -267,10 +269,10 @@ export function EmployeeList({
                 <MobileGrid>
                   <MobileItem><MobileLabel>CPF</MobileLabel><MobileValue>{formatCpf(record.cpf)}</MobileValue></MobileItem>
                   <MobileItem><MobileLabel>Nascimento</MobileLabel><MobileValue>{formatDate(record.birthDate)}</MobileValue></MobileItem>
-                  <MobileItem><MobileLabel>ASO</MobileLabel><MobileValue>{formatDate(record.asoExpiryDate)}</MobileValue></MobileItem>
-                  <MobileItem><MobileLabel>Opentech</MobileLabel><MobileValue>{formatDate(record.opentechExpiryDate)}</MobileValue></MobileItem>
-                  <MobileItem><MobileLabel>Angellira</MobileLabel><MobileValue>{formatDate(record.angelliraExpiryDate)}</MobileValue></MobileItem>
-                  <MobileItem><MobileLabel>Toxicológico</MobileLabel><MobileValue>{formatDate(record.toxicologicalExpiryDate)}</MobileValue></MobileItem>
+                  <MobileItem><MobileLabel>ASO</MobileLabel><MobileValue><ExpiryDate $tone={getEmployeeExpiryTone(record.asoExpiryDate)}>{formatDate(record.asoExpiryDate)}</ExpiryDate></MobileValue></MobileItem>
+                  <MobileItem><MobileLabel>Opentech</MobileLabel><MobileValue><ExpiryDate $tone={getEmployeeExpiryTone(record.opentechExpiryDate)}>{formatDate(record.opentechExpiryDate)}</ExpiryDate></MobileValue></MobileItem>
+                  <MobileItem><MobileLabel>Angellira</MobileLabel><MobileValue><ExpiryDate $tone={getEmployeeExpiryTone(record.angelliraExpiryDate)}>{formatDate(record.angelliraExpiryDate)}</ExpiryDate></MobileValue></MobileItem>
+                  <MobileItem><MobileLabel>Toxicológico</MobileLabel><MobileValue><ExpiryDate $tone={getEmployeeExpiryTone(record.toxicologicalExpiryDate)}>{formatDate(record.toxicologicalExpiryDate)}</ExpiryDate></MobileValue></MobileItem>
                   <MobileItem><MobileLabel>Tempo de empresa</MobileLabel><MobileValue>{calculateTenure(record.admissionDate, record.terminationDate)}</MobileValue></MobileItem>
                 </MobileGrid>
 
