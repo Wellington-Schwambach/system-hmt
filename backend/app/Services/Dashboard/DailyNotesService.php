@@ -147,6 +147,15 @@ class DailyNotesService
             $manualEvents = $manualEvents->map($withoutCompletion);
         }
 
+        // Uma nota concluída deixa de ser uma pendência: ela some tanto do card
+        // "Notas do dia" quanto dos indicadores do calendário do Dashboard.
+        $systemEvents = $systemEvents
+            ->reject(fn (array $event): bool => ($event['is_completed'] ?? false) === true)
+            ->values();
+        $manualEvents = $manualEvents
+            ->reject(fn (array $event): bool => ($event['is_completed'] ?? false) === true)
+            ->values();
+
         $dailySystem = $systemEvents
             ->filter(function (array $event): bool {
                 $daysUntil = (int) ($event['_days_until'] ?? PHP_INT_MAX);

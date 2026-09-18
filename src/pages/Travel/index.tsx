@@ -50,7 +50,7 @@ import {
 } from './styles';
 import type { TravelFormData, TravelFreightType, TravelHistoryEvent, TravelRecordWithMetrics } from './types';
 import { travelService } from './services';
-import { exportTravelsToExcel, formatCurrency } from './utils';
+import { exportTravelsForSettlementToExcel, exportTravelsToExcel, formatCurrency } from './utils';
 
 export function Travel() {
   const notifications = useNotifications();
@@ -159,6 +159,23 @@ export function Travel() {
       );
     } catch {
       notifications.error('Não foi possível exportar', 'Tente novamente em alguns instantes.');
+    }
+  }, [cteTypeFilter, notifications, records]);
+
+  const handleSettlementExport = useCallback(() => {
+    if (records.length === 0) {
+      notifications.info('Nada para exportar', 'Nenhuma viagem corresponde aos filtros atuais.');
+      return;
+    }
+
+    try {
+      exportTravelsForSettlementToExcel(records, cteTypeFilter);
+      notifications.success(
+        'Excel Acerto gerado',
+        `${records.length} viagem(ns) do filtro atual foram exportadas em ordem crescente de data.`,
+      );
+    } catch {
+      notifications.error('Não foi possível gerar o Excel Acerto', 'Tente novamente em alguns instantes.');
     }
   }, [cteTypeFilter, notifications, records]);
 
@@ -292,6 +309,15 @@ export function Travel() {
             >
               <FileSpreadsheet size={17} aria-hidden="true" />
               Exportar Excel
+            </ExportButton>
+            <ExportButton
+              type="button"
+              onClick={handleSettlementExport}
+              disabled={loading || records.length === 0}
+              title="Exportar Excel de acerto com data, origem, destino, frete líquido e CT-es"
+            >
+              <FileSpreadsheet size={17} aria-hidden="true" />
+              Excel Acerto
             </ExportButton>
           </SectionActions>
         </SectionHeader>

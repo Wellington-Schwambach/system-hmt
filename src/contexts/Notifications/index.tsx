@@ -40,7 +40,7 @@ import type {
 
 interface PendingConfirmation {
   options: Required<Pick<ConfirmOptions, 'title' | 'message' | 'type' | 'confirmLabel' | 'cancelLabel'>> &
-    Pick<ConfirmOptions, 'details'>;
+    Pick<ConfirmOptions, 'details' | 'hideCancel'>;
   resolve: (value: boolean) => void;
 }
 
@@ -98,6 +98,7 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
           type: options.type ?? 'warning',
           confirmLabel: options.confirmLabel ?? 'Confirmar',
           cancelLabel: options.cancelLabel ?? 'Cancelar',
+          hideCancel: options.hideCancel ?? false,
         },
         resolve,
       });
@@ -199,9 +200,11 @@ export function NotificationsProvider({ children }: PropsWithChildren) {
                   ) : null}
                 </ConfirmBody>
                 <ConfirmFooter>
-                  <ConfirmButton type="button" onClick={() => settleConfirmation(false)}>
-                    {pendingConfirmation.options.cancelLabel}
-                  </ConfirmButton>
+                  {!pendingConfirmation.options.hideCancel ? (
+                    <ConfirmButton type="button" onClick={() => settleConfirmation(false)}>
+                      {pendingConfirmation.options.cancelLabel}
+                    </ConfirmButton>
+                  ) : null}
                   <ConfirmButton
                     type="button"
                     $primary

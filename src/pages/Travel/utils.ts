@@ -439,3 +439,119 @@ export function exportTravelsToExcel(
   anchor.remove();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Exportação enxuta usada no acerto de viagens.
+ * Cada viagem ocupa uma única linha. Quando uma viagem possui vários CT-es,
+ * os números são agrupados na mesma célula e os respectivos fretes líquidos
+ * são somados para formar o valor da linha.
+ */
+export function exportTravelsForSettlementToExcel(
+  records: TravelRecordWithMetrics[],
+  cteTypeFilter: TravelCteTypeFilter = 'ALL',
+): void {
+  const headers = ['Dia', 'Origem', 'Destino', 'Valor', 'Numero do CTE'];
+
+  const sortedRecords = [...records].sort((firstRecord, secondRecord) => {
+    const dateComparison = firstRecord.date.localeCompare(secondRecord.date);
+    return dateComparison !== 0 ? dateComparison : firstRecord.id - secondRecord.id;
+  });
+
+  const rows: Array<Array<string | number>> = sortedRecords.flatMap((record) => {
+    const ctes = record.ctes.filter(
+      (cte) => cteTypeFilter === 'ALL' || cte.cteType === cteTypeFilter,
+    );
+
+    if (ctes.length === 0) return [];
+
+    const totalNetFreight = ctes.reduce((total, cte) => total + cte.netFreight, 0);
+    const cteNumbers = ctes
+      .map((cte) => cte.cteNumber.trim())
+      .filter(Boolean)
+      .join(' / ');
+
+    return [[
+      formatDate(record.date),
+      record.origin,
+      record.destination,
+      totalNetFreight,
+      cteNumbers,
+    ]];
+  });
+
+  const allRows = [headers, ...rows];
+  const sheetRows = allRows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((value, columnIndex) => {
+          const reference = `${spreadsheetColumn(columnIndex)}${rowIndex + 1}`;
+
+          if (rowIndex === 0) return xlsxTextCell(reference, value, 1);
+          if (columnIndex === 3 && typeof value === 'number') {
+            return xlsxNumberCell(reference, value, 2);
+          }
+
+          return xlsxTextCell(reference, value, 0);
+        })
+        .join('');
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join('');
+
+  const lastColumn = spreadsheetColumn(headers.length - 1);
+  const lastRow = Math.max(allRows.length, 1);
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:${lastColumn}${lastRow}"/>
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <cols>
+    <col min="1" max="1" width="14" customWidth="1"/>
+    <col min="2" max="3" width="28" customWidth="1"/>
+    <col min="4" max="4" width="16" customWidth="1"/>
+    <col min="5" max="5" width="24" customWidth="1"/>
+  </cols>
+  <sheetData>${sheetRows}</sheetData>
+  <autoFilter ref="A1:${lastColumn}${lastRow}"/>
+</worksheet>`;
+
+  const workbook = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Acerto" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;R$&quot; #,##0.00;[Red]-&quot;R$&quot; #,##0.00"/></numFmts>
+  <fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>
+</styleSheet>`;
+
+  const entries = [
+    { name: '[Content_Types].xml', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name: '_rels/.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: 'xl/workbook.xml', data: workbook },
+    { name: 'xl/_rels/workbook.xml.rels', data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/worksheets/sheet1.xml', data: worksheet },
+    { name: 'xl/styles.xml', data: styles },
+  ];
+
+  const zipBytes = createTravelZip(entries);
+  const zipBuffer = zipBytes.buffer.slice(
+    zipBytes.byteOffset,
+    zipBytes.byteOffset + zipBytes.byteLength,
+  ) as ArrayBuffer;
+  const blob = new Blob([zipBuffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `excel-acerto-viagens-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}

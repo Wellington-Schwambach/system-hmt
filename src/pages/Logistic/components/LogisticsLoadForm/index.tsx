@@ -280,6 +280,9 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
             ) : (
               <Field $span={6}>Data / hora do carregamento<Input type="datetime-local" value={form.loadingAt} onChange={(e) => patch({ loadingAt: e.target.value })} /></Field>
             )}
+            <Field $span={12}>Observação da origem
+              <Textarea maxLength={4000} value={form.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="OBSERVAÇÃO DA ORIGEM..." />
+            </Field>
           </Grid>
         </Section>
 
@@ -305,6 +308,9 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
             <Field $span={3}>Tipo de local
               <SelectAction><SearchableSelect id={`${prefix}-delivery-location-type`} value={form.deliveryLocationTypeId} options={deliveryTypeOptions} onChange={(value) => patch({ deliveryLocationTypeId: value })} placeholder="Selecione" />
                 <AddButton type="button" onClick={() => setQuick({ catalog: 'location-types', title: 'Novo tipo de local de baixa', scope: 'B' })}><Plus size={18}/></AddButton></SelectAction>
+            </Field>
+            <Field $span={12}>Observação do destino
+              <Textarea maxLength={4000} value={form.destinationNotes} onChange={(e) => patch({ destinationNotes: e.target.value })} placeholder="OBSERVAÇÃO DO DESTINO..." />
             </Field>
           </Grid>
         </Section>
@@ -349,17 +355,6 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
           </Grid>
         </Section>
 
-        <Section>
-          <SectionTitle>Observações</SectionTitle>
-          <Grid>
-            <Field $span={6}>Observação origem
-              <Textarea maxLength={4000} value={form.notes} onChange={(e) => patch({ notes: e.target.value })} placeholder="OBSERVAÇÃO DA ORIGEM..." />
-            </Field>
-            <Field $span={6}>Observação destino
-              <Textarea maxLength={4000} value={form.destinationNotes} onChange={(e) => patch({ destinationNotes: e.target.value })} placeholder="OBSERVAÇÃO DO DESTINO..." />
-            </Field>
-          </Grid>
-        </Section>
       </Sections>
 
       {quick ? <QuickBackdrop onMouseDown={closeQuick}>

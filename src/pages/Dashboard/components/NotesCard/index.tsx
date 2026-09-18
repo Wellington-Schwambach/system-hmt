@@ -259,7 +259,7 @@ export function NotesCard({ notes, users, currentUserId, onRefresh }: NotesCardP
       notifications.success(
         nextCompleted ? 'Nota concluída' : 'Conclusão removida',
         nextCompleted
-          ? 'A nota foi marcada como concluída e ficará destacada em verde.'
+          ? 'A nota foi concluída e saiu das pendências do Dashboard.'
           : 'A nota voltou para o estado pendente.',
       );
       setSelectedNote((current) =>

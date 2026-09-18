@@ -15,6 +15,7 @@ export interface ConfirmOptions {
   type?: Exclude<NotificationType, 'success'>;
   confirmLabel?: string;
   cancelLabel?: string;
+  hideCancel?: boolean;
 }
 
 export interface NotificationItem extends Required<Pick<NotificationOptions, 'title' | 'type'>> {

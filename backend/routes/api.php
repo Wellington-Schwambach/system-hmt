@@ -132,6 +132,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::post('/catalogs/{catalog}', [LogisticsController::class, 'storeCatalog']);
             Route::get('/', [LogisticsController::class, 'index']);
             Route::post('/', [LogisticsController::class, 'store']);
+            Route::post('/{logisticsLoad}/duplicate', [LogisticsController::class, 'duplicate']);
             Route::put('/{logisticsLoad}', [LogisticsController::class, 'update']);
             Route::patch('/{logisticsLoad}/appointments', [LogisticsController::class, 'updateAppointments']);
             Route::post('/{logisticsLoad}/status-notes', [LogisticsController::class, 'addStatusNote']);
