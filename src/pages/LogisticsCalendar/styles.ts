@@ -1286,6 +1286,90 @@ export const SelectedDateBar = styled.div`
   }
 `;
 
+export const DayTabs = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.72rem 1rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const DayTabButton = styled.button<{ $active: boolean }>`
+  min-height: 2.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.48rem;
+  padding: 0.52rem 0.85rem;
+  border: 1px solid ${({ $active, theme }) => ($active ? theme.colors.brandGreen : theme.colors.dashboardBorderStrong)};
+  border-radius: 0.72rem;
+  color: ${({ $active, theme }) => ($active ? theme.colors.brandGreen : theme.colors.dashboardTextMuted)};
+  background: ${({ $active, theme }) => ($active ? theme.colors.brandGreenSoft : theme.colors.surfaceElevated)};
+  font-size: 0.86rem;
+  font-weight: 850;
+  cursor: pointer;
+
+  > strong {
+    min-width: 1.4rem;
+    height: 1.4rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: ${({ $active, theme }) => ($active ? '#fff' : theme.colors.dashboardText)};
+    background: ${({ $active, theme }) => ($active ? theme.colors.brandGreen : theme.colors.dashboardBorder)};
+    font-size: 0.72rem;
+  }
+`;
+
+export const DayHistoryList = styled.div`
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.9rem 1rem 1.1rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const DayHistoryItem = styled.article<{ $accent: string }>`
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.8fr) minmax(12rem, 1.25fr) minmax(10rem, 0.85fr) minmax(10rem, 0.85fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-left: 0.28rem solid ${({ $accent }) => $accent};
+  border-radius: 0.78rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+
+  > div {
+    min-width: 0;
+  }
+
+  span {
+    display: block;
+    margin-bottom: 0.16rem;
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+  }
+
+  strong, p {
+    margin: 0;
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.88rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  @media (max-width: 620px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
 export const ListViewport = styled.div`
   min-width: 0;
   width: 100%;

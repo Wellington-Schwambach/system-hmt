@@ -9,6 +9,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  History,
   MessageSquareText,
   Plus,
   RefreshCw,
@@ -61,6 +62,10 @@ import {
   DetailSection,
   DetailSectionTitle,
   DetailStatus,
+  DayHistoryItem,
+  DayHistoryList,
+  DayTabButton,
+  DayTabs,
   Drawer,
   DrawerBackdrop,
   DrawerBody,
@@ -131,6 +136,7 @@ const STAGE_LABELS: Record<LogisticsStage, string> = {
 const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 type DrawerMode = 'create' | 'edit' | 'duplicate' | null;
 type AppointmentKind = 'COLLECTION' | 'DELIVERY';
+type DayTab = 'LOADS' | 'HISTORY';
 
 interface AppointmentEditorState {
   kind: AppointmentKind;
@@ -183,6 +189,26 @@ function formatTime(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function eventActionLabel(action: LogisticsLoad['events'][number]['action']): string {
+  return {
+    CREATED: 'Carga criada',
+    UPDATED: 'Carga alterada',
+    STAGE_CHANGED: 'Etapa alterada',
+    FINALIZED: 'Carga finalizada',
+    DELETED: 'Carga excluída',
+  }[action] ?? action;
+}
+
+function eventMessage(event: LogisticsLoad['events'][number]): string {
+  const message = event.details?.message;
+  if (typeof message === 'string' && message.trim()) return message.trim();
+  const changedFields = event.details?.changed_fields;
+  if (Array.isArray(changedFields) && changedFields.length > 0) {
+    return `Campos alterados: ${changedFields.join(', ')}`;
+  }
+  return eventActionLabel(event.action);
 }
 
 interface MonthWeek {
@@ -466,6 +492,8 @@ export function LogisticsCalendar() {
   const today = useMemo(() => new Date(), []);
   const [monthAnchor, setMonthAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0, 0));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayTab, setDayTab] = useState<DayTab>('LOADS');
+  const collectionAlertDateRef = useRef<string | null>(null);
   const [shipperFilter, setShipperFilter] = useState('');
   const [options, setOptions] = useState<LogisticsOptions>(EMPTY_OPTIONS);
   const [loads, setLoads] = useState<LogisticsLoad[]>([]);
@@ -653,11 +681,43 @@ export function LogisticsCalendar() {
       });
   }, [loads, selectedDate]);
 
+
+  const dayHistory = useMemo(() => visibleLoads
+    .flatMap((load) => load.events.map((event) => ({ load, event })))
+    .sort((a, b) => new Date(b.event.occurredAt).getTime() - new Date(a.event.occurredAt).getTime()), [visibleLoads]);
+
+  useEffect(() => {
+    if (!selectedDate || loading || collectionAlertDateRef.current === selectedDate) return;
+
+    const scheduledLoads = loads.filter((load) => collectionScheduleDates(load).includes(selectedDate));
+    if (scheduledLoads.length === 0) return;
+
+    collectionAlertDateRef.current = selectedDate;
+    const shipperCounts = scheduledLoads.reduce<Record<string, number>>((accumulator, load) => {
+      const shipper = load.shipperName?.trim() || 'SEM EMBARCADOR';
+      accumulator[shipper] = (accumulator[shipper] ?? 0) + 1;
+      return accumulator;
+    }, {});
+    const details = Object.entries(shipperCounts)
+      .sort(([first], [second]) => first.localeCompare(second, 'pt-BR'))
+      .slice(0, 6)
+      .map(([shipper, count]) => `${shipper} · ${count} carga${count === 1 ? '' : 's'}`);
+
+    void notifications.confirm({
+      title: 'Atenção: coletas agendadas',
+      message: `${scheduledLoads.length} carga${scheduledLoads.length === 1 ? '' : 's'} com coleta agendada em ${formatDate(selectedDate)}. Confira os horários antes de seguir com a operação.`,
+      details,
+      type: 'warning',
+      confirmLabel: 'Entendi',
+      hideCancel: true,
+    });
+  }, [loading, loads, notifications, selectedDate]);
+
   useEffect(() => {
     const viewport = listViewportRef.current;
     const table = listTableRef.current;
 
-    if (!viewport || !table || !selectedDate) {
+    if (!viewport || !table || !selectedDate || dayTab !== 'LOADS') {
       setFixedScrollbar((current) => (current.visible ? { ...current, visible: false } : current));
       return;
     }
@@ -707,7 +767,7 @@ export function LogisticsCalendar() {
       window.removeEventListener('scroll', updateFixedScrollbar);
       window.removeEventListener('resize', updateFixedScrollbar);
     };
-  }, [selectedDate, visibleLoads.length]);
+  }, [dayTab, selectedDate, visibleLoads.length]);
 
   const handleFixedHorizontalScroll = useCallback((nextScrollLeft: number) => {
     const viewport = listViewportRef.current;
@@ -737,10 +797,14 @@ export function LogisticsCalendar() {
   }
 
   function selectCalendarDate(date: Date) {
+    collectionAlertDateRef.current = null;
+    setDayTab('LOADS');
     setSelectedDate(localDateString(date));
   }
 
   function returnToCalendar() {
+    collectionAlertDateRef.current = null;
+    setDayTab('LOADS');
     setDetailLoad(null);
     setSelectedDate(null);
   }
@@ -764,13 +828,13 @@ export function LogisticsCalendar() {
   }
 
   function openDuplicate(load: LogisticsLoad) {
-    const duplicated = emptyForm();
+    const duplicated = formFromLoad(load);
     setDetailLoad(null);
-    setSelectedLoad(null);
+    setSelectedLoad(load);
     setForm({
       ...duplicated,
-      shipperId: String(load.shipperId),
-      loadingAt: selectedDate ? selectedDate : '',
+      // A referência é um identificador interno único e será gerada novamente no backend.
+      referenceCode: '',
     });
     setDrawerMode('duplicate');
   }
@@ -920,13 +984,14 @@ export function LogisticsCalendar() {
     setSaving(true);
     try {
       let saved: LogisticsLoad;
-      if (drawerMode === 'create' || drawerMode === 'duplicate') {
+      if (drawerMode === 'create') {
         saved = await logisticsService.create(form);
+        notifications.success('Carga criada', 'A carga foi adicionada à logística.');
+      } else if (drawerMode === 'duplicate' && selectedLoad) {
+        saved = await logisticsService.duplicate(selectedLoad.id, form);
         notifications.success(
-          drawerMode === 'duplicate' ? 'Carga duplicada' : 'Carga criada',
-          drawerMode === 'duplicate'
-            ? 'A nova carga foi criada a partir do embarcador selecionado, sem copiar agendamentos ou status.'
-            : 'A carga foi adicionada à logística.',
+          'Carga duplicada',
+          'Todos os dados operacionais e agendamentos da carga original foram copiados para a nova carga.',
         );
       } else if (selectedLoad) {
         const originalStage = selectedLoad.stage;
@@ -1139,7 +1204,55 @@ export function LogisticsCalendar() {
             </FilterBox>
           </SelectedDateBar>
 
-          {loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
+          <DayTabs role="tablist" aria-label="Conteúdo do dia selecionado">
+            <DayTabButton
+              type="button"
+              role="tab"
+              aria-selected={dayTab === 'LOADS'}
+              $active={dayTab === 'LOADS'}
+              onClick={() => setDayTab('LOADS')}
+            >
+              Cargas <strong>{visibleLoads.length}</strong>
+            </DayTabButton>
+            <DayTabButton
+              type="button"
+              role="tab"
+              aria-selected={dayTab === 'HISTORY'}
+              $active={dayTab === 'HISTORY'}
+              onClick={() => setDayTab('HISTORY')}
+            >
+              <History size={16} /> Histórico <strong>{dayHistory.length}</strong>
+            </DayTabButton>
+          </DayTabs>
+
+          {dayTab === 'HISTORY' ? (
+            dayHistory.length === 0 ? (
+              <EmptyState>Nenhuma alteração registrada nas cargas deste dia.</EmptyState>
+            ) : (
+              <DayHistoryList>
+                {dayHistory.map(({ load, event }) => (
+                  <DayHistoryItem key={`${load.id}-${event.id}`} $accent={load.shipperColor || '#7d8b82'}>
+                    <div>
+                      <span>Carga</span>
+                      <strong>{load.shipperName} · {loadIdentifier(load)}</strong>
+                    </div>
+                    <div>
+                      <span>Alteração</span>
+                      <p>{eventMessage(event)}</p>
+                    </div>
+                    <div>
+                      <span>Usuário</span>
+                      <strong>{event.userName || 'Sistema'}</strong>
+                    </div>
+                    <div>
+                      <span>Data / hora</span>
+                      <strong>{formatDateTime(event.occurredAt)}</strong>
+                    </div>
+                  </DayHistoryItem>
+                ))}
+              </DayHistoryList>
+            )
+          ) : loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
             <ListViewport ref={listViewportRef}>
               {visibleLoads.length === 0 ? (
                 <EmptyState>Nenhum agendamento ou carregamento encontrado para esta data.</EmptyState>
@@ -1240,7 +1353,7 @@ export function LogisticsCalendar() {
             </ListViewport>
           )}
 
-          {fixedScrollbar.visible && typeof document !== 'undefined'
+          {dayTab === 'LOADS' && fixedScrollbar.visible && typeof document !== 'undefined'
             ? createPortal(
                 <FixedHorizontalScrollbar
                   style={{ left: fixedScrollbar.left, width: fixedScrollbar.width }}
@@ -1531,7 +1644,7 @@ export function LogisticsCalendar() {
                 form={form}
                 options={options}
                 completed={Boolean(selectedLoad?.completedAt)}
-                fixedLoadingDate={drawerMode !== 'edit' ? selectedDate ?? undefined : undefined}
+                fixedLoadingDate={drawerMode === 'create' ? selectedDate ?? undefined : undefined}
                 onChange={setForm}
                 onOptionsChange={setOptions}
               />

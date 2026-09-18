@@ -400,6 +400,13 @@ export const logisticsService = {
     return load;
   },
 
+  async duplicate(id: number, data: LogisticsFormData): Promise<LogisticsLoad> {
+    const response = await api.post<{ message: string; load: ApiLoad }>(`/api/logistics/${id}/duplicate`, formPayload(data));
+    const load = mapLoad(response.data.load);
+    notifyLogisticsChanged();
+    return load;
+  },
+
   async update(id: number, data: LogisticsFormData): Promise<LogisticsLoad> {
     const response = await api.put<{ message: string; load: ApiLoad }>(`/api/logistics/${id}`, formPayload(data));
     const load = mapLoad(response.data.load);

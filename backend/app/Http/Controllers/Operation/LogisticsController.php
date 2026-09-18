@@ -430,6 +430,69 @@ class LogisticsController extends Controller
         ], 201);
     }
 
+    public function duplicate(
+        SaveLogisticsLoadRequest $request,
+        LogisticsLoad $logisticsLoad
+    ): JsonResponse {
+        $validated = $request->validated();
+
+        $load = DB::transaction(function () use ($request, $validated, $logisticsLoad): LogisticsLoad {
+            $stage = (string) ($validated['stage'] ?? $logisticsLoad->stage ?? LogisticsLoad::STAGE_PROGRAMMING);
+            $position = (int) (LogisticsLoad::query()
+                ->whereNull('completed_at')
+                ->where('stage', $stage)
+                ->max('position') ?? -1) + 1;
+
+            // A duplicação parte do registro original para preservar todos os dados
+            // operacionais, inclusive os agendamentos separados de coleta/baixa.
+            // Identificadores, auditoria e conclusão pertencem à nova carga e não são copiados.
+            $duplicate = $logisticsLoad->replicate([
+                'reference_code',
+                'position',
+                'completed_at',
+                'completed_by',
+                'created_by',
+                'updated_by',
+                'deleted_by',
+                'deleted_at',
+            ]);
+
+            $attributes = $this->attributes($validated);
+            $duplicate->fill($attributes);
+            $duplicate->forceFill([
+                'reference_code' => $this->generateReference(),
+                'scheduled_at' => $logisticsLoad->scheduled_at ?? $this->firstOperationalDate($attributes) ?? CarbonImmutable::now(),
+                'stage' => $stage,
+                'position' => $position,
+                'completed_at' => null,
+                'completed_by' => null,
+                'created_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
+                'deleted_by' => null,
+            ]);
+            $duplicate->save();
+
+            $this->recordEvent(
+                $duplicate,
+                LogisticsLoadEvent::ACTION_CREATED,
+                null,
+                $stage,
+                [
+                    'message' => 'Carga duplicada na logística.',
+                    'duplicated_from_id' => (int) $logisticsLoad->id,
+                ],
+                $request
+            );
+
+            return $duplicate->fresh($this->relations());
+        });
+
+        return response()->json([
+            'message' => 'Carga duplicada com sucesso.',
+            'load' => $this->loadPayload($load),
+        ], 201);
+    }
+
     public function update(
         SaveLogisticsLoadRequest $request,
         LogisticsLoad $logisticsLoad
