@@ -39,6 +39,7 @@ class VehicleSetManagementTest extends TestCase
 
         $this->actingAs($user)->putJson("/api/vehicle-sets/{$setId}/driver", [
             'driver_id' => $secondDriver->id,
+            'released_at' => '2026-08-25 11:30:00',
             'assigned_at' => '2026-08-25 12:00:00',
         ])->assertOk()
             ->assertJsonPath('set.driver_name', 'Motorista Dois');
@@ -48,8 +49,56 @@ class VehicleSetManagementTest extends TestCase
         ])->assertOk();
 
         $this->assertDatabaseHas('vehicle_sets', ['id' => $setId, 'status' => 'DETACHED']);
-        $this->assertDatabaseHas('vehicle_set_events', ['vehicle_set_id' => $setId, 'action' => 'DRIVER_CHANGED']);
+        $this->assertDatabaseHas('vehicle_set_events', [
+            'vehicle_set_id' => $setId,
+            'action' => 'DRIVER_RELEASED',
+            'driver_id' => $firstDriver->id,
+            'occurred_at' => '2026-08-25 11:30:00',
+        ]);
+        $this->assertDatabaseHas('vehicle_set_events', [
+            'vehicle_set_id' => $setId,
+            'action' => 'DRIVER_ASSIGNED',
+            'driver_id' => $secondDriver->id,
+            'occurred_at' => '2026-08-25 12:00:00',
+        ]);
         $this->assertDatabaseHas('vehicle_set_events', ['vehicle_set_id' => $setId, 'action' => 'DETACHED']);
+    }
+
+    public function test_driver_exit_and_new_driver_entry_can_have_independent_times(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['vehicle_sets']]);
+        $tractor = $this->vehicle('TIM1E23', 'TRACTOR');
+        $firstDriver = $this->driver('MOT-401', 'Motorista Atual', '10101010101');
+        $secondDriver = $this->driver('MOT-402', 'Motorista Novo', '20202020202');
+
+        $created = $this->actingAs($user)->postJson('/api/vehicle-sets', [
+            'tractor_id' => $tractor->id,
+            'driver_id' => $firstDriver->id,
+            'coupled_at' => '2026-08-27 08:00:00',
+            'driver_assigned_at' => '2026-08-27 08:00:00',
+        ])->assertCreated();
+
+        $setId = (int) $created->json('set.id');
+
+        $this->actingAs($user)->putJson("/api/vehicle-sets/{$setId}/driver", [
+            'driver_id' => $secondDriver->id,
+            'released_at' => '2026-08-27 12:00:00',
+            'assigned_at' => '2026-08-27 11:30:00',
+        ])->assertOk()
+            ->assertJsonPath('set.driver_name', 'Motorista Novo');
+
+        $this->assertDatabaseHas('vehicle_set_events', [
+            'vehicle_set_id' => $setId,
+            'action' => 'DRIVER_RELEASED',
+            'driver_id' => $firstDriver->id,
+            'occurred_at' => '2026-08-27 12:00:00',
+        ]);
+        $this->assertDatabaseHas('vehicle_set_events', [
+            'vehicle_set_id' => $setId,
+            'action' => 'DRIVER_ASSIGNED',
+            'driver_id' => $secondDriver->id,
+            'occurred_at' => '2026-08-27 11:30:00',
+        ]);
     }
 
     public function test_second_driver_can_be_linked_to_the_same_active_set(): void

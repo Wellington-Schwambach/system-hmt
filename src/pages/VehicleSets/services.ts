@@ -200,11 +200,13 @@ export const vehicleSetService = {
     setId: number,
     driverId: number,
     assignedAt: string,
+    releasedAt: string | null,
     slot: 'PRIMARY' | 'SECONDARY' = 'PRIMARY',
   ): Promise<{ message: string; set: VehicleSetRecord }> {
     const response = await api.put<{ message: string; set: ApiVehicleSet }>(`/api/vehicle-sets/${setId}/driver`, {
       driver_id: driverId,
       assigned_at: assignedAt,
+      released_at: releasedAt,
       slot,
     });
     return { message: response.data.message, set: mapSet(response.data.set) };

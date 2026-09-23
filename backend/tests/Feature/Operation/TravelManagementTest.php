@@ -20,6 +20,31 @@ class TravelManagementTest extends TestCase
 
     use RefreshDatabase;
 
+    public function test_receipt_date_can_remain_null_even_when_shipper_has_a_receipt_term(): void
+    {
+        $user = User::factory()->create(['menu_permissions' => ['travel']]);
+        $shipper = $this->shipper();
+        $shipper->update(['receipt_term_days' => 45]);
+        $payload = $this->basePayload($shipper->id, '899999');
+        $payload['receipt_date'] = null;
+
+        $response = $this->actingAs($user)->postJson('/api/travels', [
+            ...$payload,
+            'operation_type' => 'THIRD_PARTY',
+            'third_party_name' => 'Transportadora Teste',
+            'third_party_plate' => 'NUL1A23',
+            'third_party_payout_amount' => 1000,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('travel.receipt_date', null);
+
+        $this->assertDatabaseHas('travels', [
+            'id' => (int) $response->json('travel.id'),
+            'receipt_date' => null,
+        ]);
+    }
+
     public function test_user_can_create_and_update_third_party_travel_without_fleet_links(): void
     {
         $user = User::factory()->create(['menu_permissions' => ['travel']]);

@@ -7,6 +7,7 @@ import {
   Link2,
   Map,
   NotebookPen,
+  ReceiptText,
   ShieldCheck,
   Truck,
   Users,
@@ -123,6 +124,13 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     label: 'Acertos',
     icon: NotebookPen,
     path: '/acertos',
+    permission: 'settlements',
+  },
+  {
+    id: 'vales',
+    label: 'Vales',
+    icon: ReceiptText,
+    path: '/vales',
     permission: 'settlements',
   },
   {

@@ -82,6 +82,99 @@ export const Builder = styled.section`
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
 `;
 
+export const BuilderToggle = styled.button`
+  width: 100%;
+  min-height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  border: 0;
+  border-radius: 1.15rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms ease;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.surfaceElevated};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.brandGreen};
+    outline-offset: -2px;
+  }
+`;
+
+export const BuilderToggleInfo = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  > span {
+    width: 2.35rem;
+    height: 2.35rem;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+    border-radius: 0.75rem;
+    color: ${({ theme }) => theme.colors.brandGreen};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+
+  > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.16rem;
+  }
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.84rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+
+  small {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+`;
+
+export const BuilderToggleAction = styled.span<{ $open: boolean }>`
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.7rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font-size: 0.7rem;
+  font-weight: 850;
+
+  svg {
+    transition: transform 180ms ease;
+    transform: rotate(${({ $open }) => ($open ? '180deg' : '0deg')});
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    span { display: none; }
+  }
+`;
+
+export const BuilderBody = styled.div`
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+`;
+
 export const BuilderTop = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 3.6rem minmax(0, 1fr);

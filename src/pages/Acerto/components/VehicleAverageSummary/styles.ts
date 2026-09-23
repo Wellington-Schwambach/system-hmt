@@ -1,5 +1,7 @@
 import styled from 'styled-components';
 
+import { breakpoints } from '../../../../styles/breakpoints';
+
 export const Card = styled.aside`
   min-width: 0;
   align-self: start;
@@ -18,6 +20,26 @@ export const Header = styled.header`
   padding: 0.78rem 0.85rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
 
+  @media (max-width: ${breakpoints.mobile}) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+`;
+
+export const Title = styled.h2`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.85rem;
+`;
+
+export const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+
   > span {
     min-width: 1.7rem;
     min-height: 1.7rem;
@@ -31,20 +53,39 @@ export const Header = styled.header`
   }
 `;
 
-export const Title = styled.h2`
+export const SelectionButton = styled.button`
+  min-height: 2rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  margin: 0;
-  color: ${({ theme }) => theme.colors.dashboardText};
-  font-size: 0.85rem;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.58rem;
+  border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+  border-radius: 0.62rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+  font-size: 0.6rem;
+  font-weight: 850;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+  }
+
+  &:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+  }
 `;
 
 export const VehicleList = styled.div`
   display: grid;
+  max-height: 26rem;
+  overflow: auto;
 `;
 
-export const VehicleRow = styled.article`
+export const VehicleRow = styled.div`
   min-width: 0;
   display: flex;
   align-items: center;

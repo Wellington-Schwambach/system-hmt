@@ -1,5 +1,6 @@
 import {
   CalendarClock,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
@@ -43,6 +44,10 @@ import {
   BottomGrid,
   Builder,
   BuilderActions,
+  BuilderBody,
+  BuilderToggle,
+  BuilderToggleAction,
+  BuilderToggleInfo,
   BuilderLower,
   BuilderTop,
   CloseButton,
@@ -132,8 +137,9 @@ function formatNumber(value: number): string {
 function eventLabel(action: VehicleSetEventAction): string {
   return {
     COUPLED: 'Conjunto atrelado',
-    DRIVER_ASSIGNED: 'Motorista atrelado',
+    DRIVER_ASSIGNED: 'Entrada de motorista',
     DRIVER_CHANGED: 'Motorista alterado',
+    DRIVER_RELEASED: 'Saída de motorista',
     DETACHED: 'Conjunto desatrelado',
   }[action];
 }
@@ -143,6 +149,7 @@ function eventColor(action: VehicleSetEventAction): 'green' | 'blue' | 'orange' 
     COUPLED: 'green',
     DRIVER_ASSIGNED: 'blue',
     DRIVER_CHANGED: 'orange',
+    DRIVER_RELEASED: 'red',
     DETACHED: 'red',
   }[action] as 'green' | 'blue' | 'orange' | 'red';
 }
@@ -206,6 +213,7 @@ export function VehicleSets() {
   const [history, setHistory] = useState<VehicleSetEventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [builderOpen, setBuilderOpen] = useState(false);
   const [tractorId, setTractorId] = useState('');
   const [trailerId, setTrailerId] = useState('');
   const [trailerTwoId, setTrailerTwoId] = useState('');
@@ -223,8 +231,10 @@ export function VehicleSets() {
   const [historyDateTo, setHistoryDateTo] = useState('');
   const [managingSet, setManagingSet] = useState<VehicleSetRecord | null>(null);
   const [managedDriverId, setManagedDriverId] = useState('');
+  const [managedDriverReleasedAt, setManagedDriverReleasedAt] = useState(nowLocalInput());
   const [managedDriverAt, setManagedDriverAt] = useState(nowLocalInput());
   const [managedSecondDriverId, setManagedSecondDriverId] = useState('');
+  const [managedSecondDriverReleasedAt, setManagedSecondDriverReleasedAt] = useState(nowLocalInput());
   const [managedSecondDriverAt, setManagedSecondDriverAt] = useState(nowLocalInput());
   const [detachedAt, setDetachedAt] = useState(nowLocalInput());
   const [managing, setManaging] = useState(false);
@@ -410,6 +420,7 @@ export function VehicleSets() {
       });
       notifications.success('Conjunto ativo', result.message);
       resetBuilder();
+      setBuilderOpen(false);
       setHistoryPage(1);
       await loadData(false);
     } catch (error) {
@@ -421,12 +432,15 @@ export function VehicleSets() {
   }
 
   function openManager(vehicleSet: VehicleSetRecord) {
+    const now = nowLocalInput();
     setManagingSet(vehicleSet);
     setManagedDriverId(String(vehicleSet.driverId ?? ''));
-    setManagedDriverAt(nowLocalInput());
+    setManagedDriverReleasedAt(now);
+    setManagedDriverAt(now);
     setManagedSecondDriverId(String(vehicleSet.driverTwoId ?? ''));
-    setManagedSecondDriverAt(nowLocalInput());
-    setDetachedAt(nowLocalInput());
+    setManagedSecondDriverReleasedAt(now);
+    setManagedSecondDriverAt(now);
+    setDetachedAt(now);
   }
 
   const managerDriverOptions = useMemo(() => {
@@ -464,10 +478,22 @@ export function VehicleSets() {
   }, [managingSet, options.drivers]);
 
   async function handleChangeDriver() {
-    if (!managingSet || !managedDriverId || Number(managedDriverId) === managingSet.driverId) return;
+    if (
+      !managingSet ||
+      !managedDriverId ||
+      !managedDriverReleasedAt ||
+      !managedDriverAt ||
+      Number(managedDriverId) === managingSet.driverId
+    ) return;
     setManaging(true);
     try {
-      const result = await vehicleSetService.changeDriver(managingSet.id, Number(managedDriverId), managedDriverAt, 'PRIMARY');
+      const result = await vehicleSetService.changeDriver(
+        managingSet.id,
+        Number(managedDriverId),
+        managedDriverAt,
+        managedDriverReleasedAt,
+        'PRIMARY',
+      );
       notifications.success('Motorista atualizado', result.message);
       setManagingSet(null);
       setHistoryPage(1);
@@ -481,13 +507,20 @@ export function VehicleSets() {
   }
 
   async function handleChangeSecondDriver() {
-    if (!managingSet || !managedSecondDriverId || Number(managedSecondDriverId) === managingSet.driverTwoId) return;
+    if (
+      !managingSet ||
+      !managedSecondDriverId ||
+      !managedSecondDriverAt ||
+      (managingSet.driverTwoId && !managedSecondDriverReleasedAt) ||
+      Number(managedSecondDriverId) === managingSet.driverTwoId
+    ) return;
     setManaging(true);
     try {
       const result = await vehicleSetService.changeDriver(
         managingSet.id,
         Number(managedSecondDriverId),
         managedSecondDriverAt,
+        managingSet.driverTwoId ? managedSecondDriverReleasedAt : null,
         'SECONDARY',
       );
       notifications.success(managingSet.driverTwoId ? 'Segundo motorista atualizado' : 'Segundo motorista vinculado', result.message);
@@ -541,6 +574,27 @@ export function VehicleSets() {
       </PageHeader>
 
       <Builder>
+        <BuilderToggle
+          type="button"
+          aria-expanded={builderOpen}
+          aria-controls="vehicle-set-builder-body"
+          onClick={() => setBuilderOpen((current) => !current)}
+        >
+          <BuilderToggleInfo>
+            <span><Link2 size={18} /></span>
+            <div>
+              <strong>Novo conjunto</strong>
+              <small>{builderOpen ? 'Cadastro aberto' : 'Clique para cadastrar um novo vínculo'}</small>
+            </div>
+          </BuilderToggleInfo>
+          <BuilderToggleAction $open={builderOpen}>
+            <span>{builderOpen ? 'Recolher' : 'Cadastrar'}</span>
+            <ChevronDown size={18} />
+          </BuilderToggleAction>
+        </BuilderToggle>
+
+        {builderOpen ? (
+          <BuilderBody id="vehicle-set-builder-body">
         <BuilderTop>
           <SelectionBlock>
             <StepTitle><StepNumber>1</StepNumber>Selecione o cavalo</StepTitle>
@@ -757,6 +811,8 @@ export function VehicleSets() {
             {saving ? 'Salvando...' : 'Salvar conjunto'}
           </PrimaryButton>
         </BuilderActions>
+          </BuilderBody>
+        ) : null}
       </Builder>
 
       <BottomGrid>
@@ -901,7 +957,11 @@ export function VehicleSets() {
 
               <ModalSection>
                 <h4>Alterar motorista principal</h4>
-                <p>O motorista atual será preservado no histórico e o novo vínculo ficará registrado com data, hora e usuário.</p>
+                <p>Informe separadamente quando o motorista atual saiu e quando o novo motorista entrou no conjunto.</p>
+                <InfoHint>
+                  <Info size={16} />
+                  <span>Motorista atual: <strong>{managingSet.driverName}</strong>. Entrada registrada em {formatDateTime(managingSet.driverAssignedAt)}.</span>
+                </InfoHint>
                 <SearchableSelect
                   id="manage-set-driver"
                   value={managedDriverId}
@@ -912,12 +972,30 @@ export function VehicleSets() {
                   ariaLabel="Novo motorista do conjunto"
                   clearable={false}
                 />
-                <Field>
-                  Data e horário da alteração
-                  <DateTimeInput type="datetime-local" value={managedDriverAt} onChange={(event) => setManagedDriverAt(event.target.value)} />
-                </Field>
+                <DateGrid>
+                  <Field>
+                    Saída do motorista atual
+                    <DateTimeInput
+                      type="datetime-local"
+                      value={managedDriverReleasedAt}
+                      onChange={(event) => setManagedDriverReleasedAt(event.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    Entrada do novo motorista
+                    <DateTimeInput
+                      type="datetime-local"
+                      value={managedDriverAt}
+                      onChange={(event) => setManagedDriverAt(event.target.value)}
+                    />
+                  </Field>
+                </DateGrid>
                 <ModalActions>
-                  <PrimaryButton type="button" disabled={managing || !managedDriverId || Number(managedDriverId) === managingSet.driverId} onClick={() => void handleChangeDriver()}>
+                  <PrimaryButton
+                    type="button"
+                    disabled={managing || !managedDriverId || !managedDriverReleasedAt || !managedDriverAt || Number(managedDriverId) === managingSet.driverId}
+                    onClick={() => void handleChangeDriver()}
+                  >
                     <UserRound size={15} /> Salvar motorista principal
                   </PrimaryButton>
                 </ModalActions>
@@ -925,7 +1003,13 @@ export function VehicleSets() {
 
               <ModalSection>
                 <h4>{managingSet.driverTwoId ? 'Alterar segundo motorista' : 'Vincular segundo motorista'}</h4>
-                <p>{managingSet.driverTwoId ? 'O segundo motorista atual será preservado no histórico.' : 'Adicione outro motorista ao mesmo cavalo. O vínculo ficará registrado com data, hora e usuário.'}</p>
+                <p>{managingSet.driverTwoId ? 'Informe separadamente a saída do motorista atual e a entrada do novo motorista.' : 'Adicione outro motorista ao mesmo cavalo. O horário informado será a entrada dele no conjunto.'}</p>
+                {managingSet.driverTwoId ? (
+                  <InfoHint>
+                    <Info size={16} />
+                    <span>Segundo motorista atual: <strong>{managingSet.driverTwoName}</strong>. Entrada registrada em {formatDateTime(managingSet.driverTwoAssignedAt)}.</span>
+                  </InfoHint>
+                ) : null}
                 <SearchableSelect
                   id="manage-set-second-driver"
                   value={managedSecondDriverId}
@@ -936,14 +1020,41 @@ export function VehicleSets() {
                   ariaLabel="Segundo motorista do conjunto"
                   clearable={false}
                 />
-                <Field>
-                  Data e horário do vínculo
-                  <DateTimeInput type="datetime-local" value={managedSecondDriverAt} onChange={(event) => setManagedSecondDriverAt(event.target.value)} />
-                </Field>
+                {managingSet.driverTwoId ? (
+                  <DateGrid>
+                    <Field>
+                      Saída do segundo motorista atual
+                      <DateTimeInput
+                        type="datetime-local"
+                        value={managedSecondDriverReleasedAt}
+                        onChange={(event) => setManagedSecondDriverReleasedAt(event.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      Entrada do novo segundo motorista
+                      <DateTimeInput
+                        type="datetime-local"
+                        value={managedSecondDriverAt}
+                        onChange={(event) => setManagedSecondDriverAt(event.target.value)}
+                      />
+                    </Field>
+                  </DateGrid>
+                ) : (
+                  <Field>
+                    Entrada do segundo motorista
+                    <DateTimeInput type="datetime-local" value={managedSecondDriverAt} onChange={(event) => setManagedSecondDriverAt(event.target.value)} />
+                  </Field>
+                )}
                 <ModalActions>
                   <PrimaryButton
                     type="button"
-                    disabled={managing || !managedSecondDriverId || Number(managedSecondDriverId) === managingSet.driverTwoId}
+                    disabled={
+                      managing ||
+                      !managedSecondDriverId ||
+                      !managedSecondDriverAt ||
+                      Boolean(managingSet.driverTwoId && !managedSecondDriverReleasedAt) ||
+                      Number(managedSecondDriverId) === managingSet.driverTwoId
+                    }
                     onClick={() => void handleChangeSecondDriver()}
                   >
                     <UserPlus size={15} /> {managingSet.driverTwoId ? 'Salvar segundo motorista' : 'Vincular segundo motorista'}

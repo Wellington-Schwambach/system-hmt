@@ -1,4 +1,4 @@
-import { ClipboardPlus, ListChecks } from 'lucide-react';
+import { ClipboardList, ClipboardPlus, ListChecks } from 'lucide-react';
 
 import type { SettlementTabsProps } from './types';
 import { Count, Tab, Tabs } from './styles';
@@ -6,6 +6,7 @@ import { Count, Tab, Tabs } from './styles';
 export function SettlementTabs({
   activeTab,
   settlementsCount,
+  showHistory,
   onChange,
 }: SettlementTabsProps) {
   return (
@@ -32,6 +33,19 @@ export function SettlementTabs({
         Listagem de acertos
         <Count>{settlementsCount}</Count>
       </Tab>
+
+      {showHistory && (
+        <Tab
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'HISTORY'}
+          $active={activeTab === 'HISTORY'}
+          onClick={() => onChange('HISTORY')}
+        >
+          <ClipboardList size={17} aria-hidden="true" />
+          Histórico ADM
+        </Tab>
+      )}
     </Tabs>
   );
 }

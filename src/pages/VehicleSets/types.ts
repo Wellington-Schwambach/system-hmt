@@ -58,6 +58,7 @@ export type VehicleSetEventAction =
   | 'COUPLED'
   | 'DRIVER_ASSIGNED'
   | 'DRIVER_CHANGED'
+  | 'DRIVER_RELEASED'
   | 'DETACHED';
 
 export interface VehicleSetEventRecord {

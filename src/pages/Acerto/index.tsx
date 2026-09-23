@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { CheckCircle2, Plus, Printer, RotateCcw, Save } from 'lucide-react';
 
+import { useAuth } from '../../contexts/Auth/useAuth';
 import { useNotifications } from '../../contexts/Notifications';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 import { EntryModal } from './components/EntryModal';
 import { FinancialPanel } from './components/FinancialPanel';
 import { PeriodModal } from './components/PeriodModal';
 import { SettlementDetailsModal } from './components/SettlementDetailsModal';
 import { SettlementFilters } from './components/SettlementFilters';
+import { SettlementHistory } from './components/SettlementHistory';
 import { SettlementList } from './components/SettlementList';
 import { SettlementTabs } from './components/SettlementTabs';
 import { TripSettlementTable } from './components/TripSettlementTable';
@@ -35,7 +38,9 @@ import {
 
 export function Acerto() {
   const notifications = useNotifications();
+  const { user } = useAuth();
   const settlement = useDriverSettlement();
+  const isAdministrator = user?.role?.trim().toLocaleLowerCase('pt-BR') === 'administrador';
   const [activeTab, setActiveTab] = useState<SettlementTab>('FORM');
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
   const [entryType, setEntryType] = useState<FinancialEntryType>('ADVANCE');
@@ -48,14 +53,23 @@ export function Acerto() {
     setIsEntryModalOpen(true);
   }
 
-  function handleFinalizeSettlement() {
-    const finalizedSettlement = settlement.finalizeSettlement();
+  async function handleFinalizeSettlement() {
+    try {
+      const finalizedSettlement = await settlement.finalizeSettlement();
 
-    if (!finalizedSettlement) {
-      return;
+      if (!finalizedSettlement) {
+        notifications.warning('Acerto incompleto', 'Selecione um motorista da empresa e mantenha ao menos uma viagem no período.');
+        return;
+      }
+
+      notifications.success(
+        settlement.editingSettlementId ? 'Acerto atualizado' : 'Acerto gravado',
+        `O acerto de ${finalizedSettlement.driver} foi salvo no banco.`,
+      );
+      setActiveTab('LIST');
+    } catch (error) {
+      notifications.error('Não foi possível salvar o acerto', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
     }
-
-    setActiveTab('LIST');
   }
 
   function handlePrintCurrentSettlement() {
@@ -69,6 +83,11 @@ export function Acerto() {
   }
 
   function handleChangeTab(tab: SettlementTab) {
+    if (tab === 'HISTORY' && isAdministrator) {
+      settlement.loadHistory().catch((error) => {
+        notifications.error('Não foi possível carregar o histórico', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+      });
+    }
     setActiveTab(tab);
   }
 
@@ -109,8 +128,13 @@ export function Acerto() {
 
     if (!shouldDelete) return;
 
-    settlement.deleteSettlement(selected.id);
-    notifications.success('Acerto excluído', `O acerto de ${selected.driver} foi removido.`);
+    try {
+      await settlement.deleteSettlement(selected.id);
+      notifications.success('Acerto excluído', `O acerto de ${selected.driver} foi removido.`);
+    } catch (error) {
+      notifications.error('Não foi possível excluir o acerto', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+      return;
+    }
 
     if (selectedSettlement?.id === selected.id) {
       setSelectedSettlement(null);
@@ -128,7 +152,7 @@ export function Acerto() {
               ? settlement.editingSettlementId
                 ? 'Edite os dados do acerto selecionado e salve as alterações.'
                 : 'Monte um novo acerto com viagens, médias, proventos e descontos em uma única tela.'
-              : 'Consulte todos os acertos finalizados e imprima ou salve o espelho em PDF quando precisar.'}
+              : 'Consulte todos os acertos gravados e imprima ou salve o espelho em PDF quando precisar.'}
           </Subtitle>
         </TitleGroup>
 
@@ -151,10 +175,14 @@ export function Acerto() {
                 type="button"
                 $primary
                 onClick={handleFinalizeSettlement}
-                disabled={!settlement.selectedDriver || settlement.travels.length === 0}
+                disabled={!settlement.canSave || settlement.saving}
               >
                 <Save size={16} aria-hidden="true" />
-                {settlement.editingSettlementId ? 'Salvar alterações' : 'Finalizar acerto'}
+                {settlement.saving
+                  ? 'Salvando...'
+                  : settlement.editingSettlementId
+                    ? 'Salvar alterações'
+                    : 'Gravar acerto'}
               </ToolbarButton>
             </>
           ) : (
@@ -169,6 +197,7 @@ export function Acerto() {
       <SettlementTabs
         activeTab={activeTab}
         settlementsCount={settlement.settlements.length}
+        showHistory={isAdministrator}
         onChange={handleChangeTab}
       />
 
@@ -203,7 +232,13 @@ export function Acerto() {
               travels={settlement.travels}
               totalNetFreight={settlement.totals.totalNetFreight}
             />
-            <VehicleAverageSummary summaries={settlement.vehicleSummaries} />
+            <VehicleAverageSummary
+              summaries={settlement.vehicleSummaries}
+              fuelRecords={settlement.fuelRecords}
+              selectedFuelRecordIds={settlement.selectedFuelRecordIds}
+              onToggleFuelRecord={settlement.toggleFuelRecord}
+              onSelectPlate={settlement.selectFuelRecordsByPlate}
+            />
           </TripGrid>
 
           <FinancialPanel
@@ -225,13 +260,26 @@ export function Acerto() {
             onRemoveEntry={settlement.removeEntry}
           />
         </>
-      ) : (
+      ) : activeTab === 'LIST' ? (
         <SettlementList
           settlements={settlement.settlements}
           onView={setSelectedSettlement}
           onPrint={printSettlementReport}
           onEdit={handleEditSettlement}
           onDelete={handleDeleteSettlement}
+        />
+      ) : (
+        <SettlementHistory
+          events={settlement.history}
+          loading={settlement.loading}
+          onRefresh={() => {
+            settlement.loadHistory().catch((error) => {
+              notifications.error(
+                'Não foi possível carregar o histórico',
+                getApiErrorMessage(error, 'Tente novamente em alguns instantes.'),
+              );
+            });
+          }}
         />
       )}
 
