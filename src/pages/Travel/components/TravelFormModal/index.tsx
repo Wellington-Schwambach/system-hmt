@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   Building2,
+  CalendarDays,
   CircleDollarSign,
   FilePlus2,
   FileText,
@@ -636,11 +637,15 @@ export function TravelFormModal({
                 <Label htmlFor="travel-received-date">
                   Data de recebimento do frete{hasAutomaticReceiptDate ? ` · +${selectedShipper?.receiptTermDays ?? 0} dia(s)` : ''}
                 </Label>
-                <DateInput
-                  id="travel-received-date"
-                  value={formData.receivedDate}
-                  onValueChange={(value) => handleChange('receivedDate', value)}
-                />
+                <SelectControl>
+                  <FieldIcon aria-hidden="true"><CalendarDays size={18} /></FieldIcon>
+                  <Input
+                    id="travel-received-date"
+                    type="date"
+                    value={formData.receivedDate}
+                    onChange={(event) => handleChange('receivedDate', event.target.value)}
+                  />
+                </SelectControl>
               </Field>
             </FieldGrid>
           </FormSection>

@@ -1,5 +1,6 @@
+import { api } from '../../services/api';
 import { ENTRY_LABELS } from './constants';
-import type { DriverSettlementSnapshot } from './types';
+import type { DriverSettlementSnapshot, SettlementHistoryEvent, SettlementPendingVale } from './types';
 import { formatCurrency, formatDate, formatDecimal } from './utils';
 
 function escapeHtml(value: string | number): string {
@@ -21,15 +22,11 @@ function sanitizeFileName(value: string): string {
 }
 
 function getAverageSourceLabel(source: DriverSettlementSnapshot['vehicleSummaries'][number]['source']) {
-  if (source === 'PERIOD') {
-    return 'Média do período';
+  if (source === 'SELECTED') {
+    return 'Abastecimentos selecionados';
   }
 
-  if (source === 'LATEST') {
-    return 'Última média disponível';
-  }
-
-  return 'Sem dados de abastecimento';
+  return 'Sem abastecimento selecionado com média válida';
 }
 
 function buildTravelsRows(settlement: DriverSettlementSnapshot): string {
@@ -418,7 +415,7 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
           <span>Período: ${escapeHtml(formatDate(settlement.startDate))} a ${escapeHtml(
             formatDate(settlement.endDate),
           )}</span>
-          <span>Finalizado em: ${escapeHtml(formatDate(settlement.savedAt.slice(0, 10)))}</span>
+          <span>Salvo em: ${escapeHtml(formatDate(settlement.savedAt.slice(0, 10)))}</span>
         </div>
       </header>
 
@@ -540,3 +537,85 @@ export function printSettlementReport(settlement: DriverSettlementSnapshot): boo
   window.setTimeout(() => URL.revokeObjectURL(reportUrl), 60_000);
   return true;
 }
+
+
+interface SettlementResponse {
+  message: string;
+  settlement: DriverSettlementSnapshot;
+}
+
+interface SettlementHistoryResponse {
+  events: Array<{
+    id: number;
+    settlement_id: number;
+    action: SettlementHistoryEvent['action'];
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+    user_name: string | null;
+    occurred_at: string;
+  }>;
+}
+
+function settlementPayload(snapshot: DriverSettlementSnapshot) {
+  return {
+    driver_id: snapshot.driverId,
+    start_date: snapshot.startDate,
+    end_date: snapshot.endDate,
+    snapshot,
+  };
+}
+
+export const settlementService = {
+  async pendingVales(driverId: number, endDate: string): Promise<SettlementPendingVale[]> {
+    const response = await api.get<{ records: Array<{
+      id: number;
+      employeeId: number;
+      category: SettlementPendingVale['category'];
+      date: string;
+      description: string;
+      amount: number;
+      installmentNumber: number;
+      installmentsTotal: number;
+    }> }>('/api/vales/pending', { params: { driver_id: driverId, end_date: endDate } });
+    return response.data.records;
+  },
+  async drivers(): Promise<Array<{ id: number; name: string }>> {
+    const response = await api.get<{ drivers: Array<{ id: number; name: string }> }>('/api/settlements/drivers');
+    return response.data.drivers.map((driver) => ({ id: Number(driver.id), name: driver.name }));
+  },
+
+  async list(): Promise<DriverSettlementSnapshot[]> {
+    const response = await api.get<{ settlements: DriverSettlementSnapshot[] }>('/api/settlements');
+    return response.data.settlements;
+  },
+
+  async create(snapshot: DriverSettlementSnapshot): Promise<DriverSettlementSnapshot> {
+    const response = await api.post<SettlementResponse>('/api/settlements', settlementPayload(snapshot));
+    return response.data.settlement;
+  },
+
+  async update(snapshot: DriverSettlementSnapshot): Promise<DriverSettlementSnapshot> {
+    const response = await api.put<SettlementResponse>(
+      `/api/settlements/${snapshot.id}`,
+      settlementPayload(snapshot),
+    );
+    return response.data.settlement;
+  },
+
+  async remove(id: string): Promise<void> {
+    await api.delete(`/api/settlements/${id}`);
+  },
+
+  async history(): Promise<SettlementHistoryEvent[]> {
+    const response = await api.get<SettlementHistoryResponse>('/api/settlements/history/audit');
+    return response.data.events.map((event) => ({
+      id: event.id,
+      settlementId: event.settlement_id,
+      action: event.action,
+      before: event.before,
+      after: event.after,
+      userName: event.user_name,
+      occurredAt: event.occurred_at,
+    }));
+  },
+};

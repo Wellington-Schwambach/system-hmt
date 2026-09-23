@@ -196,7 +196,9 @@ export function FinancialPanel({
                         <EntryItem key={entry.id}>
                           <EntryCopy>
                             <strong>{entry.description || group.title}</strong>
-                            <span>{formatDate(entry.date)}</span>
+                            <span>
+                              {formatDate(entry.date)}
+                            </span>
                           </EntryCopy>
                           <EntryValue>- {formatCurrency(entry.value)}</EntryValue>
                           <RemoveButton

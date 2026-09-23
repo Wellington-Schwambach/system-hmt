@@ -256,7 +256,7 @@ class VehicleSetController extends Controller
         $assignedAt = CarbonImmutable::parse((string) $validated['assigned_at']);
         if ($assignedAt->lt($vehicleSet->coupled_at)) {
             throw ValidationException::withMessages([
-                'assigned_at' => ['A alteração do motorista não pode ocorrer antes do atrelamento do conjunto.'],
+                'assigned_at' => ['A entrada do novo motorista não pode ocorrer antes do atrelamento do conjunto.'],
             ]);
         }
 
@@ -282,11 +282,70 @@ class VehicleSetController extends Controller
         $this->ensureDriverAvailable($newDriver->id, $field, $vehicleSet->id);
 
         $oldDriverName = $slot === 'SECONDARY' ? $vehicleSet->driver_two_name : $vehicleSet->driver_name;
-        $action = $oldDriverName === null
-            ? VehicleSetEvent::ACTION_DRIVER_ASSIGNED
-            : VehicleSetEvent::ACTION_DRIVER_CHANGED;
+        $oldDriver = $currentDriverId ? Employee::query()->find((int) $currentDriverId) : null;
+        $currentAssignedAt = $slot === 'SECONDARY'
+            ? $vehicleSet->driver_two_assigned_at
+            : $vehicleSet->driver_assigned_at;
+        $releasedAt = null;
 
-        DB::transaction(function () use ($request, $vehicleSet, $newDriver, $assignedAt, $oldDriverName, $slot, $action): void {
+        if ($currentAssignedAt !== null && $assignedAt->lt($currentAssignedAt)) {
+            throw ValidationException::withMessages([
+                'assigned_at' => ['A entrada do novo motorista não pode ocorrer antes do início do vínculo do motorista atual.'],
+            ]);
+        }
+
+        if ($oldDriverName !== null) {
+            if (empty($validated['released_at'])) {
+                throw ValidationException::withMessages([
+                    'released_at' => ['Informe a data e o horário de saída do motorista atual.'],
+                ]);
+            }
+
+            $releasedAt = CarbonImmutable::parse((string) $validated['released_at']);
+
+            if ($releasedAt->lt($vehicleSet->coupled_at)) {
+                throw ValidationException::withMessages([
+                    'released_at' => ['A saída do motorista não pode ocorrer antes do atrelamento do conjunto.'],
+                ]);
+            }
+
+            if ($currentAssignedAt !== null && $releasedAt->lt($currentAssignedAt)) {
+                throw ValidationException::withMessages([
+                    'released_at' => ['A saída do motorista não pode ocorrer antes da entrada dele no conjunto.'],
+                ]);
+            }
+        }
+
+        DB::transaction(function () use (
+            $request,
+            $vehicleSet,
+            $newDriver,
+            $assignedAt,
+            $releasedAt,
+            $oldDriver,
+            $oldDriverName,
+            $slot
+        ): void {
+            if ($oldDriverName !== null && $releasedAt !== null) {
+                $this->recordEvent(
+                    $vehicleSet,
+                    VehicleSetEvent::ACTION_DRIVER_RELEASED,
+                    $releasedAt,
+                    $request,
+                    $oldDriver,
+                    [
+                        'message' => $slot === 'SECONDARY'
+                            ? 'Segundo motorista saiu do conjunto.'
+                            : 'Motorista principal saiu do conjunto.',
+                        'driver_slot' => $slot,
+                        'driver_names' => $oldDriverName,
+                        'previous_driver' => $oldDriverName,
+                        'next_driver' => $newDriver->full_name,
+                        'new_driver_assigned_at' => $assignedAt->toIso8601String(),
+                    ]
+                );
+            }
+
             $fields = $slot === 'SECONDARY'
                 ? [
                     'driver_two_id' => $newDriver->id,
@@ -305,16 +364,19 @@ class VehicleSetController extends Controller
 
             $this->recordEvent(
                 $vehicleSet,
-                $action,
+                VehicleSetEvent::ACTION_DRIVER_ASSIGNED,
                 $assignedAt,
                 $request,
                 $newDriver,
                 [
                     'message' => $oldDriverName === null
                         ? 'Segundo motorista vinculado ao conjunto.'
-                        : ($slot === 'SECONDARY' ? 'Segundo motorista do conjunto foi alterado.' : 'Motorista principal do conjunto foi alterado.'),
+                        : ($slot === 'SECONDARY'
+                            ? 'Novo segundo motorista entrou no conjunto.'
+                            : 'Novo motorista principal entrou no conjunto.'),
                     'driver_slot' => $slot,
                     'previous_driver' => $oldDriverName,
+                    'previous_driver_released_at' => $releasedAt?->toIso8601String(),
                     'new_driver' => $newDriver->full_name,
                 ]
             );

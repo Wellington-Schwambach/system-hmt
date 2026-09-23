@@ -107,8 +107,9 @@ function zip(entries: Array<{ name: string; data: string }>): Uint8Array {
 function actionLabel(action: VehicleSetEventRecord['action']): string {
   return {
     COUPLED: 'Conjunto criado',
-    DRIVER_ASSIGNED: 'Motorista atrelado',
-    DRIVER_CHANGED: 'Motorista alterado',
+    DRIVER_ASSIGNED: 'Entrada de motorista',
+    DRIVER_CHANGED: 'Troca de motorista',
+    DRIVER_RELEASED: 'Saída de motorista',
     DETACHED: 'Conjunto desatrelado',
   }[action];
 }

@@ -14,7 +14,6 @@ use App\Models\TravelCte;
 use App\Models\TravelEvent;
 use App\Models\VehicleSet;
 use App\Models\Vehicle;
-use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -386,10 +385,6 @@ class TravelController extends Controller
 
         $shipper = Shipper::query()->findOrFail((int) $validated['shipper_id']);
         $receiptDate = $validated['receipt_date'] ?? null;
-        if (($receiptDate === null || $receiptDate === '') && $shipper->receipt_term_days !== null) {
-            $travelDate = CarbonImmutable::createFromFormat('Y-m-d', (string) $validated['travel_date']);
-            $receiptDate = $travelDate->addDays((int) $shipper->receipt_term_days)->format('Y-m-d');
-        }
 
         $vehicle = null;
         $driverOne = null;

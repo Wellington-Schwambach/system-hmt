@@ -24,6 +24,9 @@ const VehicleSets = lazy(() =>
 const Acerto = lazy(() =>
   import('../pages/Acerto').then((module) => ({ default: module.Acerto })),
 );
+const Vales = lazy(() =>
+  import('../pages/Vales').then((module) => ({ default: module.Vales })),
+);
 const Finance = lazy(() =>
   import('../pages/Finance').then((module) => ({ default: module.Finance })),
 );
@@ -85,6 +88,7 @@ export function AppRoutes() {
               </Route>
               <Route element={<PermissionRoute permission="settlements" />}>
                 <Route path="/acertos" element={<Acerto />} />
+                <Route path="/vales" element={<Vales />} />
               </Route>
               <Route element={<PermissionRoute permission="finance" />}>
                 <Route path="/finance" element={<Finance />} />

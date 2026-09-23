@@ -11,6 +11,8 @@ use App\Http\Controllers\Operation\FuelController;
 use App\Http\Controllers\Operation\VehicleSetController;
 use App\Http\Controllers\Operation\LogisticsController;
 use App\Http\Controllers\Operation\OperationalBIController;
+use App\Http\Controllers\Operation\DriverSettlementController;
+use App\Http\Controllers\Operation\DriverDeductionController;
 use App\Http\Controllers\Registration\ShipperController;
 use App\Http\Controllers\Registration\CompanyProfileController;
 use Illuminate\Support\Facades\Route;
@@ -140,6 +142,31 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::patch('/{logisticsLoad}/move', [LogisticsController::class, 'move']);
             Route::patch('/{logisticsLoad}/finish', [LogisticsController::class, 'finish']);
             Route::delete('/{logisticsLoad}', [LogisticsController::class, 'destroy']);
+        });
+
+
+    Route::prefix('settlements')
+        ->middleware('permission:settlements')
+        ->group(function (): void {
+            Route::get('/drivers', [DriverSettlementController::class, 'drivers']);
+            Route::get('/', [DriverSettlementController::class, 'index']);
+            Route::post('/', [DriverSettlementController::class, 'store']);
+            Route::put('/{driverSettlement}', [DriverSettlementController::class, 'update']);
+            Route::delete('/{driverSettlement}', [DriverSettlementController::class, 'destroy']);
+            Route::get('/history/audit', [DriverSettlementController::class, 'history'])->middleware('admin');
+        });
+
+    Route::prefix('vales')
+        ->middleware('permission:settlements')
+        ->group(function (): void {
+            Route::get('/options', [DriverDeductionController::class, 'options']);
+            Route::get('/pending', [DriverDeductionController::class, 'pending']);
+            Route::get('/history/audit', [DriverDeductionController::class, 'history'])->middleware('admin');
+            Route::get('/', [DriverDeductionController::class, 'index']);
+            Route::post('/', [DriverDeductionController::class, 'store']);
+            Route::put('/{driverDeduction}', [DriverDeductionController::class, 'update']);
+            Route::patch('/{driverDeduction}/invoice', [DriverDeductionController::class, 'invoice']);
+            Route::delete('/{driverDeduction}', [DriverDeductionController::class, 'destroy']);
         });
 
     Route::prefix('travels')

@@ -102,12 +102,12 @@ export const SavedNotice = styled.div`
 export const TripGrid = styled.div`
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 24rem);
   align-items: start;
   gap: 0.85rem;
 
   @media (max-width: ${breakpoints.desktop}) {
-    grid-template-columns: minmax(0, 1fr) minmax(13rem, 15.5rem);
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 21rem);
   }
 
   @media (max-width: ${breakpoints.tablet}) {

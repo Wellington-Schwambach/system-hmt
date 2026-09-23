@@ -13,6 +13,7 @@ class VehicleSetEvent extends Model
     public const ACTION_COUPLED = 'COUPLED';
     public const ACTION_DRIVER_ASSIGNED = 'DRIVER_ASSIGNED';
     public const ACTION_DRIVER_CHANGED = 'DRIVER_CHANGED';
+    public const ACTION_DRIVER_RELEASED = 'DRIVER_RELEASED';
     public const ACTION_DETACHED = 'DETACHED';
 
     protected $fillable = [

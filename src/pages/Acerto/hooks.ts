@@ -1,16 +1,21 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { SETTLEMENT_STORAGE_KEY } from './constants';
+import { fuelService } from '../Fuel/services';
+import { travelService } from '../Travel/services';
 import type {
   DriverSettlementSnapshot,
   FinancialEntry,
   FinancialEntryFormData,
   FinancialEntryType,
+  LoadedSettlementData,
+  SettlementHistoryEvent,
   SettlementPeriodMode,
 } from './types';
+import { settlementService } from './services';
 import {
   calculateSettlementTotals,
   filterDriverTravels,
+  getDriverFuelRecords,
   getMonthDateRange,
   getSuggestedBonusPercent,
   getVehicleAverageSummaries,
@@ -18,58 +23,8 @@ import {
   parseDecimalInput,
 } from './utils';
 
-const DEFAULT_MONTH = '2026-07';
+const DEFAULT_MONTH = new Date().toISOString().slice(0, 7);
 const DEFAULT_BASE_SALARY = '2689,02';
-
-function isSettlementSnapshot(value: unknown): value is DriverSettlementSnapshot {
-  if (!value || typeof value !== 'object') {
-    return false;
-  }
-
-  const snapshot = value as Partial<DriverSettlementSnapshot>;
-
-  return (
-    typeof snapshot.id === 'string' &&
-    typeof snapshot.driver === 'string' &&
-    typeof snapshot.startDate === 'string' &&
-    typeof snapshot.endDate === 'string' &&
-    typeof snapshot.savedAt === 'string' &&
-    Array.isArray(snapshot.travels) &&
-    Array.isArray(snapshot.vehicleSummaries) &&
-    Array.isArray(snapshot.entries) &&
-    Boolean(snapshot.totals)
-  );
-}
-
-function sortSettlements(settlements: DriverSettlementSnapshot[]): DriverSettlementSnapshot[] {
-  return [...settlements].sort((firstSettlement, secondSettlement) =>
-    secondSettlement.savedAt.localeCompare(firstSettlement.savedAt),
-  );
-}
-
-function loadSettlementSnapshots(): DriverSettlementSnapshot[] {
-  try {
-    const storedSettlements = window.localStorage.getItem(SETTLEMENT_STORAGE_KEY);
-
-    if (!storedSettlements) {
-      return [];
-    }
-
-    const parsedSettlements = JSON.parse(storedSettlements) as unknown;
-
-    if (!Array.isArray(parsedSettlements)) {
-      return [];
-    }
-
-    return sortSettlements(parsedSettlements.filter(isSettlementSnapshot));
-  } catch {
-    return [];
-  }
-}
-
-function persistSettlements(settlements: DriverSettlementSnapshot[]): void {
-  window.localStorage.setItem(SETTLEMENT_STORAGE_KEY, JSON.stringify(settlements));
-}
 
 function formatEditableDecimal(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
@@ -79,32 +34,84 @@ function formatEditableDecimal(value: number): string {
   }).format(value);
 }
 
+function sortSettlements(settlements: DriverSettlementSnapshot[]): DriverSettlementSnapshot[] {
+  return [...settlements].sort((firstSettlement, secondSettlement) =>
+    secondSettlement.savedAt.localeCompare(firstSettlement.savedAt),
+  );
+}
+
 interface SnapshotOptions {
   id?: string;
   savedAt?: string;
 }
 
 export function useDriverSettlement() {
-  const loadedData = useMemo(() => loadSettlementData(), []);
-  const initialDriver =
-    loadedData.drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
-    loadedData.drivers[0] ??
+  const cachedData = useMemo(() => loadSettlementData(), []);
+  const cachedInitialDriver =
+    cachedData.drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
+    cachedData.drivers[0] ??
     '';
 
-  const [selectedDriver, setSelectedDriverState] = useState(initialDriver);
+  const [loadedData, setLoadedData] = useState<LoadedSettlementData>(cachedData);
+  const [selectedDriver, setSelectedDriverState] = useState(cachedInitialDriver);
   const [periodMode, setPeriodMode] = useState<SettlementPeriodMode>('MONTH');
   const [selectedMonth, setSelectedMonth] = useState(DEFAULT_MONTH);
   const [customStartDate, setCustomStartDate] = useState(`${DEFAULT_MONTH}-01`);
-  const [customEndDate, setCustomEndDate] = useState(`${DEFAULT_MONTH}-31`);
+  const [customEndDate, setCustomEndDate] = useState(getMonthDateRange(DEFAULT_MONTH).endDate);
   const [bonusPercentOverride, setBonusPercentOverride] = useState<string | null>(null);
   const [baseSalary, setBaseSalary] = useState(DEFAULT_BASE_SALARY);
   const [dailyAllowance, setDailyAllowance] = useState('0');
   const [otherEarnings, setOtherEarnings] = useState('0');
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
+  const [selectedFuelRecordIdsOverride, setSelectedFuelRecordIdsOverride] = useState<number[] | null>(null);
   const [savedAt, setSavedAt] = useState('');
   const [editingSettlementId, setEditingSettlementId] = useState<string | null>(null);
-  const [settlements, setSettlements] = useState<DriverSettlementSnapshot[]>(() =>
-    loadSettlementSnapshots(),
+  const [settlements, setSettlements] = useState<DriverSettlementSnapshot[]>([]);
+  const [history, setHistory] = useState<SettlementHistoryEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      travelService.list(),
+      fuelService.list(),
+      settlementService.drivers(),
+      settlementService.list(),
+    ])
+      .then(([travels, fuelRecords, driverOptions, savedSettlements]) => {
+        if (!active) return;
+
+        const drivers = driverOptions.map((driver) => driver.name);
+        setLoadedData({ travels, fuelRecords, drivers, driverOptions });
+        setSettlements(sortSettlements(savedSettlements));
+        setSelectedDriverState((currentDriver) => {
+          if (drivers.includes(currentDriver)) return currentDriver;
+          return (
+            drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
+            drivers[0] ??
+            ''
+          );
+        });
+        setLoadError(false);
+      })
+      .catch(() => {
+        if (active) setLoadError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedDriverOption = useMemo(
+    () => loadedData.driverOptions.find((driver) => driver.name === selectedDriver) ?? null,
+    [loadedData.driverOptions, selectedDriver],
   );
 
   const dateRange = useMemo(
@@ -115,6 +122,42 @@ export function useDriverSettlement() {
     [customEndDate, customStartDate, periodMode, selectedMonth],
   );
 
+  useEffect(() => {
+    let active = true;
+
+    if (!selectedDriverOption || editingSettlementId) {
+      return () => {
+        active = false;
+      };
+    }
+
+    settlementService.pendingVales(selectedDriverOption.id, dateRange.endDate)
+      .then((pendingVales) => {
+        if (!active) return;
+        setEntries((currentEntries) => [
+          ...currentEntries.filter((entry) => entry.source !== 'VALE'),
+          ...pendingVales.map((vale) => ({
+            id: `vale-${vale.id}`,
+            type: vale.category,
+            date: vale.date,
+            description: vale.installmentsTotal > 1
+              ? `${vale.description || 'Vale'} · Parcela ${vale.installmentNumber}/${vale.installmentsTotal}`
+              : vale.description,
+            value: vale.amount,
+            source: 'VALE' as const,
+            valeId: vale.id,
+          })),
+        ]);
+      })
+      .catch(() => {
+        // O Acerto continua utilizável com lançamentos manuais caso os vales não carreguem.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [dateRange.endDate, editingSettlementId, selectedDriverOption]);
+
   const travels = useMemo(
     () =>
       filterDriverTravels(
@@ -122,20 +165,51 @@ export function useDriverSettlement() {
         selectedDriver,
         dateRange.startDate,
         dateRange.endDate,
+        selectedDriverOption?.id,
       ),
-    [dateRange.endDate, dateRange.startDate, loadedData.travels, selectedDriver],
+    [
+      dateRange.endDate,
+      dateRange.startDate,
+      loadedData.travels,
+      selectedDriver,
+      selectedDriverOption?.id,
+    ],
   );
 
-  const vehicleSummaries = useMemo(
+  const fuelRecords = useMemo(
     () =>
-      getVehicleAverageSummaries(
-        travels,
+      getDriverFuelRecords(
         loadedData.fuelRecords,
         selectedDriver,
         dateRange.startDate,
         dateRange.endDate,
+        selectedDriverOption?.id,
       ),
-    [dateRange.endDate, dateRange.startDate, loadedData.fuelRecords, selectedDriver, travels],
+    [
+      dateRange.endDate,
+      dateRange.startDate,
+      loadedData.fuelRecords,
+      selectedDriver,
+      selectedDriverOption?.id,
+    ],
+  );
+
+  const defaultSelectedFuelRecordIds = useMemo(
+    () =>
+      fuelRecords
+        .filter(
+          (record) =>
+            record.distanceKm !== null && record.distanceKm > 0 && record.dieselLiters > 0,
+        )
+        .map((record) => record.id),
+    [fuelRecords],
+  );
+
+  const selectedFuelRecordIds = selectedFuelRecordIdsOverride ?? defaultSelectedFuelRecordIds;
+
+  const vehicleSummaries = useMemo(
+    () => getVehicleAverageSummaries(travels, fuelRecords, selectedFuelRecordIds),
+    [fuelRecords, selectedFuelRecordIds, travels],
   );
 
   const suggestedBonusPercent = useMemo(
@@ -160,12 +234,14 @@ export function useDriverSettlement() {
 
   const createCurrentSnapshot = useCallback(
     (options: SnapshotOptions = {}): DriverSettlementSnapshot => ({
-      id: options.id ?? `settlement-${Date.now()}`,
+      id: options.id ?? `new-${Date.now()}`,
+      driverId: selectedDriverOption?.id ?? null,
       driver: selectedDriver,
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
       savedAt: options.savedAt ?? new Date().toISOString(),
       travels,
+      selectedFuelRecordIds: [...selectedFuelRecordIds],
       vehicleSummaries,
       entries: entries.map((entry) => ({ ...entry })),
       totals: { ...totals },
@@ -175,6 +251,8 @@ export function useDriverSettlement() {
       dateRange.startDate,
       entries,
       selectedDriver,
+      selectedDriverOption?.id,
+      selectedFuelRecordIds,
       totals,
       travels,
       vehicleSummaries,
@@ -186,6 +264,7 @@ export function useDriverSettlement() {
     setPeriodMode('MONTH');
     setBonusPercentOverride(null);
     setSavedAt('');
+    setSelectedFuelRecordIdsOverride(null);
   }, []);
 
   const applyCustomPeriod = useCallback((startDate: string, endDate: string) => {
@@ -194,13 +273,43 @@ export function useDriverSettlement() {
     setPeriodMode('CUSTOM');
     setBonusPercentOverride(null);
     setSavedAt('');
+    setSelectedFuelRecordIdsOverride(null);
   }, []);
 
   const setSelectedDriver = useCallback((driver: string) => {
     setSelectedDriverState(driver);
     setBonusPercentOverride(null);
     setSavedAt('');
+    setSelectedFuelRecordIdsOverride(null);
+    setEntries([]);
   }, []);
+
+  const toggleFuelRecord = useCallback((recordId: number) => {
+    setSelectedFuelRecordIdsOverride(
+      selectedFuelRecordIds.includes(recordId)
+        ? selectedFuelRecordIds.filter((currentId) => currentId !== recordId)
+        : [...selectedFuelRecordIds, recordId],
+    );
+    setBonusPercentOverride(null);
+    setSavedAt('');
+  }, [selectedFuelRecordIds]);
+
+  const selectFuelRecordsByPlate = useCallback((plate: string, selected: boolean) => {
+    const plateIds = fuelRecords
+      .filter(
+        (record) =>
+          record.plate === plate &&
+          record.distanceKm !== null &&
+          record.distanceKm > 0 &&
+          record.dieselLiters > 0,
+      )
+      .map((record) => record.id);
+    const currentSet = new Set(selectedFuelRecordIds);
+    plateIds.forEach((id) => (selected ? currentSet.add(id) : currentSet.delete(id)));
+    setSelectedFuelRecordIdsOverride(Array.from(currentSet));
+    setBonusPercentOverride(null);
+    setSavedAt('');
+  }, [fuelRecords, selectedFuelRecordIds]);
 
   const addEntry = useCallback((type: FinancialEntryType, formData: FinancialEntryFormData) => {
     const value = parseDecimalInput(formData.value);
@@ -217,6 +326,7 @@ export function useDriverSettlement() {
         date: formData.date,
         description: formData.description.trim(),
         value,
+        source: 'MANUAL',
       },
     ]);
     setSavedAt('');
@@ -228,31 +338,29 @@ export function useDriverSettlement() {
     setSavedAt('');
   }, []);
 
-  const finalizeSettlement = useCallback((): DriverSettlementSnapshot | null => {
-    if (!selectedDriver || travels.length === 0) {
+  const finalizeSettlement = useCallback(async (): Promise<DriverSettlementSnapshot | null> => {
+    if (!selectedDriver || !selectedDriverOption || travels.length === 0) {
       return null;
     }
 
-    const snapshot = createCurrentSnapshot({
-      id: editingSettlementId ?? undefined,
-    });
+    setSaving(true);
+    try {
+      const snapshot = createCurrentSnapshot({ id: editingSettlementId ?? undefined });
+      const saved = editingSettlementId
+        ? await settlementService.update(snapshot)
+        : await settlementService.create(snapshot);
 
-    setSettlements((currentSettlements) => {
-      const nextSettlements = editingSettlementId
-        ? currentSettlements.map((currentSettlement) =>
-            currentSettlement.id === editingSettlementId ? snapshot : currentSettlement,
-          )
-        : [snapshot, ...currentSettlements];
-      const sortedSettlements = sortSettlements(nextSettlements);
-
-      persistSettlements(sortedSettlements);
-      return sortedSettlements;
-    });
-    setSavedAt(snapshot.savedAt);
-    setEditingSettlementId(null);
-
-    return snapshot;
-  }, [createCurrentSnapshot, editingSettlementId, selectedDriver, travels.length]);
+      setSettlements((currentSettlements) => {
+        const withoutSaved = currentSettlements.filter((item) => item.id !== saved.id);
+        return sortSettlements([saved, ...withoutSaved]);
+      });
+      setSavedAt(saved.savedAt);
+      setEditingSettlementId(null);
+      return saved;
+    } finally {
+      setSaving(false);
+    }
+  }, [createCurrentSnapshot, editingSettlementId, selectedDriver, selectedDriverOption, travels.length]);
 
   const startEditingSettlement = useCallback((settlement: DriverSettlementSnapshot) => {
     setSelectedDriverState(settlement.driver);
@@ -265,25 +373,31 @@ export function useDriverSettlement() {
     setDailyAllowance(formatEditableDecimal(settlement.totals.dailyAllowance));
     setOtherEarnings(formatEditableDecimal(settlement.totals.otherEarnings));
     setEntries(settlement.entries.map((entry) => ({ ...entry })));
+    setSelectedFuelRecordIdsOverride([...(settlement.selectedFuelRecordIds ?? [])]);
     setEditingSettlementId(settlement.id);
     setSavedAt('');
   }, []);
 
-  const deleteSettlement = useCallback((settlementId: string) => {
-    setSettlements((currentSettlements) => {
-      const nextSettlements = currentSettlements.filter(
-        (settlement) => settlement.id !== settlementId,
+  const deleteSettlement = useCallback(async (settlementId: string) => {
+    setSaving(true);
+    try {
+      await settlementService.remove(settlementId);
+      setSettlements((currentSettlements) =>
+        currentSettlements.filter((settlement) => settlement.id !== settlementId),
       );
 
-      persistSettlements(nextSettlements);
-      return nextSettlements;
-    });
-
-    if (editingSettlementId === settlementId) {
-      setEditingSettlementId(null);
-      setSavedAt('');
+      if (editingSettlementId === settlementId) {
+        setEditingSettlementId(null);
+        setSavedAt('');
+      }
+    } finally {
+      setSaving(false);
     }
   }, [editingSettlementId]);
+
+  const loadHistory = useCallback(async (): Promise<void> => {
+    setHistory(await settlementService.history());
+  }, []);
 
   const resetFinancialData = useCallback(() => {
     setBonusPercentOverride('');
@@ -295,19 +409,24 @@ export function useDriverSettlement() {
   }, []);
 
   const startNewSettlement = useCallback(() => {
+    const initialDriver =
+      loadedData.drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
+      loadedData.drivers[0] ??
+      '';
     setSelectedDriverState(initialDriver);
     setPeriodMode('MONTH');
     setSelectedMonth(DEFAULT_MONTH);
     setCustomStartDate(`${DEFAULT_MONTH}-01`);
-    setCustomEndDate(`${DEFAULT_MONTH}-31`);
+    setCustomEndDate(getMonthDateRange(DEFAULT_MONTH).endDate);
     setBonusPercentOverride(null);
     setBaseSalary(DEFAULT_BASE_SALARY);
     setDailyAllowance('0');
     setOtherEarnings('0');
     setEntries([]);
+    setSelectedFuelRecordIdsOverride(null);
     setEditingSettlementId(null);
     setSavedAt('');
-  }, [initialDriver]);
+  }, [loadedData.drivers]);
 
   return {
     drivers: loadedData.drivers,
@@ -318,6 +437,8 @@ export function useDriverSettlement() {
     customEndDate,
     dateRange,
     travels,
+    fuelRecords,
+    selectedFuelRecordIds,
     vehicleSummaries,
     suggestedBonusPercent,
     bonusPercent,
@@ -328,7 +449,12 @@ export function useDriverSettlement() {
     totals,
     savedAt,
     settlements,
+    history,
     editingSettlementId,
+    loading,
+    saving,
+    loadError,
+    canSave: Boolean(selectedDriverOption && travels.length > 0),
     setSelectedDriver,
     applyMonth,
     applyCustomPeriod,
@@ -338,10 +464,13 @@ export function useDriverSettlement() {
     setOtherEarnings,
     addEntry,
     removeEntry,
+    toggleFuelRecord,
+    selectFuelRecordsByPlate,
     finalizeSettlement,
     createCurrentSnapshot,
     startEditingSettlement,
     deleteSettlement,
+    loadHistory,
     resetFinancialData,
     startNewSettlement,
   };

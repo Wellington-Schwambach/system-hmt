@@ -75,7 +75,7 @@ export function SettlementList({
       {filteredSettlements.length === 0 ? (
         <EmptyState>
           {settlements.length === 0
-            ? 'Nenhum acerto foi finalizado até o momento.'
+            ? 'Nenhum acerto foi gravado até o momento.'
             : 'Nenhum acerto corresponde à busca informada.'}
         </EmptyState>
       ) : (
@@ -90,7 +90,7 @@ export function SettlementList({
                   <TH>Fretes</TH>
                   <TH>Bônus</TH>
                   <TH>A receber</TH>
-                  <TH>Finalizado em</TH>
+                  <TH>Gravado em</TH>
                   <TH>Ações</TH>
                 </tr>
               </thead>
