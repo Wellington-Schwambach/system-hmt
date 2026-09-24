@@ -237,7 +237,7 @@ export function Acerto() {
               fuelRecords={settlement.fuelRecords}
               selectedFuelRecordIds={settlement.selectedFuelRecordIds}
               onToggleFuelRecord={settlement.toggleFuelRecord}
-              onSelectPlate={settlement.selectFuelRecordsByPlate}
+              onSelectGroup={settlement.selectFuelRecordsByGroup}
             />
           </TripGrid>
 

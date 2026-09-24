@@ -1,10 +1,10 @@
-import type { FuelRecord } from '../../../Fuel/types';
+import type { SettlementFuelRecord } from '../../types';
 
 export interface FuelSelectionModalProps {
   isOpen: boolean;
-  fuelRecords: FuelRecord[];
+  fuelRecords: SettlementFuelRecord[];
   selectedFuelRecordIds: number[];
   onToggleFuelRecord: (recordId: number) => void;
-  onSelectPlate: (plate: string, selected: boolean) => void;
+  onSelectGroup: (groupKey: string, selected: boolean) => void;
   onClose: () => void;
 }

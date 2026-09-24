@@ -1,10 +1,9 @@
-import type { FuelRecord } from '../../../Fuel/types';
-import type { VehicleAverageSummaryData } from '../../types';
+import type { SettlementFuelRecord, VehicleAverageSummaryData } from '../../types';
 
 export interface VehicleAverageSummaryProps {
   summaries: VehicleAverageSummaryData[];
-  fuelRecords: FuelRecord[];
+  fuelRecords: SettlementFuelRecord[];
   selectedFuelRecordIds: number[];
   onToggleFuelRecord: (recordId: number) => void;
-  onSelectPlate: (plate: string, selected: boolean) => void;
+  onSelectGroup: (groupKey: string, selected: boolean) => void;
 }

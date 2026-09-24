@@ -79,13 +79,14 @@ export function useDriverSettlement() {
       travelService.list(),
       fuelService.list(),
       settlementService.drivers(),
+      settlementService.crewHistory(),
       settlementService.list(),
     ])
-      .then(([travels, fuelRecords, driverOptions, savedSettlements]) => {
+      .then(([travels, fuelRecords, driverOptions, crewEvents, savedSettlements]) => {
         if (!active) return;
 
         const drivers = driverOptions.map((driver) => driver.name);
-        setLoadedData({ travels, fuelRecords, drivers, driverOptions });
+        setLoadedData({ travels, fuelRecords, crewEvents, drivers, driverOptions });
         setSettlements(sortSettlements(savedSettlements));
         setSelectedDriverState((currentDriver) => {
           if (drivers.includes(currentDriver)) return currentDriver;
@@ -162,6 +163,7 @@ export function useDriverSettlement() {
     () =>
       filterDriverTravels(
         loadedData.travels,
+        loadedData.crewEvents,
         selectedDriver,
         dateRange.startDate,
         dateRange.endDate,
@@ -170,6 +172,7 @@ export function useDriverSettlement() {
     [
       dateRange.endDate,
       dateRange.startDate,
+      loadedData.crewEvents,
       loadedData.travels,
       selectedDriver,
       selectedDriverOption?.id,
@@ -180,6 +183,7 @@ export function useDriverSettlement() {
     () =>
       getDriverFuelRecords(
         loadedData.fuelRecords,
+        loadedData.crewEvents,
         selectedDriver,
         dateRange.startDate,
         dateRange.endDate,
@@ -188,6 +192,7 @@ export function useDriverSettlement() {
     [
       dateRange.endDate,
       dateRange.startDate,
+      loadedData.crewEvents,
       loadedData.fuelRecords,
       selectedDriver,
       selectedDriverOption?.id,
@@ -294,15 +299,9 @@ export function useDriverSettlement() {
     setSavedAt('');
   }, [selectedFuelRecordIds]);
 
-  const selectFuelRecordsByPlate = useCallback((plate: string, selected: boolean) => {
+  const selectFuelRecordsByGroup = useCallback((groupKey: string, selected: boolean) => {
     const plateIds = fuelRecords
-      .filter(
-        (record) =>
-          record.plate === plate &&
-          record.distanceKm !== null &&
-          record.distanceKm > 0 &&
-          record.dieselLiters > 0,
-      )
+      .filter((record) => record.averageGroupKey === groupKey)
       .map((record) => record.id);
     const currentSet = new Set(selectedFuelRecordIds);
     plateIds.forEach((id) => (selected ? currentSet.add(id) : currentSet.delete(id)));
@@ -465,7 +464,7 @@ export function useDriverSettlement() {
     addEntry,
     removeEntry,
     toggleFuelRecord,
-    selectFuelRecordsByPlate,
+    selectFuelRecordsByGroup,
     finalizeSettlement,
     createCurrentSnapshot,
     startEditingSettlement,

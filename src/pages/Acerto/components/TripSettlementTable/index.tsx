@@ -15,6 +15,7 @@ import {
   Title,
   TotalRow,
   TotalValue,
+  FreightValue,
 } from './styles';
 
 export function TripSettlementTable({ travels, totalNetFreight }: TripSettlementTableProps) {
@@ -57,7 +58,14 @@ export function TripSettlementTable({ travels, totalNetFreight }: TripSettlement
                     <strong title={travel.destination}>{travel.destination}</strong>
                   </TD>
                   <TD>{travel.plate}</TD>
-                  <TD $numeric>{formatCurrency(travel.netFreight)}</TD>
+                  <TD $numeric>
+                    <FreightValue>
+                      <strong>{formatCurrency(travel.netFreight)}</strong>
+                      {(travel.driverTwoId !== null || travel.driverTwo.trim() !== '') && (
+                        <small>50% · 2 motoristas</small>
+                      )}
+                    </FreightValue>
+                  </TD>
                 </tr>
               ))}
             </tbody>

@@ -8,6 +8,7 @@ use App\Models\DriverSettlementEvent;
 use App\Models\DriverDeduction;
 use App\Models\DriverDeductionEvent;
 use App\Models\Employee;
+use App\Models\VehicleSetEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -41,6 +42,42 @@ class DriverSettlementController extends Controller
             ]);
 
         return response()->json(['drivers' => $drivers]);
+    }
+
+    public function crewHistory(): JsonResponse
+    {
+        $events = VehicleSetEvent::query()
+            ->whereIn('action', [
+                VehicleSetEvent::ACTION_COUPLED,
+                VehicleSetEvent::ACTION_DRIVER_ASSIGNED,
+                VehicleSetEvent::ACTION_DRIVER_CHANGED,
+                VehicleSetEvent::ACTION_DRIVER_RELEASED,
+                VehicleSetEvent::ACTION_DETACHED,
+            ])
+            ->orderBy('occurred_at')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'vehicle_set_id',
+                'action',
+                'tractor_plate',
+                'driver_id',
+                'driver_name',
+                'occurred_at',
+                'details',
+            ])
+            ->map(fn (VehicleSetEvent $event): array => [
+                'id' => (int) $event->id,
+                'vehicle_set_id' => (int) $event->vehicle_set_id,
+                'action' => $event->action,
+                'tractor_plate' => $event->tractor_plate,
+                'driver_id' => $event->driver_id !== null ? (int) $event->driver_id : null,
+                'driver_name' => $event->driver_name,
+                'occurred_at' => $event->occurred_at?->toIso8601String(),
+                'details' => $event->details ?? [],
+            ]);
+
+        return response()->json(['events' => $events]);
     }
 
     public function store(Request $request): JsonResponse

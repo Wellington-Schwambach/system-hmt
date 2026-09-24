@@ -1,6 +1,6 @@
 import { api } from '../../services/api';
 import { ENTRY_LABELS } from './constants';
-import type { DriverSettlementSnapshot, SettlementHistoryEvent, SettlementPendingVale } from './types';
+import type { DriverSettlementSnapshot, SettlementCrewEvent, SettlementHistoryEvent, SettlementPendingVale } from './types';
 import { formatCurrency, formatDate, formatDecimal } from './utils';
 
 function escapeHtml(value: string | number): string {
@@ -43,7 +43,10 @@ function buildTravelsRows(settlement: DriverSettlementSnapshot): string {
           <td>${escapeHtml(travel.origin)}</td>
           <td>${escapeHtml(travel.destination)}</td>
           <td>${escapeHtml(travel.plate)}</td>
-          <td class="numeric">${escapeHtml(formatCurrency(travel.netFreight))}</td>
+          <td class="numeric">
+            ${escapeHtml(formatCurrency(travel.netFreight))}
+            ${(travel.driverTwoId !== null || travel.driverTwo.trim() !== '') ? '<span class="rateio">50% · 2 motoristas</span>' : ''}
+          </td>
         </tr>`,
     )
     .join('');
@@ -58,7 +61,7 @@ function buildVehicleRows(settlement: DriverSettlementSnapshot): string {
     .map(
       (summary) => `
         <tr>
-          <td><strong>${escapeHtml(summary.plate)}</strong></td>
+          <td><strong>${escapeHtml(summary.label ?? summary.plate)}</strong></td>
           <td class="numeric">${escapeHtml(summary.tripsCount)}</td>
           <td class="numeric">${escapeHtml(summary.fuelingsCount)}</td>
           <td class="numeric">${
@@ -278,6 +281,14 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
 
       .numeric {
         text-align: right;
+      }
+
+      .rateio {
+        display: block;
+        margin-top: 2px;
+        color: #6f7b74;
+        font-size: 7px;
+        font-weight: 700;
       }
 
       .table-total td {
@@ -566,6 +577,29 @@ function settlementPayload(snapshot: DriverSettlementSnapshot) {
 }
 
 export const settlementService = {
+  async crewHistory(): Promise<SettlementCrewEvent[]> {
+    const response = await api.get<{ events: Array<{
+      id: number;
+      vehicle_set_id: number;
+      action: SettlementCrewEvent['action'];
+      tractor_plate: string;
+      driver_id: number | null;
+      driver_name: string | null;
+      occurred_at: string;
+      details: Record<string, unknown> | null;
+    }> }>('/api/settlements/crew-history');
+
+    return response.data.events.map((event) => ({
+      id: event.id,
+      vehicleSetId: event.vehicle_set_id,
+      action: event.action,
+      tractorPlate: event.tractor_plate,
+      driverId: event.driver_id === null ? null : Number(event.driver_id),
+      driverName: event.driver_name,
+      occurredAt: event.occurred_at,
+      details: event.details ?? {},
+    }));
+  },
   async pendingVales(driverId: number, endDate: string): Promise<SettlementPendingVale[]> {
     const response = await api.get<{ records: Array<{
       id: number;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Fuel, Truck, X } from 'lucide-react';
 
-import { formatDate, formatDecimal } from '../../utils';
-import type { FuelRecord } from '../../../Fuel/types';
+import { formatDate, formatDecimal, formatMonth } from '../../utils';
+import type { SettlementFuelRecord } from '../../types';
 import type { FuelSelectionModalProps } from './types';
 import {
   Actions,
@@ -26,7 +26,7 @@ import {
   Value,
 } from './styles';
 
-function hasValidAverage(record: FuelRecord): boolean {
+function hasValidAverage(record: SettlementFuelRecord): boolean {
   return (
     record.vehicleKmReference !== null &&
     record.km !== null &&
@@ -40,9 +40,11 @@ function formatKm(value: number | null): string {
   return value === null ? '-' : `${value.toLocaleString('pt-BR')} km`;
 }
 
-interface PlateGroup {
+interface FuelGroup {
+  key: string;
+  label: string;
   plate: string;
-  records: FuelRecord[];
+  records: SettlementFuelRecord[];
 }
 
 export function FuelSelectionModal({
@@ -50,57 +52,66 @@ export function FuelSelectionModal({
   fuelRecords,
   selectedFuelRecordIds,
   onToggleFuelRecord,
-  onSelectPlate,
+  onSelectGroup,
   onClose,
 }: FuelSelectionModalProps) {
-  const [activePlate, setActivePlate] = useState('');
+  const [activeGroupKey, setActiveGroupKey] = useState('');
   const selectedIds = useMemo(() => new Set(selectedFuelRecordIds), [selectedFuelRecordIds]);
 
-  const groupedRecords = useMemo<PlateGroup[]>(() => {
-    const groups = new Map<string, FuelRecord[]>();
+  const groupedRecords = useMemo<FuelGroup[]>(() => {
+    const groups = new Map<string, SettlementFuelRecord[]>();
 
     fuelRecords.forEach((record) => {
-      const plate = record.plate || 'SEM PLACA';
-      const current = groups.get(plate) ?? [];
+      const current = groups.get(record.averageGroupKey) ?? [];
       current.push(record);
-      groups.set(plate, current);
+      groups.set(record.averageGroupKey, current);
     });
 
     return Array.from(groups.entries())
-      .map(([plate, records]) => ({ plate, records }))
+      .map(([key, records]) => ({
+        key,
+        label: records[0]?.averageGroupLabel ?? records[0]?.plate ?? 'Sem identificação',
+        plate: records[0]?.plate ?? 'SEM PLACA',
+        records,
+      }))
       .sort((firstGroup, secondGroup) =>
-        firstGroup.plate.localeCompare(secondGroup.plate, 'pt-BR'),
+        firstGroup.label.localeCompare(secondGroup.label, 'pt-BR'),
       );
   }, [fuelRecords]);
 
   const validRecords = useMemo(() => fuelRecords.filter(hasValidAverage), [fuelRecords]);
+  const selectedRecords = useMemo(
+    () => fuelRecords.filter((record) => selectedIds.has(record.id)),
+    [fuelRecords, selectedIds],
+  );
   const selectedValidCount = validRecords.filter((record) => selectedIds.has(record.id)).length;
 
   const currentGroup =
-    groupedRecords.find((group) => group.plate === activePlate) ?? groupedRecords[0] ?? null;
+    groupedRecords.find((group) => group.key === activeGroupKey) ?? groupedRecords[0] ?? null;
 
-  const currentValidRecords = currentGroup?.records.filter(hasValidAverage) ?? [];
-  const currentSelectedRecords = currentValidRecords.filter((record) => selectedIds.has(record.id));
+  const currentRecords = currentGroup?.records ?? [];
+  const currentSelectedRecords = currentRecords.filter((record) => selectedIds.has(record.id));
+  const currentSelectedAverageRecords = currentSelectedRecords.filter(hasValidAverage);
 
-  const selectedDistance = currentSelectedRecords.reduce(
+  const selectedDistance = currentSelectedAverageRecords.reduce(
     (total, record) => total + (record.distanceKm ?? 0),
     0,
   );
-  const selectedLiters = currentSelectedRecords.reduce(
+  const selectedLiters = currentSelectedAverageRecords.reduce(
     (total, record) => total + record.dieselLiters,
     0,
   );
   const selectedAverage = selectedLiters > 0 ? selectedDistance / selectedLiters : null;
 
-  const selectedKmInitial = currentSelectedRecords.length
-    ? currentSelectedRecords.reduce<number | null>((lowest, record) => {
+  const selectedKmInitial = currentSelectedAverageRecords.length
+    ? currentSelectedAverageRecords.reduce<number | null>((lowest, record) => {
         if (record.vehicleKmReference === null) return lowest;
         return lowest === null ? record.vehicleKmReference : Math.min(lowest, record.vehicleKmReference);
       }, null)
     : null;
 
-  const selectedKmFinal = currentSelectedRecords.length
-    ? currentSelectedRecords.reduce<number | null>((highest, record) => {
+  const selectedKmFinal = currentSelectedAverageRecords.length
+    ? currentSelectedAverageRecords.reduce<number | null>((highest, record) => {
         if (record.km === null) return highest;
         return highest === null ? record.km : Math.max(highest, record.km);
       }, null)
@@ -141,8 +152,8 @@ export function FuelSelectionModal({
               <h2 id="fuel-selection-modal-title">Abastecidas do motorista</h2>
             </div>
             <p>
-              Selecione somente os abastecimentos que devem entrar no acerto. Quando houver troca
-              de caminhão, cada placa mantém sua média separadamente.
+              Selecione os abastecimentos que devem entrar no acerto. A mesma placa fica separada
+              entre períodos individuais e períodos em dupla, mantendo a média correta de cada composição.
             </p>
           </HeaderText>
           <CloseButton type="button" onClick={onClose} aria-label="Fechar seleção de abastecidas">
@@ -153,33 +164,32 @@ export function FuelSelectionModal({
         <SelectionSummary>
           <span>
             <StatusDot />
-            {selectedValidCount} de {validRecords.length} abastecida(s) selecionada(s)
+            {selectedRecords.length} de {fuelRecords.length} abastecida(s) selecionada(s)
           </span>
-          <small>Escolha a placa e confira os dados antes de concluir.</small>
+          <small>{selectedValidCount} selecionada(s) com KM válido entram no cálculo da média.</small>
         </SelectionSummary>
 
         {fuelRecords.length === 0 ? (
-          <EmptyState>Nenhuma abastecida deste motorista no período selecionado.</EmptyState>
+          <EmptyState>Nenhuma abastecida deste motorista no mês faturado selecionado.</EmptyState>
         ) : (
           <>
             <PlateTabs role="tablist" aria-label="Caminhões utilizados pelo motorista">
               {groupedRecords.map((group) => {
-                const valid = group.records.filter(hasValidAverage);
-                const selected = valid.filter((record) => selectedIds.has(record.id)).length;
-                const isActive = group.plate === currentGroup?.plate;
+                const selected = group.records.filter((record) => selectedIds.has(record.id)).length;
+                const isActive = group.key === currentGroup?.key;
 
                 return (
                   <button
-                    key={group.plate}
+                    key={group.key}
                     type="button"
                     role="tab"
                     aria-selected={isActive}
                     data-active={isActive || undefined}
-                    onClick={() => setActivePlate(group.plate)}
+                    onClick={() => setActiveGroupKey(group.key)}
                   >
                     <Truck size={14} aria-hidden="true" />
-                    <span>{group.plate}</span>
-                    <small>{selected}/{valid.length}</small>
+                    <span>{group.label}</span>
+                    <small>{selected}/{group.records.length}</small>
                   </button>
                 );
               })}
@@ -189,23 +199,23 @@ export function FuelSelectionModal({
               <>
                 <RecordsHeader>
                   <div>
-                    <strong>{currentGroup.plate}</strong>
+                    <strong>{currentGroup.label}</strong>
                     <span>
-                      {currentSelectedRecords.length} de {currentValidRecords.length} abastecida(s)
+                      {currentSelectedRecords.length} de {currentRecords.length} abastecida(s)
                       selecionada(s)
                     </span>
                   </div>
                   <div>
                     <PlateButton
                       type="button"
-                      onClick={() => onSelectPlate(currentGroup.plate, true)}
-                      disabled={currentValidRecords.length === 0}
+                      onClick={() => onSelectGroup(currentGroup.key, true)}
+                      disabled={currentRecords.length === 0}
                     >
                       Selecionar todas
                     </PlateButton>
                     <PlateButton
                       type="button"
-                      onClick={() => onSelectPlate(currentGroup.plate, false)}
+                      onClick={() => onSelectGroup(currentGroup.key, false)}
                       disabled={currentSelectedRecords.length === 0}
                     >
                       Limpar
@@ -224,12 +234,12 @@ export function FuelSelectionModal({
                   </Metric>
                   <Metric>
                     <span>KM percorrido</span>
-                    <strong>{formatKm(currentSelectedRecords.length ? selectedDistance : null)}</strong>
+                    <strong>{formatKm(currentSelectedAverageRecords.length ? selectedDistance : null)}</strong>
                   </Metric>
                   <Metric>
                     <span>Litros consumidos</span>
                     <strong>
-                      {currentSelectedRecords.length ? `${formatDecimal(selectedLiters)} L` : '-'}
+                      {currentSelectedAverageRecords.length ? `${formatDecimal(selectedLiters)} L` : '-'}
                     </strong>
                   </Metric>
                   <Metric $accent>
@@ -254,23 +264,23 @@ export function FuelSelectionModal({
                     </thead>
                     <tbody>
                       {currentGroup.records.map((record) => {
-                        const selectable = hasValidAverage(record);
+                        const hasAverage = hasValidAverage(record);
                         const isSelected = selectedIds.has(record.id);
 
                         return (
-                          <tr key={record.id} data-disabled={!selectable || undefined}>
+                          <tr key={record.id}>
                             <td>
-                              <SelectionCell $disabled={!selectable}>
+                              <SelectionCell $disabled={false}>
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
-                                  disabled={!selectable}
                                   onChange={() => onToggleFuelRecord(record.id)}
-                                  aria-label={`Usar abastecida de ${formatDate(record.date)} do veículo ${currentGroup.plate}`}
+                                  aria-label={`Usar abastecida de ${formatDate(record.date)} do grupo ${currentGroup.label}`}
                                 />
                                 <span>
                                   <strong>{formatDate(record.date)}</strong>
-                                  {!selectable && <small>Sem média válida</small>}
+                                  <small>Mês faturado: {formatMonth(record.billingMonth || record.date.slice(0, 7))}</small>
+                                  {!hasAverage && <small>Sem KM válido · não altera a média</small>}
                                 </span>
                               </SelectionCell>
                             </td>
@@ -279,8 +289,8 @@ export function FuelSelectionModal({
                             <td><Value>{formatKm(record.distanceKm)}</Value></td>
                             <td><Value>{formatDecimal(record.dieselLiters)} L</Value></td>
                             <td>
-                              <Value $accent={selectable}>
-                                {selectable && record.dieselAverage !== null
+                              <Value $accent={hasAverage}>
+                                {hasAverage && record.dieselAverage !== null
                                   ? `${formatDecimal(record.dieselAverage)} km/L`
                                   : '-'}
                               </Value>
@@ -297,7 +307,7 @@ export function FuelSelectionModal({
         )}
 
         <Footer>
-          <span>A média do acerto é recalculada somente com os registros marcados.</span>
+          <span>Abastecidas sem KM também podem ser marcadas; somente registros com KM válido alteram a média.</span>
           <Actions>
             <button type="button" onClick={onClose}>
               <Check size={16} aria-hidden="true" />
