@@ -24,7 +24,7 @@ export function VehicleAverageSummary({
   fuelRecords,
   selectedFuelRecordIds,
   onToggleFuelRecord,
-  onSelectPlate,
+  onSelectGroup,
 }: VehicleAverageSummaryProps) {
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
   const selectedIds = new Set(selectedFuelRecordIds);
@@ -55,15 +55,15 @@ export function VehicleAverageSummary({
         ) : (
           <VehicleList>
             {summaries.map((summary) => {
-              const plateFuelings = fuelRecords.filter((record) => record.plate === summary.plate);
+              const plateFuelings = fuelRecords.filter((record) => record.averageGroupKey === summary.groupKey);
               const selectedOnPlate = plateFuelings.filter((record) => selectedIds.has(record.id)).length;
 
               return (
-                <VehicleRow key={summary.plate}>
+                <VehicleRow key={summary.groupKey}>
                   <Info>
                     <Plate>
                       <Truck size={13} aria-hidden="true" />
-                      {summary.plate}
+                      {summary.label ?? summary.plate}
                     </Plate>
                     <span>
                       {summary.tripsCount} viagem(ns) · {selectedOnPlate}/{plateFuelings.length}{' '}
@@ -93,7 +93,7 @@ export function VehicleAverageSummary({
         fuelRecords={fuelRecords}
         selectedFuelRecordIds={selectedFuelRecordIds}
         onToggleFuelRecord={onToggleFuelRecord}
-        onSelectPlate={onSelectPlate}
+        onSelectGroup={onSelectGroup}
         onClose={() => setIsFuelModalOpen(false)}
       />
     </>

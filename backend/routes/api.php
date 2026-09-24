@@ -149,6 +149,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         ->middleware('permission:settlements')
         ->group(function (): void {
             Route::get('/drivers', [DriverSettlementController::class, 'drivers']);
+            Route::get('/crew-history', [DriverSettlementController::class, 'crewHistory']);
             Route::get('/', [DriverSettlementController::class, 'index']);
             Route::post('/', [DriverSettlementController::class, 'store']);
             Route::put('/{driverSettlement}', [DriverSettlementController::class, 'update']);

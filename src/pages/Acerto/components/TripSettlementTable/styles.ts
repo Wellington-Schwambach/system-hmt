@@ -81,6 +81,23 @@ export const RouteText = styled.span`
   }
 `;
 
+
+export const FreightValue = styled.span`
+  display: inline-grid;
+  justify-items: end;
+  gap: 0.12rem;
+
+  strong {
+    font: inherit;
+  }
+
+  small {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.56rem;
+    font-weight: 750;
+  }
+`;
+
 export const TotalRow = styled.tfoot`
   td {
     padding: 0.9rem 0.75rem;

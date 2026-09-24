@@ -75,8 +75,8 @@ export function PrintReport({
           <SectionTitle>Médias por veículo</SectionTitle>
           <VehicleGrid>
             {vehicleSummaries.map((summary) => (
-              <VehicleCard key={summary.plate}>
-                <strong>{summary.plate}</strong>
+              <VehicleCard key={summary.groupKey ?? summary.plate}>
+                <strong>{summary.label ?? summary.plate}</strong>
                 <span>
                   Média:{' '}
                   {summary.averageKmPerLiter === null

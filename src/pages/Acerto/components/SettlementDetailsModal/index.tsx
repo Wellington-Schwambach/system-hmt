@@ -115,8 +115,8 @@ export function SettlementDetailsModal({
             <SectionTitle>Médias por veículo</SectionTitle>
             <VehicleList>
               {settlement.vehicleSummaries.map((summary) => (
-                <VehicleRow key={summary.plate}>
-                  <strong>{summary.plate}</strong>
+                <VehicleRow key={summary.groupKey ?? summary.plate}>
+                  <strong>{summary.label ?? summary.plate}</strong>
                   <span>{summary.tripsCount} viagem(ns)</span>
                   <span>
                     {summary.averageKmPerLiter === null

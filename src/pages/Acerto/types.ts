@@ -37,8 +37,34 @@ export interface FinancialEntryFormData {
   value: string;
 }
 
+export type SettlementCrewMode = 'SOLO' | 'PAIR';
+
+export interface SettlementFuelRecord extends FuelRecord {
+  averageGroupKey: string;
+  averageGroupLabel: string;
+  crewMode: SettlementCrewMode;
+  crewDriverIds: number[];
+  crewDriverNames: string[];
+}
+
+export interface SettlementCrewEvent {
+  id: number;
+  vehicleSetId: number;
+  action: 'COUPLED' | 'DRIVER_ASSIGNED' | 'DRIVER_CHANGED' | 'DRIVER_RELEASED' | 'DETACHED';
+  tractorPlate: string;
+  driverId: number | null;
+  driverName: string | null;
+  occurredAt: string;
+  details: Record<string, unknown>;
+}
+
 export interface VehicleAverageSummaryData {
+  groupKey: string;
+  label: string;
   plate: string;
+  crewMode: SettlementCrewMode;
+  crewDriverIds: number[];
+  crewDriverNames: string[];
   tripsCount: number;
   averageKmPerLiter: number | null;
   fuelingsCount: number;
@@ -78,6 +104,7 @@ export interface DriverSettlementSnapshot {
 export interface LoadedSettlementData {
   travels: TravelRecord[];
   fuelRecords: FuelRecord[];
+  crewEvents: SettlementCrewEvent[];
   drivers: string[];
   driverOptions: SettlementDriverOption[];
 }
