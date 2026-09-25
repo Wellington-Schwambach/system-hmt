@@ -2,7 +2,7 @@ import type { FuelRecord } from '../Fuel/types';
 import type { TravelRecord } from '../Travel/types';
 
 export type SettlementPeriodMode = 'MONTH' | 'CUSTOM';
-export type FinancialEntryType = 'ADVANCE' | 'FINE' | 'OTHER_DISCOUNT';
+export type FinancialEntryType = 'ADVANCE' | 'FINE' | 'LOAN' | 'OTHER_DISCOUNT';
 export type SettlementTab = 'FORM' | 'LIST' | 'HISTORY';
 
 export interface SettlementDriverOption {
@@ -82,6 +82,7 @@ export interface SettlementTotals {
   totalEarnings: number;
   advances: number;
   fines: number;
+  loans: number;
   otherDiscounts: number;
   totalDiscounts: number;
   totalReceivable: number;

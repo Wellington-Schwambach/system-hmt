@@ -274,6 +274,7 @@ function formPayload(data: LogisticsFormData) {
     collection_city_id: data.collectionCityId ? Number(data.collectionCityId) : null,
     collection_terminal: nullableText(data.collectionTerminal),
     collection_location_type_id: data.collectionLocationTypeId ? Number(data.collectionLocationTypeId) : null,
+    collection_scheduled_at: data.collectionScheduledAt || null,
     collection_at: data.collectionAt || null,
     loading_city_id: data.loadingCityId ? Number(data.loadingCityId) : null,
     loading_location: nullableText(data.loadingLocation),

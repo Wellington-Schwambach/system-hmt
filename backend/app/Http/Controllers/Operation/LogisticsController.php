@@ -151,10 +151,6 @@ class LogisticsController extends Controller
                     // Não usamos scheduled_at/created_at como fallback para evitar cargas
                     // aparecendo em dias sem coleta, carregamento ou entrega preenchidos.
                     $query->whereBetween('collection_scheduled_at', [$dateFrom, $dateTo])
-                        ->orWhereRaw(
-                            "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(collection_appointments, '[]'::jsonb)) AS appointment WHERE NULLIF(appointment->>'scheduled_at', '')::timestamp BETWEEN ? AND ?)",
-                            [$dateFrom, $dateTo]
-                        )
                         ->orWhereBetween('collection_at', [$dateFrom, $dateTo])
                         ->orWhereBetween('loading_at', [$dateFrom, $dateTo])
                         ->orWhereBetween('delivery_at', [$dateFrom, $dateTo])
@@ -576,12 +572,6 @@ class LogisticsController extends Controller
                 'updated_by' => $request->user()?->id,
             ];
 
-            // Mantém o campo legado somente como resumo do primeiro agendamento de coleta.
-            // O cadastro da carga não escreve mais nesse campo.
-            if ($kind === 'COLLECTION') {
-                $changes['collection_scheduled_at'] = $entries[0]['scheduled_at'] ?? null;
-            }
-
             $logisticsLoad->forceFill($changes)->save();
 
             $this->recordEvent(
@@ -591,7 +581,7 @@ class LogisticsController extends Controller
                 $logisticsLoad->stage,
                 [
                     'message' => $kind === 'COLLECTION'
-                        ? 'Agendamentos de coleta atualizados.'
+                        ? 'Horários de coleta atualizados.'
                         : 'Agendamentos de baixa atualizados.',
                     'changed_fields' => [$field],
                 ],
@@ -938,13 +928,6 @@ class LogisticsController extends Controller
             $payload['load_number'] = null;
             $payload['load_status'] = null;
             $payload['load_entries'] = null;
-        }
-
-        if (array_key_exists('collection_appointments', $payload)) {
-            $firstCollectionAppointment = is_array($payload['collection_appointments']) ? ($payload['collection_appointments'][0] ?? null) : null;
-            $payload['collection_scheduled_at'] = is_array($firstCollectionAppointment)
-                ? ($firstCollectionAppointment['scheduled_at'] ?? null)
-                : null;
         }
 
         $plateMode = strtoupper((string) ($payload['plate_mode'] ?? ($validated['plate_mode'] ?? 'FLEET')));

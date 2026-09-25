@@ -505,6 +505,9 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
           <div class="summary-row"><span>Multas</span><strong>- ${escapeHtml(
             formatCurrency(settlement.totals.fines),
           )}</strong></div>
+          <div class="summary-row"><span>Empréstimos</span><strong>- ${escapeHtml(
+            formatCurrency(settlement.totals.loans ?? 0),
+          )}</strong></div>
           <div class="summary-row"><span>Outros descontos</span><strong>- ${escapeHtml(
             formatCurrency(settlement.totals.otherDiscounts),
           )}</strong></div>
@@ -600,7 +603,7 @@ export const settlementService = {
       details: event.details ?? {},
     }));
   },
-  async pendingVales(driverId: number, endDate: string): Promise<SettlementPendingVale[]> {
+  async pendingVales(driverId: number, startDate: string, endDate: string): Promise<SettlementPendingVale[]> {
     const response = await api.get<{ records: Array<{
       id: number;
       employeeId: number;
@@ -610,7 +613,7 @@ export const settlementService = {
       amount: number;
       installmentNumber: number;
       installmentsTotal: number;
-    }> }>('/api/vales/pending', { params: { driver_id: driverId, end_date: endDate } });
+    }> }>('/api/vales/pending', { params: { driver_id: driverId, start_date: startDate, end_date: endDate } });
     return response.data.records;
   },
   async drivers(): Promise<Array<{ id: number; name: string }>> {

@@ -27,6 +27,7 @@ export const IconBox = styled.span`
 
 export const Content = styled.div`
   min-width: 0;
+  flex: 1;
 `;
 
 export const Label = styled.span`
@@ -46,7 +47,7 @@ export const Value = styled.strong`
   font-size: clamp(0.95rem, 1.4vw, 1.15rem);
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 `;
 
 export const CardAction = styled.div`

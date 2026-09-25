@@ -1534,6 +1534,75 @@ export const ListHeaderRow = styled.div`
   }
 `;
 
+export const ListGroupHeader = styled.div<{ $tone: 'loading' | 'schedule' | 'movement' }>`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.72rem 0.9rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ $tone, theme }) => {
+    if ($tone === 'schedule') return theme.colors.brandGreenSoft;
+    if ($tone === 'loading') return theme.colors.surfaceElevated;
+    return theme.colors.dashboardSurface;
+  }};
+
+  > div {
+    min-width: 0;
+  }
+
+  > div > strong {
+    display: block;
+    color: ${({ $tone, theme }) => ($tone === 'schedule' ? theme.colors.brandGreenDark : theme.colors.dashboardText)};
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  > div > span {
+    display: block;
+    margin-top: 0.16rem;
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.74rem;
+    line-height: 1.35;
+  }
+
+  > strong {
+    min-width: 1.65rem;
+    height: 1.65rem;
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    color: ${({ $tone, theme }) => ($tone === 'schedule' ? '#fff' : theme.colors.dashboardText)};
+    background: ${({ $tone, theme }) => ($tone === 'schedule' ? theme.colors.brandGreen : theme.colors.dashboardBorder)};
+    font-size: 0.76rem;
+    font-weight: 900;
+  }
+
+  @media (max-width: 1680px) {
+    border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+    border-radius: 0.82rem;
+  }
+`;
+
+export const ListGroupEmpty = styled.div`
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font-size: 0.82rem;
+
+  @media (max-width: 1680px) {
+    padding: 0.7rem 0.8rem;
+    border: 1px dashed ${({ theme }) => theme.colors.dashboardBorderStrong};
+    border-radius: 0.78rem;
+    background: ${({ theme }) => theme.colors.surfaceElevated};
+  }
+`;
+
 export const ListRow = styled.div<{ $accent: string }>`
   position: relative;
   display: grid;

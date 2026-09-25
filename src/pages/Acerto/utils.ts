@@ -609,11 +609,14 @@ export function calculateSettlementTotals(
   const fines = entries
     .filter((entry) => entry.type === 'FINE')
     .reduce((sum, entry) => sum + entry.value, 0);
+  const loans = entries
+    .filter((entry) => entry.type === 'LOAN')
+    .reduce((sum, entry) => sum + entry.value, 0);
   const otherDiscounts = entries
     .filter((entry) => entry.type === 'OTHER_DISCOUNT')
     .reduce((sum, entry) => sum + entry.value, 0);
   const totalEarnings = baseSalary + bonusValue + dailyAllowance + otherEarnings;
-  const totalDiscounts = advances + fines + otherDiscounts;
+  const totalDiscounts = advances + fines + loans + otherDiscounts;
 
   return {
     totalNetFreight,
@@ -625,6 +628,7 @@ export function calculateSettlementTotals(
     totalEarnings,
     advances,
     fines,
+    loans,
     otherDiscounts,
     totalDiscounts,
     totalReceivable: totalEarnings - totalDiscounts,

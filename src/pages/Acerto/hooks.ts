@@ -11,6 +11,7 @@ import type {
   SettlementHistoryEvent,
   SettlementPeriodMode,
 } from './types';
+import { ENTRY_LABELS } from './constants';
 import { settlementService } from './services';
 import {
   calculateSettlementTotals,
@@ -132,7 +133,7 @@ export function useDriverSettlement() {
       };
     }
 
-    settlementService.pendingVales(selectedDriverOption.id, dateRange.endDate)
+    settlementService.pendingVales(selectedDriverOption.id, dateRange.startDate, dateRange.endDate)
       .then((pendingVales) => {
         if (!active) return;
         setEntries((currentEntries) => [
@@ -142,8 +143,8 @@ export function useDriverSettlement() {
             type: vale.category,
             date: vale.date,
             description: vale.installmentsTotal > 1
-              ? `${vale.description || 'Vale'} · Parcela ${vale.installmentNumber}/${vale.installmentsTotal}`
-              : vale.description,
+              ? `${vale.description || ENTRY_LABELS[vale.category]} · Parcela ${vale.installmentNumber}/${vale.installmentsTotal}`
+              : (vale.description || ENTRY_LABELS[vale.category]),
             value: vale.amount,
             source: 'VALE' as const,
             valeId: vale.id,
@@ -157,7 +158,7 @@ export function useDriverSettlement() {
     return () => {
       active = false;
     };
-  }, [dateRange.endDate, editingSettlementId, selectedDriverOption]);
+  }, [dateRange.endDate, dateRange.startDate, editingSettlementId, selectedDriverOption]);
 
   const travels = useMemo(
     () =>

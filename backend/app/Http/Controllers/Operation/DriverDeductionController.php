@@ -35,8 +35,10 @@ class DriverDeductionController extends Controller
         }
 
         $records = $query
-            ->orderByDesc('entry_date')
-            ->orderByDesc('id')
+            ->orderBy('entry_date')
+            ->orderBy('employee_id')
+            ->orderBy('installment_number')
+            ->orderBy('id')
             ->get()
             ->map(fn (DriverDeduction $deduction): array => $this->payload($deduction));
 
@@ -65,50 +67,71 @@ class DriverDeductionController extends Controller
     {
         $validated = $request->validate([
             'driver_id' => ['required', 'integer', Rule::exists('employees', 'id')],
-            'end_date' => ['nullable', 'date_format:Y-m-d'],
+            'start_date' => ['required', 'date_format:Y-m-d'],
+            'end_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:start_date'],
         ]);
 
-        $query = DriverDeduction::query()
+        $records = DriverDeduction::query()
             ->where('employee_id', (int) $validated['driver_id'])
             ->where('status', DriverDeduction::STATUS_PENDING)
             ->whereNull('driver_settlement_id')
+            ->whereBetween('entry_date', [$validated['start_date'], $validated['end_date']])
             ->orderBy('entry_date')
-            ->orderBy('id');
+            ->orderBy('installment_number')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (DriverDeduction $deduction): array => $this->payload($deduction));
 
-        if (! empty($validated['end_date'])) {
-            $query->whereDate('entry_date', '<=', $validated['end_date']);
-        }
-
-        return response()->json([
-            'records' => $query->get()->map(fn (DriverDeduction $deduction): array => $this->payload($deduction)),
-        ]);
+        return response()->json(['records' => $records]);
     }
 
     public function store(Request $request): JsonResponse
     {
         $validated = $this->validatePayload($request, true);
-        $installments = (int) ($validated['installments'] ?? 1);
+        $installments = (int) $validated['installments'];
         $group = (string) Str::uuid();
-        $startDate = CarbonImmutable::createFromFormat('Y-m-d', $validated['entry_date'])->startOfDay();
-        $totalCents = (int) round(((float) $validated['amount']) * 100);
-        if ($totalCents < $installments) {
+        $discountStart = CarbonImmutable::createFromFormat('Y-m', $validated['discount_start_month'])->startOfMonth();
+        $withdrawalDate = ! empty($validated['withdrawal_date'])
+            ? CarbonImmutable::createFromFormat('Y-m-d', $validated['withdrawal_date'])->startOfDay()
+            : null;
+        $category = $validated['category'];
+        $isLoan = $category === DriverDeduction::CATEGORY_LOAN;
+        $amountCents = (int) round(((float) $validated['amount']) * 100);
+
+        if (! $isLoan && $amountCents < $installments) {
             throw ValidationException::withMessages([
                 'installments' => ['O valor total precisa permitir pelo menos R$ 0,01 por parcela.'],
             ]);
         }
-        $baseCents = intdiv($totalCents, $installments);
-        $remainder = $totalCents % $installments;
 
-        $records = DB::transaction(function () use ($request, $validated, $installments, $group, $startDate, $baseCents, $remainder): array {
+        $baseCents = $isLoan ? $amountCents : intdiv($amountCents, $installments);
+        $remainder = $isLoan ? 0 : $amountCents % $installments;
+
+        $records = DB::transaction(function () use (
+            $request,
+            $validated,
+            $installments,
+            $group,
+            $discountStart,
+            $withdrawalDate,
+            $category,
+            $isLoan,
+            $baseCents,
+            $remainder,
+        ): array {
             $created = [];
 
             for ($index = 0; $index < $installments; $index++) {
-                $installmentCents = $baseCents + ($index < $remainder ? 1 : 0);
+                $installmentCents = $isLoan ? $baseCents : $baseCents + ($index < $remainder ? 1 : 0);
                 $deduction = DriverDeduction::query()->create([
                     'employee_id' => $validated['employee_id'],
-                    'category' => $validated['category'],
-                    'entry_date' => $startDate->addMonthsNoOverflow($index)->format('Y-m-d'),
+                    'category' => $category,
+                    'entry_date' => $discountStart->addMonthsNoOverflow($index)->format('Y-m-d'),
+                    'withdrawal_date' => $withdrawalDate?->format('Y-m-d'),
                     'description' => $validated['description'] ?? null,
+                    'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
+                    'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
+                    'fine_number' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_number'] : null,
                     'amount' => $installmentCents / 100,
                     'installment_group' => $group,
                     'installment_number' => $index + 1,
@@ -134,8 +157,8 @@ class DriverDeductionController extends Controller
 
         return response()->json([
             'message' => $installments > 1
-                ? sprintf('Vale gravado em %d parcelas.', $installments)
-                : 'Vale gravado com sucesso.',
+                ? sprintf('%s gravado em %d parcelas.', $this->categoryLabel($category), $installments)
+                : sprintf('%s gravado com sucesso.', $this->categoryLabel($category)),
             'records' => collect($records)->map(fn (DriverDeduction $deduction): array => $this->payload($deduction))->values(),
         ], 201);
     }
@@ -146,28 +169,56 @@ class DriverDeductionController extends Controller
         $validated = $this->validatePayload($request, false);
 
         $updated = DB::transaction(function () use ($request, $validated, $driverDeduction): DriverDeduction {
-            $before = $this->auditSnapshot($driverDeduction);
-            $driverDeduction->fill([
-                'employee_id' => $validated['employee_id'],
-                'category' => $validated['category'],
-                'entry_date' => $validated['entry_date'],
-                'description' => $validated['description'] ?? null,
-                'amount' => $validated['amount'],
-                'updated_by' => $request->user()?->id,
-            ])->save();
-            $driverDeduction->refresh();
-            $this->recordEvent($driverDeduction, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($driverDeduction), $request);
-            return $driverDeduction;
+            $groupRecords = $driverDeduction->installment_group
+                ? DriverDeduction::query()->where('installment_group', $driverDeduction->installment_group)->orderBy('installment_number')->get()
+                : collect([$driverDeduction]);
+
+            foreach ($groupRecords as $record) {
+                $this->ensureEditable($record);
+            }
+
+            $discountStart = CarbonImmutable::createFromFormat('Y-m', $validated['discount_start_month'])->startOfMonth();
+            $withdrawalDate = ! empty($validated['withdrawal_date']) ? $validated['withdrawal_date'] : null;
+            $category = $validated['category'];
+            $requestedAmount = (float) $validated['amount'];
+
+            foreach ($groupRecords as $record) {
+                $before = $this->auditSnapshot($record);
+                $record->forceFill([
+                    'employee_id' => $validated['employee_id'],
+                    'category' => $category,
+                    'entry_date' => $discountStart->addMonthsNoOverflow(max(0, ((int) $record->installment_number) - 1))->format('Y-m-d'),
+                    'withdrawal_date' => $withdrawalDate,
+                    'description' => $validated['description'] ?? null,
+                    'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
+                    'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
+                    'fine_number' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_number'] : null,
+                    'amount' => $category === DriverDeduction::CATEGORY_LOAN || (int) $record->id === (int) $driverDeduction->id
+                        ? $requestedAmount
+                        : $record->amount,
+                    'updated_by' => $request->user()?->id,
+                ])->save();
+                $record->refresh();
+                $this->recordEvent($record, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($record), $request);
+            }
+
+            return $driverDeduction->fresh(['employee', 'settlement']);
         });
 
         return response()->json([
-            'message' => 'Parcela atualizada com sucesso.',
-            'record' => $this->payload($updated->load('employee', 'settlement')),
+            'message' => 'Lançamento atualizado com sucesso.',
+            'record' => $this->payload($updated),
         ]);
     }
 
     public function invoice(Request $request, DriverDeduction $driverDeduction): JsonResponse
     {
+        if ($driverDeduction->category !== DriverDeduction::CATEGORY_ADVANCE) {
+            throw ValidationException::withMessages([
+                'record' => 'Somente vales podem ser faturados.',
+            ]);
+        }
+
         if ($driverDeduction->invoiced) {
             return response()->json([
                 'message' => 'Esta parcela já está faturada.',
@@ -232,6 +283,7 @@ class DriverDeductionController extends Controller
     /** @return array<string, mixed> */
     private function validatePayload(Request $request, bool $creating): array
     {
+        $category = (string) $request->input('category');
         $rules = [
             'employee_id' => [
                 'required',
@@ -240,10 +292,27 @@ class DriverDeductionController extends Controller
                     ->where('status', 'ACTIVE')
                     ->whereRaw('LOWER(job_title) LIKE ?', ['%motorista%'])),
             ],
-            'category' => ['required', Rule::in([DriverDeduction::CATEGORY_ADVANCE, DriverDeduction::CATEGORY_FINE, DriverDeduction::CATEGORY_OTHER])],
-            'entry_date' => ['required', 'date_format:Y-m-d'],
+            'category' => ['required', Rule::in([
+                DriverDeduction::CATEGORY_ADVANCE,
+                DriverDeduction::CATEGORY_FINE,
+                DriverDeduction::CATEGORY_LOAN,
+                DriverDeduction::CATEGORY_OTHER,
+            ])],
+            'discount_start_month' => ['required', 'date_format:Y-m'],
             'description' => ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
+            'withdrawal_date' => $category === DriverDeduction::CATEGORY_LOAN
+                ? ['nullable', 'date_format:Y-m-d']
+                : ['required', 'date_format:Y-m-d'],
+            'fine_plate' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['required', 'string', 'max:20']
+                : ['nullable', 'string', 'max:20'],
+            'fine_location' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['required', 'string', 'max:255']
+                : ['nullable', 'string', 'max:255'],
+            'fine_number' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['required', 'string', 'max:100']
+                : ['nullable', 'string', 'max:100'],
         ];
 
         if ($creating) {
@@ -268,6 +337,16 @@ class DriverDeductionController extends Controller
         }
     }
 
+    private function categoryLabel(string $category): string
+    {
+        return match ($category) {
+            DriverDeduction::CATEGORY_ADVANCE => 'Vale',
+            DriverDeduction::CATEGORY_FINE => 'Multa',
+            DriverDeduction::CATEGORY_LOAN => 'Empréstimo',
+            default => 'Desconto',
+        };
+    }
+
     /** @return array<string, mixed> */
     private function auditSnapshot(DriverDeduction $deduction): array
     {
@@ -276,7 +355,11 @@ class DriverDeductionController extends Controller
             'employee_id' => (int) $deduction->employee_id,
             'category' => $deduction->category,
             'entry_date' => $deduction->entry_date?->format('Y-m-d'),
+            'withdrawal_date' => $deduction->withdrawal_date?->format('Y-m-d'),
             'description' => $deduction->description,
+            'fine_plate' => $deduction->fine_plate,
+            'fine_location' => $deduction->fine_location,
+            'fine_number' => $deduction->fine_number,
             'amount' => (float) $deduction->amount,
             'installment_group' => $deduction->installment_group,
             'installment_number' => (int) ($deduction->installment_number ?? 1),
@@ -312,7 +395,12 @@ class DriverDeductionController extends Controller
             'jobTitle' => $deduction->employee?->job_title,
             'category' => $deduction->category,
             'date' => $deduction->entry_date?->format('Y-m-d'),
+            'discountMonth' => $deduction->entry_date?->format('Y-m'),
+            'withdrawalDate' => $deduction->withdrawal_date?->format('Y-m-d'),
             'description' => $deduction->description ?? '',
+            'finePlate' => $deduction->fine_plate,
+            'fineLocation' => $deduction->fine_location,
+            'fineNumber' => $deduction->fine_number,
             'amount' => (float) $deduction->amount,
             'installmentGroup' => $deduction->installment_group,
             'installmentNumber' => (int) ($deduction->installment_number ?? 1),

@@ -151,6 +151,10 @@ export function PrintReport({
               <strong>- {formatCurrency(totals.fines)}</strong>
             </SummaryRow>
             <SummaryRow>
+              <span>Empréstimos</span>
+              <strong>- {formatCurrency((totals.loans ?? 0))}</strong>
+            </SummaryRow>
+            <SummaryRow>
               <span>Outros descontos</span>
               <strong>- {formatCurrency(totals.otherDiscounts)}</strong>
             </SummaryRow>

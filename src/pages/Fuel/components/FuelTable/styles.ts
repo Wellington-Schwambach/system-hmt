@@ -23,7 +23,7 @@ export const TableScroll = styled.div`
 
 export const Table = styled.table`
   width: 100%;
-  min-width: 104rem;
+  min-width: 98rem;
   border-collapse: collapse;
 `;
 
