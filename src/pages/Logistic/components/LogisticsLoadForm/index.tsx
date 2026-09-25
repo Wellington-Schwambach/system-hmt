@@ -287,6 +287,13 @@ export function LogisticsLoadForm({ prefix, form, options, fixedLoadingDate, onC
         </Section>
 
         <Section>
+          <SectionTitle>Agendar Coleta</SectionTitle>
+          <Grid>
+            <Field $span={4}>Data do agendamento<Input type="date" value={form.collectionScheduledAt} onChange={(e) => patch({ collectionScheduledAt: e.target.value })} /></Field>
+          </Grid>
+        </Section>
+
+        <Section>
           <SectionTitle>Coleta</SectionTitle>
           <Grid>
             <Field $span={4}>Local coleta<Input maxLength={180} value={form.collectionTerminal} onChange={(e) => patch({ collectionTerminal: e.target.value, collectionCityId: '' })} placeholder="Digite o local da coleta" /></Field>

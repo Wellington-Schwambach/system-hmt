@@ -4,7 +4,13 @@ import { breakpoints } from '../../styles/breakpoints';
 
 export const SummaryGrid = styled.section`
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(7rem, 0.62fr)
+    minmax(8.75rem, 0.9fr)
+    minmax(10.75rem, 1.14fr)
+    minmax(8.75rem, 0.9fr)
+    minmax(10.75rem, 1.14fr)
+    minmax(11.5rem, 1.28fr);
   gap: 0.8rem;
 
   @media (max-width: ${breakpoints.desktop}) {

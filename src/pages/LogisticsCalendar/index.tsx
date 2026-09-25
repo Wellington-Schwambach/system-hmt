@@ -17,7 +17,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { SearchableSelect } from '../../components/SearchableSelect';
@@ -81,6 +81,8 @@ import {
   ListActionButton,
   ListActions,
   ListCell,
+  ListGroupEmpty,
+  ListGroupHeader,
   ListHeaderRow,
   ListRow,
   ListTable,
@@ -437,12 +439,8 @@ function pushShipperSummary(
 }
 
 function collectionScheduleDates(load: LogisticsLoad): string[] {
-  const dates = load.collectionAppointments
-    .map((entry) => dateKeyFromIso(entry.scheduledAt))
-    .filter((value): value is string => Boolean(value));
-  const legacyDate = dateKeyFromIso(load.collectionScheduledAt);
-  if (dates.length === 0 && legacyDate) dates.push(legacyDate);
-  return [...new Set(dates)];
+  const scheduledDate = dateKeyFromIso(load.collectionScheduledAt);
+  return scheduledDate ? [scheduledDate] : [];
 }
 
 function deliveryScheduleDates(load: LogisticsLoad): string[] {
@@ -681,6 +679,21 @@ export function LogisticsCalendar() {
       });
   }, [loads, selectedDate]);
 
+  const loadingLoads = useMemo(() => {
+    if (!selectedDate) return [];
+    return visibleLoads.filter((load) => dateKeyFromIso(load.loadingAt) === selectedDate);
+  }, [selectedDate, visibleLoads]);
+
+  const scheduledCollectionLoads = useMemo(() => {
+    if (!selectedDate) return [];
+    return visibleLoads.filter((load) => collectionScheduleDates(load).includes(selectedDate));
+  }, [selectedDate, visibleLoads]);
+
+  const otherMovementLoads = useMemo(() => {
+    if (!selectedDate) return [];
+    const primaryIds = new Set([...loadingLoads, ...scheduledCollectionLoads].map((load) => load.id));
+    return visibleLoads.filter((load) => !primaryIds.has(load.id));
+  }, [loadingLoads, scheduledCollectionLoads, selectedDate, visibleLoads]);
 
   const dayHistory = useMemo(() => visibleLoads
     .flatMap((load) => load.events.map((event) => ({ load, event })))
@@ -850,14 +863,6 @@ export function LogisticsCalendar() {
     setStatusEditor(null);
     setAppointmentEditor({ load, kind });
     const source = kind === 'COLLECTION' ? load.collectionAppointments : load.deliveryAppointments;
-    if (source.length === 0 && kind === 'COLLECTION' && load.collectionScheduledAt) {
-      setAppointmentEntries([{
-        scheduledAt: toLocalInput(load.collectionScheduledAt),
-        locationTypeId: load.collectionLocationTypeId,
-        location: load.collectionTerminal ?? '',
-      }]);
-      return;
-    }
     setAppointmentEntries(source.map((entry) => ({ ...entry, scheduledAt: toLocalInput(entry.scheduledAt) })));
   }
 
@@ -889,7 +894,7 @@ export function LogisticsCalendar() {
     if (!appointmentEditor) return;
     const invalid = appointmentEntries.some((entry) => !entry.scheduledAt);
     if (invalid) {
-      notifications.warning('Agendamento incompleto', 'Informe a data e hora de todos os agendamentos adicionados.');
+      notifications.warning(appointmentEditor.kind === 'COLLECTION' ? 'Horário incompleto' : 'Agendamento incompleto', appointmentEditor.kind === 'COLLECTION' ? 'Informe a data e hora de todos os horários de coleta adicionados.' : 'Informe a data e hora de todos os agendamentos adicionados.');
       return;
     }
 
@@ -898,14 +903,14 @@ export function LogisticsCalendar() {
     try {
       const updated = await logisticsService.updateAppointments(appointmentEditor.load.id, appointmentEditor.kind, normalized);
       setLoads((current) => current.map((item) => item.id === updated.id ? updated : item));
-      notifications.success('Agendamentos atualizados', appointmentEditor.kind === 'COLLECTION'
+      notifications.success(appointmentEditor.kind === 'COLLECTION' ? 'Horários atualizados' : 'Agendamentos atualizados', appointmentEditor.kind === 'COLLECTION'
         ? 'Os horários de coleta foram atualizados sem alterar o cadastro da carga.'
         : 'Os horários de baixa foram atualizados sem alterar o cadastro da carga.');
       setAppointmentEditor(null);
       setAppointmentEntries([]);
       await loadCalendar();
     } catch (error) {
-      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar os agendamentos.');
+      const feedback = getApiErrorFeedback(error, appointmentEditor.kind === 'COLLECTION' ? 'Não foi possível salvar os horários de coleta.' : 'Não foi possível salvar os agendamentos.');
       notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setAppointmentSaving(false);
@@ -1071,6 +1076,84 @@ export function LogisticsCalendar() {
     }
   }
 
+  function renderLoadRow(load: LogisticsLoad, rowKey: string) {
+    const collectionCount = load.collectionAppointments.length;
+    const deliveryCount = load.deliveryAppointments.length;
+    const collectionScheduled = collectionCount > 0;
+    const deliveryScheduled = deliveryCount > 0;
+
+    return (
+      <ListRow
+        key={rowKey}
+        $accent={load.shipperColor || '#7d8b82'}
+        tabIndex={0}
+        role="button"
+        aria-label={`Abrir detalhes da carga ${loadIdentifier(load)}`}
+        onClick={() => setDetailLoad(load)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setDetailLoad(load);
+          }
+        }}
+      >
+        <ListCell $strong>
+          <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
+            {load.shipperName || '—'}
+          </ListShipperBadge>
+        </ListCell>
+        <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
+        <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
+        <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
+        <ListCell $muted={!load.destinationNotes}>{load.destinationNotes || '—'}</ListCell>
+        <ListCell>{formatTime(load.loadingAt)}</ListCell>
+        <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
+        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+          <ScheduleStatusButton
+            type="button"
+            $scheduled={collectionScheduled}
+            onClick={() => openAppointmentEditor(load, 'COLLECTION')}
+            title="Abrir horários da coleta"
+          >
+            <CalendarDays size={16} />
+            <span>{collectionScheduled ? `Horários coleta · ${collectionCount}` : 'Horários coleta'}</span>
+          </ScheduleStatusButton>
+        </ListCell>
+        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+          <ScheduleStatusButton
+            type="button"
+            $scheduled={deliveryScheduled}
+            onClick={() => openAppointmentEditor(load, 'DELIVERY')}
+            title="Abrir agendamentos da baixa"
+          >
+            <CalendarDays size={16} />
+            <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
+          </ScheduleStatusButton>
+        </ListCell>
+        <ListCell>{load.containerTypeName || '—'}</ListCell>
+        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+          <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
+            <MessageSquareText size={16} />
+            <span>Status viagem</span>
+            {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
+          </StatusTravelButton>
+        </ListCell>
+        <ListActions onClick={(event) => event.stopPropagation()}>
+          <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
+          <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
+          <ListActionButton
+            type="button"
+            onClick={() => void deleteLoad(load)}
+            title="Excluir carga"
+            disabled={deletingId === load.id}
+          >
+            <Trash2 size={15} /> {deletingId === load.id ? 'Excluindo' : 'Excluir'}
+          </ListActionButton>
+        </ListActions>
+      </ListRow>
+    );
+  }
+
   return (
     <Page>
       <Header>
@@ -1109,7 +1192,7 @@ export function LogisticsCalendar() {
               <div>
                 <strong><CalendarDays size={16} /> Datas do mês</strong>
                 <WeekRangeText>
-                  {formatDate(monthRange.start)} até {formatDate(monthRange.end)} · Agendamento e Carregamentos separados por dia
+                  {formatDate(monthRange.start)} até {formatDate(monthRange.end)} · Agendar coleta e carregamentos separados por dia
                 </WeekRangeText>
               </div>
             </WeekCalendarHeader>
@@ -1151,7 +1234,7 @@ export function LogisticsCalendar() {
                           <CalendarDayFlow style={{ gridTemplateColumns: scheduledTotal > 0 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)' }}>
                             {scheduledTotal > 0 ? (
                               <CalendarDayFlowColumn>
-                                <CalendarDayFlowTitle>Agendamento <strong>{scheduledTotal}</strong></CalendarDayFlowTitle>
+                                <CalendarDayFlowTitle>Agendar coleta <strong>{scheduledTotal}</strong></CalendarDayFlowTitle>
                                 {summary.scheduled.map((item) => (
                                   <CalendarShipperCount key={`scheduled-${item.name}`}>
                                     <i style={{ background: item.color }} />
@@ -1188,7 +1271,7 @@ export function LogisticsCalendar() {
             <SecondaryButton type="button" onClick={returnToCalendar}><ArrowLeft size={16} /> Voltar ao calendário</SecondaryButton>
             <div>
               <strong>Cargas de {formatDate(selectedDate)}</strong>
-              <span>{visibleLoads.length} carga(s) nesta data.</span>
+              <span>{loadingLoads.length} carregamento(s) · {scheduledCollectionLoads.length} agendamento(s) de coleta.</span>
             </div>
             <FilterBox>
               <SearchableSelect
@@ -1212,7 +1295,7 @@ export function LogisticsCalendar() {
               $active={dayTab === 'LOADS'}
               onClick={() => setDayTab('LOADS')}
             >
-              Cargas <strong>{visibleLoads.length}</strong>
+              Dia <strong>{visibleLoads.length}</strong>
             </DayTabButton>
             <DayTabButton
               type="button"
@@ -1255,7 +1338,7 @@ export function LogisticsCalendar() {
           ) : loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
             <ListViewport ref={listViewportRef}>
               {visibleLoads.length === 0 ? (
-                <EmptyState>Nenhum agendamento ou carregamento encontrado para esta data.</EmptyState>
+                <EmptyState>Nenhum carregamento, agendamento de coleta ou outra movimentação encontrada para esta data.</EmptyState>
               ) : (
                 <ListTable ref={listTableRef}>
                   <ListHeaderRow>
@@ -1272,82 +1355,41 @@ export function LogisticsCalendar() {
                     <span>Status viagem</span>
                     <span>Ações</span>
                   </ListHeaderRow>
-                  {visibleLoads.map((load) => {
-                    const collectionCount = load.collectionAppointments.length || (load.collectionScheduledAt ? 1 : 0);
-                    const deliveryCount = load.deliveryAppointments.length;
-                    const collectionScheduled = collectionCount > 0;
-                    const deliveryScheduled = deliveryCount > 0;
-                    return (
-                    <ListRow
-                      key={load.id}
-                      $accent={load.shipperColor || '#7d8b82'}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Abrir detalhes da carga ${loadIdentifier(load)}`}
-                      onClick={() => setDetailLoad(load)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          setDetailLoad(load);
-                        }
-                      }}
-                    >
-                      <ListCell $strong>
-                        <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
-                          {load.shipperName || '—'}
-                        </ListShipperBadge>
-                      </ListCell>
-                      <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
-                      <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
-                      <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
-                      <ListCell $muted={!load.destinationNotes}>{load.destinationNotes || '—'}</ListCell>
-                      <ListCell>{formatTime(load.loadingAt)}</ListCell>
-                      <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
-                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <ScheduleStatusButton
-                          type="button"
-                          $scheduled={collectionScheduled}
-                          onClick={() => openAppointmentEditor(load, 'COLLECTION')}
-                          title="Abrir agendamentos da coleta"
-                        >
-                          <CalendarDays size={16} />
-                          <span>{collectionScheduled ? `Coleta agendada · ${collectionCount}` : 'Agendar coleta'}</span>
-                        </ScheduleStatusButton>
-                      </ListCell>
-                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <ScheduleStatusButton
-                          type="button"
-                          $scheduled={deliveryScheduled}
-                          onClick={() => openAppointmentEditor(load, 'DELIVERY')}
-                          title="Abrir agendamentos da baixa"
-                        >
-                          <CalendarDays size={16} />
-                          <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
-                        </ScheduleStatusButton>
-                      </ListCell>
-                      <ListCell>{load.containerTypeName || '—'}</ListCell>
-                      <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-                        <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
-                          <MessageSquareText size={16} />
-                          <span>Status viagem</span>
-                          {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
-                        </StatusTravelButton>
-                      </ListCell>
-                      <ListActions onClick={(event) => event.stopPropagation()}>
-                        <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
-                        <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
-                        <ListActionButton
-                          type="button"
-                          onClick={() => void deleteLoad(load)}
-                          title="Excluir carga"
-                          disabled={deletingId === load.id}
-                        >
-                          <Trash2 size={15} /> {deletingId === load.id ? 'Excluindo' : 'Excluir'}
-                        </ListActionButton>
-                      </ListActions>
-                    </ListRow>
-                    );
-                  })}
+
+                  <ListGroupHeader $tone="loading">
+                    <div>
+                      <strong>Carregamentos do dia</strong>
+                      <span>Somente cargas com Data / Hora de carregamento em {formatDate(selectedDate)}.</span>
+                    </div>
+                    <strong>{loadingLoads.length}</strong>
+                  </ListGroupHeader>
+                  {loadingLoads.length === 0 ? (
+                    <ListGroupEmpty>Nenhum carregamento para esta data.</ListGroupEmpty>
+                  ) : loadingLoads.map((load) => renderLoadRow(load, `loading-${load.id}`))}
+
+                  <ListGroupHeader $tone="schedule">
+                    <div>
+                      <strong>Agendamentos de coleta</strong>
+                      <span>Somente cargas com o campo Agendar Coleta preenchido para {formatDate(selectedDate)}.</span>
+                    </div>
+                    <strong>{scheduledCollectionLoads.length}</strong>
+                  </ListGroupHeader>
+                  {scheduledCollectionLoads.length === 0 ? (
+                    <ListGroupEmpty>Nenhum agendamento de coleta para esta data.</ListGroupEmpty>
+                  ) : scheduledCollectionLoads.map((load) => renderLoadRow(load, `scheduled-${load.id}`))}
+
+                  {otherMovementLoads.length > 0 ? (
+                    <Fragment>
+                      <ListGroupHeader $tone="movement">
+                        <div>
+                          <strong>Outras movimentações do dia</strong>
+                          <span>Coletas realizadas e baixas continuam visíveis, mas não contam como agendamento de coleta.</span>
+                        </div>
+                        <strong>{otherMovementLoads.length}</strong>
+                      </ListGroupHeader>
+                      {otherMovementLoads.map((load) => renderLoadRow(load, `movement-${load.id}`))}
+                    </Fragment>
+                  ) : null}
                 </ListTable>
               )}
             </ListViewport>
@@ -1382,7 +1424,7 @@ export function LogisticsCalendar() {
           <AppointmentModal role="dialog" aria-modal="true" aria-labelledby="appointment-modal-title">
             <AppointmentHeader>
               <div>
-                <h3 id="appointment-modal-title">{appointmentEditor.kind === 'COLLECTION' ? 'Agendamentos da coleta' : 'Agendamentos da baixa'}</h3>
+                <h3 id="appointment-modal-title">{appointmentEditor.kind === 'COLLECTION' ? 'Horários da coleta' : 'Agendamentos da baixa'}</h3>
                 <p>{appointmentEditor.load.shipperName} · {appointmentEditor.kind === 'COLLECTION' ? (appointmentEditor.load.collectionTerminal || 'Local de coleta não informado') : (appointmentEditor.load.deliveryLocation || 'Local de baixa não informado')}</p>
               </div>
               <IconButton type="button" onClick={closeAppointmentEditor} disabled={appointmentSaving} aria-label="Fechar agendamentos"><X size={17} /></IconButton>
@@ -1390,7 +1432,7 @@ export function LogisticsCalendar() {
 
             <AppointmentBody>
               {appointmentEntries.length === 0 ? (
-                <AppointmentEmpty>Nenhum agendamento cadastrado. Clique em “Adicionar horário” para incluir.</AppointmentEmpty>
+                <AppointmentEmpty>{appointmentEditor.kind === 'COLLECTION' ? 'Nenhum horário de coleta cadastrado. Clique em “Adicionar horário” para incluir.' : 'Nenhum agendamento cadastrado. Clique em “Adicionar horário” para incluir.'}</AppointmentEmpty>
               ) : appointmentEntries.map((entry, index) => {
                 const locationTypes = options.locationTypes.filter((item) => item.scope === (appointmentEditor.kind === 'COLLECTION' ? 'C' : 'B'));
                 return (
@@ -1438,7 +1480,7 @@ export function LogisticsCalendar() {
             <AppointmentFooter>
               <SecondaryButton type="button" onClick={closeAppointmentEditor} disabled={appointmentSaving}>Cancelar</SecondaryButton>
               <PrimaryButton type="button" onClick={() => void saveAppointments()} disabled={appointmentSaving}>
-                {appointmentSaving ? <RefreshCw size={15} /> : <Save size={15} />} {appointmentSaving ? 'Salvando...' : 'Salvar agendamentos'}
+                {appointmentSaving ? <RefreshCw size={15} /> : <Save size={15} />} {appointmentSaving ? 'Salvando...' : appointmentEditor.kind === 'COLLECTION' ? 'Salvar horários' : 'Salvar agendamentos'}
               </PrimaryButton>
             </AppointmentFooter>
           </AppointmentModal>

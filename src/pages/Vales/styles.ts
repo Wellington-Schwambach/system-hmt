@@ -121,6 +121,21 @@ export const TabButton = styled.button<{ $active?: boolean }>`
   cursor: pointer;
 `;
 
+
+export const CategoryBar = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`;
+
 export const Filters = styled.div`
   display: grid;
   grid-template-columns: minmax(220px, 1.3fr) minmax(145px, 0.65fr) minmax(145px, 0.65fr) minmax(300px, 1fr) auto;
@@ -234,7 +249,7 @@ export const TableWrap = styled.div`
 
 export const Table = styled.table`
   width: 100%;
-  min-width: 900px;
+  min-width: 820px;
   border-collapse: collapse;
 
   th,
@@ -255,6 +270,46 @@ export const Table = styled.table`
   td {
     color: ${({ theme }) => theme.colors.dashboardText};
     font-size: 13px;
+  }
+`;
+
+export const GroupHeaderRow = styled.tr`
+  > td {
+    padding: 12px 14px;
+    border-top: 2px solid ${({ theme }) => theme.colors.brandGreenBorder};
+    border-bottom: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+
+  &:first-child > td {
+    border-top: 0;
+  }
+
+  > td > strong {
+    color: ${({ theme }) => theme.colors.brandGreenDark};
+    font-size: 14px;
+    text-transform: uppercase;
+  }
+`;
+
+export const GroupSummary = styled.div`
+  float: right;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 12px;
+
+  strong {
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 13px;
+  }
+
+  @media (max-width: 700px) {
+    float: none;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
   }
 `;
 

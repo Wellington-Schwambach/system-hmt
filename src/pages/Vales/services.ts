@@ -11,10 +11,14 @@ function payload(form: ValeFormData) {
   return {
     employee_id: Number(form.employeeId),
     category: form.category,
-    entry_date: form.date,
+    withdrawal_date: form.category === 'LOAN' ? null : form.date,
+    discount_start_month: form.discountStartMonth,
     description: form.description.trim() || null,
     amount: parseAmount(form.amount),
     installments: Number(form.installments || '1'),
+    fine_plate: form.category === 'FINE' ? form.finePlate.trim() : null,
+    fine_location: form.category === 'FINE' ? form.fineLocation.trim() : null,
+    fine_number: form.category === 'FINE' ? form.fineNumber.trim() : null,
   };
 }
 

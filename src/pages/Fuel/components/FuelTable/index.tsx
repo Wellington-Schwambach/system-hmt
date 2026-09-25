@@ -22,6 +22,10 @@ import {
 } from './styles';
 import { formatCurrency, formatDate, formatDecimal, formatInteger } from '../../utils';
 
+function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] || '—';
+}
+
 export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice, onDelete }: FuelTableProps) {
   if (records.length === 0) {
     return <EmptyState>Nenhum abastecimento encontrado para os filtros atuais.</EmptyState>;
@@ -98,7 +102,7 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
                     </InvoiceButton>
                   )}
                 </TD>
-                <TD>{record.driver}</TD>
+                <TD title={record.driver}>{firstName(record.driver)}</TD>
                 <TD><FuelStatusBadge status={record.status} /></TD>
                 <ActionsCell>
                   <ActionsGroup>

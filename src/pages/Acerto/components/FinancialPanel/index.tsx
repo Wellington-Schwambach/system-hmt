@@ -35,6 +35,7 @@ import {
 const ENTRY_GROUPS: Array<{ type: FinancialEntryType; title: string; button: string }> = [
   { type: 'ADVANCE', title: 'Vales', button: 'Adicionar vale' },
   { type: 'FINE', title: 'Multas', button: 'Adicionar multa' },
+  { type: 'LOAN', title: 'Empréstimos', button: 'Adicionar empréstimo' },
   { type: 'OTHER_DISCOUNT', title: 'Outros descontos', button: 'Adicionar' },
 ];
 
@@ -165,6 +166,10 @@ export function FinancialPanel({
           <SummaryRow $muted>
             <span>Multas</span>
             <strong>- {formatCurrency(totals.fines)}</strong>
+          </SummaryRow>
+          <SummaryRow $muted>
+            <span>Empréstimos</span>
+            <strong>- {formatCurrency((totals.loans ?? 0))}</strong>
           </SummaryRow>
           <SummaryRow $muted>
             <span>Outros descontos</span>

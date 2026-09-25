@@ -19,5 +19,6 @@ export const BONUS_RULES = [
 export const ENTRY_LABELS: Record<FinancialEntryType, string> = {
   ADVANCE: 'Vale',
   FINE: 'Multa',
+  LOAN: 'Empréstimo',
   OTHER_DISCOUNT: 'Outro desconto',
 };

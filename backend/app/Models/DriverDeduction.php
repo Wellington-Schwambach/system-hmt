@@ -12,6 +12,7 @@ class DriverDeduction extends Model
 
     public const CATEGORY_ADVANCE = 'ADVANCE';
     public const CATEGORY_FINE = 'FINE';
+    public const CATEGORY_LOAN = 'LOAN';
     public const CATEGORY_OTHER = 'OTHER_DISCOUNT';
     public const STATUS_PENDING = 'PENDING';
     public const STATUS_SETTLED = 'SETTLED';
@@ -20,7 +21,11 @@ class DriverDeduction extends Model
         'employee_id',
         'category',
         'entry_date',
+        'withdrawal_date',
         'description',
+        'fine_plate',
+        'fine_location',
+        'fine_number',
         'amount',
         'installment_group',
         'installment_number',
@@ -39,6 +44,7 @@ class DriverDeduction extends Model
     {
         return [
             'entry_date' => 'date:Y-m-d',
+            'withdrawal_date' => 'date:Y-m-d',
             'amount' => 'decimal:2',
             'invoiced' => 'boolean',
             'invoiced_at' => 'immutable_datetime',
