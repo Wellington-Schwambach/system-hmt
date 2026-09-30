@@ -18,6 +18,7 @@ interface ApiDashboardNote {
   source: string;
   is_manual: boolean;
   can_delete?: boolean;
+  can_edit?: boolean;
   is_completed?: boolean;
   completed_at?: string | null;
   completed_by_name?: string | null;
@@ -62,6 +63,7 @@ function mapNote(note: ApiDashboardNote): DashboardNote {
     source: note.source,
     isManual: Boolean(note.is_manual),
     canDelete: Boolean(note.can_delete),
+    canEdit: Boolean(note.can_edit),
     isCompleted: Boolean(note.is_completed),
     completedAt: note.completed_at ?? null,
     completedByName: note.completed_by_name ?? null,
@@ -76,9 +78,12 @@ function mapNoteUser(user: ApiDashboardNoteUser): DashboardNoteUser {
   };
 }
 
-export async function getDashboardData(): Promise<DashboardData> {
+export async function getDashboardData(calendarMonth?: string): Promise<DashboardData> {
   const response = await api.get<ApiDashboardResponse>('/api/dashboard', {
-    params: { _refresh: Date.now() },
+    params: {
+      _refresh: Date.now(),
+      ...(calendarMonth ? { calendar_month: calendarMonth } : {}),
+    },
   });
   return {
     period: {
@@ -111,5 +116,11 @@ export async function setDashboardNoteCompletion(noteKey: string, completed: boo
   await api.put('/api/dashboard/note-completion', {
     note_key: noteKey,
     completed,
+  });
+}
+
+export async function updateDashboardNoteSchedule(noteId: number, scheduledAt: string | null): Promise<void> {
+  await api.put(`/api/dashboard/notes/${noteId}/schedule`, {
+    scheduled_at: scheduledAt,
   });
 }

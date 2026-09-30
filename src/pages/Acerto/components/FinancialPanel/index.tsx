@@ -1,10 +1,12 @@
-import { Calculator, Plus, Trash2 } from 'lucide-react';
+import { Calculator, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 
 import type { FinancialEntryType } from '../../types';
 import { formatCurrency, formatDate } from '../../utils';
 import type { FinancialPanelProps } from './types';
 import {
   AddButton,
+  BalanceTotals,
+  EditButton,
   ApplyButton,
   BonusHint,
   Content,
@@ -24,6 +26,7 @@ import {
   Input,
   Label,
   Panel,
+  LoadWarning,
   RemoveButton,
   Section,
   SectionTitle,
@@ -37,6 +40,7 @@ const ENTRY_GROUPS: Array<{ type: FinancialEntryType; title: string; button: str
   { type: 'FINE', title: 'Multas', button: 'Adicionar multa' },
   { type: 'LOAN', title: 'Empréstimos', button: 'Adicionar empréstimo' },
   { type: 'OTHER_DISCOUNT', title: 'Outros descontos', button: 'Adicionar' },
+  { type: 'NEUTRAL_EXPENSE', title: 'Despesas', button: 'Adicionar despesa' },
 ];
 
 export function FinancialPanel({
@@ -47,13 +51,16 @@ export function FinancialPanel({
   otherEarnings,
   entries,
   totals,
+  valesLoadError,
   onBonusPercentChange,
   onBaseSalaryChange,
   onDailyAllowanceChange,
   onOtherEarningsChange,
   onApplySuggestedBonus,
   onAddEntry,
+  onEditEntry,
   onRemoveEntry,
+  onRetryVales,
 }: FinancialPanelProps) {
   return (
     <Panel>
@@ -66,14 +73,18 @@ export function FinancialPanel({
 
       <Content>
         <Section>
-          <SectionTitle>Bonificação</SectionTitle>
+          <SectionTitle>Gratificação</SectionTitle>
+          <SummaryRow>
+            <span>Total das viagens</span>
+            <strong>{formatCurrency(totals.totalOriginalNetFreight ?? totals.totalNetFreight)}</strong>
+          </SummaryRow>
           <SummaryRow $strong>
-            <span>Total de fretes</span>
+            <span>Frete considerado no acerto</span>
             <strong>{formatCurrency(totals.totalNetFreight)}</strong>
           </SummaryRow>
 
           <Field $full>
-            <Label htmlFor="settlement-bonus-percent">Percentual de bonificação (%)</Label>
+            <Label htmlFor="settlement-bonus-percent">Percentual de gratificação (%)</Label>
             <Input
               id="settlement-bonus-percent"
               type="number"
@@ -93,7 +104,7 @@ export function FinancialPanel({
           </BonusHint>
 
           <SummaryRow $strong>
-            <span>Bonificação calculada</span>
+            <span>Gratificação calculada</span>
             <strong>{formatCurrency(totals.bonusValue)}</strong>
           </SummaryRow>
         </Section>
@@ -148,7 +159,7 @@ export function FinancialPanel({
             <strong>{formatCurrency(totals.baseSalary)}</strong>
           </SummaryRow>
           <SummaryRow>
-            <span>Bonificação</span>
+            <span>Gratificação</span>
             <strong>{formatCurrency(totals.bonusValue)}</strong>
           </SummaryRow>
           <SummaryRow>
@@ -175,10 +186,20 @@ export function FinancialPanel({
             <span>Outros descontos</span>
             <strong>- {formatCurrency(totals.otherDiscounts)}</strong>
           </SummaryRow>
+          <BalanceTotals>
+            <div className="positive"><span>Total positivo</span><strong>{formatCurrency(totals.totalPositive ?? totals.totalEarnings)}</strong></div>
+            <div className="negative"><span>Total negativo</span><strong>- {formatCurrency(totals.totalNegative ?? totals.totalDiscounts)}</strong></div>
+          </BalanceTotals>
         </Section>
 
         <Section $wide>
-          <SectionTitle>Descontos</SectionTitle>
+          <SectionTitle>Lançamentos</SectionTitle>
+          {valesLoadError && (
+            <LoadWarning>
+              <span>Não foi possível atualizar os lançamentos vindos de Vales. Os registros manuais continuam disponíveis.</span>
+              {onRetryVales && <button type="button" onClick={onRetryVales}><RefreshCw size={12} /> Tentar novamente</button>}
+            </LoadWarning>
+          )}
           <EntryGroupsGrid>
             {ENTRY_GROUPS.map((group) => {
               const groupEntries = entries.filter((entry) => entry.type === group.type);
@@ -205,14 +226,26 @@ export function FinancialPanel({
                               {formatDate(entry.date)}
                             </span>
                           </EntryCopy>
-                          <EntryValue>- {formatCurrency(entry.value)}</EntryValue>
-                          <RemoveButton
+                          <EntryValue $neutral={entry.type === 'NEUTRAL_EXPENSE'}>
+                            {entry.type === 'NEUTRAL_EXPENSE' ? '' : '- '}{formatCurrency(entry.value)}
+                          </EntryValue>
+                          <EditButton
                             type="button"
-                            onClick={() => onRemoveEntry(entry.id)}
-                            aria-label={`Remover ${entry.description || group.title}`}
+                            onClick={() => onEditEntry(entry)}
+                            aria-label={`Editar ${entry.description || group.title}`}
+                            title="Editar lançamento"
                           >
-                            <Trash2 size={13} aria-hidden="true" />
-                          </RemoveButton>
+                            <Pencil size={13} aria-hidden="true" />
+                          </EditButton>
+                          {entry.source !== 'VALE' && (
+                            <RemoveButton
+                              type="button"
+                              onClick={() => onRemoveEntry(entry.id)}
+                              aria-label={`Remover ${entry.description || group.title}`}
+                            >
+                              <Trash2 size={13} aria-hidden="true" />
+                            </RemoveButton>
+                          )}
                         </EntryItem>
                       ))}
                     </EntryList>
@@ -225,6 +258,10 @@ export function FinancialPanel({
           <SummaryRow $strong>
             <span>Total de descontos</span>
             <strong>{formatCurrency(totals.totalDiscounts)}</strong>
+          </SummaryRow>
+          <SummaryRow>
+            <span>Despesas informativas (não alteram o acerto)</span>
+            <strong>{formatCurrency(totals.neutralExpenses ?? 0)}</strong>
           </SummaryRow>
         </Section>
 

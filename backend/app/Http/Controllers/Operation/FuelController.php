@@ -129,7 +129,7 @@ class FuelController extends Controller
             'records.*.date' => ['required', 'date_format:Y-m-d'],
             'records.*.station' => ['required', 'string', 'max:120'],
             'records.*.plate' => ['required', 'string', 'max:10'],
-            'records.*.km' => ['nullable', 'integer', 'min:0'],
+            'records.*.km' => ['nullable', 'integer', 'min:0', 'max:9999999'],
             'records.*.dieselLiters' => ['required', 'numeric', 'min:0'],
             'records.*.dieselTotalValue' => ['required', 'numeric', 'min:0'],
             'records.*.arlaLiters' => ['nullable', 'numeric', 'min:0'],
@@ -248,10 +248,12 @@ class FuelController extends Controller
     {
         DB::transaction(function () use ($request, $fuelRecord): void {
             $oldVehicleId = (int) $fuelRecord->vehicle_id;
-            Vehicle::query()
+            $oldVehicle = Vehicle::query()
                 ->whereKey($oldVehicleId)
                 ->lockForUpdate()
                 ->first();
+            $oldVehicleCurrentKm = (int) ($oldVehicle?->current_km ?? 0);
+            $oldFuelKm = $fuelRecord->km !== null ? (int) $fuelRecord->km : null;
 
             $vehicle = Vehicle::query()
                 ->whereKey((int) $request->integer('vehicle_id'))
@@ -286,9 +288,33 @@ class FuelController extends Controller
 
             if (! $sameVehicle) {
                 $this->recalculateVehicleFuelMetrics($oldVehicleId, $oldSequenceBaseline);
+
+                if ($oldVehicle && $oldFuelKm !== null && $oldFuelKm >= $oldVehicleCurrentKm) {
+                    $this->syncVehicleCurrentKmAfterFuelMutation(
+                        $oldVehicle,
+                        $oldSequenceBaseline,
+                        $request->user()?->id,
+                    );
+                }
             }
+
             $this->recalculateVehicleFuelMetrics((int) $vehicle->id, $newSequenceBaseline);
-            $this->updateVehicleCurrentKm($vehicle, $attributes['km'], $request->user()?->id);
+
+            $newFuelKm = $attributes['km'] !== null ? (int) $attributes['km'] : null;
+            if (
+                $sameVehicle
+                && $oldFuelKm !== null
+                && $oldFuelKm >= $oldVehicleCurrentKm
+                && ($newFuelKm === null || $newFuelKm < $oldVehicleCurrentKm)
+            ) {
+                $this->syncVehicleCurrentKmAfterFuelMutation(
+                    $vehicle,
+                    $newSequenceBaseline,
+                    $request->user()?->id,
+                );
+            } else {
+                $this->updateVehicleCurrentKm($vehicle, $newFuelKm, $request->user()?->id);
+            }
         });
 
         return response()->json([
@@ -335,7 +361,9 @@ class FuelController extends Controller
     {
         DB::transaction(function () use ($request, $fuelRecord): void {
             $vehicleId = (int) $fuelRecord->vehicle_id;
-            Vehicle::query()->whereKey($vehicleId)->lockForUpdate()->first();
+            $vehicle = Vehicle::query()->whereKey($vehicleId)->lockForUpdate()->first();
+            $vehicleCurrentKm = (int) ($vehicle?->current_km ?? 0);
+            $fuelKm = $fuelRecord->km !== null ? (int) $fuelRecord->km : null;
             $sequenceBaseline = $this->fuelSequenceBaseline($vehicleId);
 
             $before = $this->auditSnapshot($fuelRecord);
@@ -344,6 +372,14 @@ class FuelController extends Controller
             $this->recordAuditEvent($fuelRecord, FuelRecordEvent::ACTION_DELETED, $before, null, $request);
 
             $this->recalculateVehicleFuelMetrics($vehicleId, $sequenceBaseline);
+
+            if ($vehicle && $fuelKm !== null && $fuelKm >= $vehicleCurrentKm) {
+                $this->syncVehicleCurrentKmAfterFuelMutation(
+                    $vehicle,
+                    $sequenceBaseline,
+                    $request->user()?->id,
+                );
+            }
         });
 
         return response()->noContent();
@@ -541,6 +577,28 @@ class FuelController extends Controller
                 $lastValidKm = $fuelKm;
             }
         }
+    }
+
+    private function syncVehicleCurrentKmAfterFuelMutation(
+        Vehicle $vehicle,
+        ?int $sequenceBaseline,
+        ?int $userId,
+    ): void {
+        $highestActiveFuelKm = (int) (FuelRecord::query()
+            ->where('vehicle_id', $vehicle->id)
+            ->whereNotNull('km')
+            ->max('km') ?? 0);
+
+        $recalculatedKm = max((int) ($sequenceBaseline ?? 0), $highestActiveFuelKm);
+
+        if ($recalculatedKm === (int) $vehicle->current_km) {
+            return;
+        }
+
+        $vehicle->forceFill([
+            'current_km' => $recalculatedKm,
+            'updated_by' => $userId,
+        ])->save();
     }
 
     private function updateVehicleCurrentKm(Vehicle $vehicle, mixed $fuelKm, ?int $userId): void

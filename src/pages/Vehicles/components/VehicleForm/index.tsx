@@ -376,7 +376,7 @@ export function VehicleForm({
                   id="vehicle-current-km"
                   inputMode="numeric"
                   value={formData.currentKm}
-                  onChange={(event) => handleChange('currentKm', onlyDigits(event.target.value, 9))}
+                  onChange={(event) => handleChange('currentKm', onlyDigits(event.target.value, 7))}
                   placeholder="Ex.: 184700"
                 />
               </InputShell>

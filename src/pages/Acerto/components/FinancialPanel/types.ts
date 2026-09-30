@@ -8,11 +8,14 @@ export interface FinancialPanelProps {
   otherEarnings: string;
   entries: FinancialEntry[];
   totals: SettlementTotals;
+  valesLoadError?: boolean;
   onBonusPercentChange: (value: string) => void;
   onBaseSalaryChange: (value: string) => void;
   onDailyAllowanceChange: (value: string) => void;
   onOtherEarningsChange: (value: string) => void;
   onApplySuggestedBonus: () => void;
   onAddEntry: (type: FinancialEntryType) => void;
+  onEditEntry: (entry: FinancialEntry) => void;
   onRemoveEntry: (entryId: string) => void;
+  onRetryVales?: () => void;
 }

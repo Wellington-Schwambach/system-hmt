@@ -21,8 +21,8 @@ import {
   Title,
 } from './styles';
 
-export function EntryModal({ isOpen, type, onClose, onSubmit }: EntryModalProps) {
-  const [formData, setFormData] = useState<FinancialEntryFormData>(INITIAL_FINANCIAL_ENTRY_FORM);
+export function EntryModal({ isOpen, type, initialData, editing = false, onClose, onSubmit }: EntryModalProps) {
+  const [formData, setFormData] = useState<FinancialEntryFormData>(initialData ?? INITIAL_FINANCIAL_ENTRY_FORM);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -79,8 +79,8 @@ export function EntryModal({ isOpen, type, onClose, onSubmit }: EntryModalProps)
       >
         <Header>
           <div>
-            <Title id="entry-modal-title">Adicionar {label.toLocaleLowerCase('pt-BR')}</Title>
-            <Subtitle>O lançamento será somado automaticamente no acerto.</Subtitle>
+            <Title id="entry-modal-title">{editing ? 'Editar' : 'Adicionar'} {label.toLocaleLowerCase('pt-BR')}</Title>
+            <Subtitle>{type === 'NEUTRAL_EXPENSE' ? 'A despesa aparecerá no relatório, mas não altera o total do acerto.' : 'O lançamento será considerado automaticamente no acerto.'}</Subtitle>
           </div>
           <CloseButton type="button" onClick={onClose} aria-label="Fechar modal">
             <X size={18} aria-hidden="true" />
@@ -131,7 +131,7 @@ export function EntryModal({ isOpen, type, onClose, onSubmit }: EntryModalProps)
             </Button>
             <Button type="submit" $primary>
               <Save size={16} aria-hidden="true" />
-              Adicionar
+              {editing ? 'Salvar alterações' : 'Adicionar'}
             </Button>
           </Actions>
         </Form>

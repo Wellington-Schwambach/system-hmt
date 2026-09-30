@@ -87,10 +87,10 @@ export const VehicleList = styled.div`
 
 export const VehicleRow = styled.div`
   min-width: 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
+  gap: 0.75rem;
   padding: 0.72rem 0.85rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
 
@@ -107,20 +107,24 @@ export const Info = styled.div`
     margin-top: 0.15rem;
     color: ${({ theme }) => theme.colors.dashboardTextMuted};
     font-size: 0.62rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 `;
 
 export const Plate = styled.strong`
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
   color: ${({ theme }) => theme.colors.dashboardText};
   font-size: 0.75rem;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 `;
 
 export const Average = styled.div`
-  flex: 0 0 auto;
+  min-width: 6.4rem;
   text-align: right;
 
   > strong {

@@ -43,6 +43,10 @@ class Travel extends Model
         'third_party_plate',
         'third_party_payout_amount',
         'third_party_payout_date',
+        'third_party_payment_type',
+        'third_party_counter_freight_number',
+        'third_party_paid_at',
+        'third_party_paid_by',
         'detached_trailer_id',
         'detached_trailer_plate_snapshot',
         'net_freight',
@@ -69,6 +73,7 @@ class Travel extends Model
             'gross_freight' => 'decimal:2',
             'third_party_payout_amount' => 'decimal:2',
             'third_party_payout_date' => 'date:Y-m-d',
+            'third_party_paid_at' => 'datetime',
         ];
     }
 

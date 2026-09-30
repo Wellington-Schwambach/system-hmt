@@ -1,6 +1,12 @@
 export type ValeCategory = 'ADVANCE' | 'FINE' | 'LOAN' | 'OTHER_DISCOUNT';
 export type ValeStatus = 'PENDING' | 'SETTLED';
 
+export interface ValeCityOption {
+  id: number;
+  name: string;
+  stateAbbreviation: string;
+}
+
 export interface ValeEmployeeOption {
   id: number;
   code: string | null;
@@ -23,6 +29,9 @@ export interface ValeRecord {
   finePlate: string | null;
   fineLocation: string | null;
   fineNumber: string | null;
+  fineInfractionAt: string | null;
+  fineOriginalAmount: number | null;
+  fineChargeAmount: number | null;
   amount: number;
   installmentGroup: string | null;
   installmentNumber: number;
@@ -49,6 +58,8 @@ export interface ValeFormData {
   finePlate: string;
   fineLocation: string;
   fineNumber: string;
+  fineInfractionAt: string;
+  fineOriginalAmount: string;
 }
 
 export interface ValeHistoryEvent {

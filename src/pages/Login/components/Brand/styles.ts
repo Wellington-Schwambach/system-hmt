@@ -10,6 +10,7 @@ interface BrandLogoProps {
 
 export const BrandWrapper = styled.div<BrandWrapperProps>`
   width: fit-content;
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   padding: ${({ $compact }) => ($compact ? '0.65rem 0.9rem' : '0.8rem 1.1rem')};
@@ -22,7 +23,8 @@ export const BrandWrapper = styled.div<BrandWrapperProps>`
 
 export const BrandLogo = styled.img<BrandLogoProps>`
   display: block;
-  width: ${({ $compact }) => ($compact ? 'min(14rem, 56vw)' : 'min(17rem, 26vw)')};
+  width: ${({ $compact }) => ($compact ? 'min(14rem, 62vw)' : 'min(17rem, 26vw)')};
+  max-width: 100%;
   height: auto;
   object-fit: contain;
 `;

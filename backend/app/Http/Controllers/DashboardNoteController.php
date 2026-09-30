@@ -71,6 +71,42 @@ class DashboardNoteController extends Controller
     }
 
 
+    public function updateSchedule(Request $request, DailyNote $dailyNote): JsonResponse
+    {
+        if (Schema::hasColumn('daily_notes', 'note_type')) {
+            abort_if(
+                mb_strtolower(trim((string) $dailyNote->note_type)) === 'custom',
+                422,
+                'Alertas personalizados devem ser gerenciados em Segurança > Alertas e notas.'
+            );
+        }
+
+        /** @var User $user */
+        $user = $request->user();
+        $isAdmin = mb_strtolower(trim((string) $user->role)) === 'administrador';
+
+        abort_unless(
+            $isAdmin || (int) $dailyNote->created_by === (int) $user->id,
+            403,
+            'Você não pode editar esta nota.'
+        );
+
+        $validated = $request->validate([
+            'scheduled_at' => ['nullable', 'date'],
+        ]);
+
+        $dailyNote->scheduled_at = $validated['scheduled_at'] ?? null;
+        $dailyNote->save();
+
+        return response()->json([
+            'message' => 'Data da nota atualizada com sucesso.',
+            'note' => [
+                'id' => $dailyNote->id,
+                'scheduled_at' => $dailyNote->scheduled_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
     public function setCompletion(Request $request, DailyNotesService $dailyNotes): JsonResponse
     {
         abort_unless(

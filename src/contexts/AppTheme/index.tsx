@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import type { PropsWithChildren } from 'react';
 import { ThemeProvider } from 'styled-components';
 
@@ -9,47 +9,35 @@ import { useAuth } from '../Auth/useAuth';
 import { AppThemeContext } from './context';
 import type { AppThemeContextValue } from './context';
 
-const THEME_STORAGE_KEY = 'hmt:theme-mode';
-
-function getInitialThemeMode(): ThemeMode {
-  if (typeof window === 'undefined') {
-    return 'light';
-  }
-
-  const savedMode = window.localStorage.getItem(THEME_STORAGE_KEY);
-
-  if (savedMode === 'light' || savedMode === 'dark') {
-    return savedMode;
-  }
-
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
 export function AppThemeProvider({ children }: PropsWithChildren) {
   const { user, updateThemePreference } = useAuth();
-  const [localMode, setLocalMode] = useState<ThemeMode>(getInitialThemeMode);
-  const mode = user?.theme_preference ?? localMode;
+
+  // Fora da área autenticada o sistema deve permanecer sempre no tema claro.
+  // A preferência de tema só passa a valer depois que existe um usuário logado.
+  const mode: ThemeMode = user?.theme_preference ?? 'light';
 
   const setTheme = useCallback(
     (nextMode: ThemeMode) => {
-      if (user) {
-        void updateThemePreference(nextMode).catch((error) => {
-          console.error('Não foi possível salvar a preferência de tema.', error);
-        });
+      if (!user) {
         return;
       }
 
-      setLocalMode(nextMode);
+      void updateThemePreference(nextMode).catch((error) => {
+        console.error('Não foi possível salvar a preferência de tema.', error);
+      });
     },
     [updateThemePreference, user],
   );
 
   const toggleTheme = useCallback(() => {
+    if (!user) {
+      return;
+    }
+
     setTheme(mode === 'light' ? 'dark' : 'light');
-  }, [mode, setTheme]);
+  }, [mode, setTheme, user]);
 
   useEffect(() => {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode);
     document.documentElement.dataset.theme = mode;
     document.documentElement.style.colorScheme = mode;
   }, [mode]);

@@ -32,7 +32,7 @@ export function SettlementFilters({
           value={selectedDriver}
           onChange={(event) => onDriverChange(event.target.value)}
         >
-          {drivers.length === 0 && <option value="">Nenhum motorista cadastrado</option>}
+          <option value="">{drivers.length === 0 ? 'Nenhum motorista cadastrado' : 'Selecione um motorista...'}</option>
           {drivers.map((driver) => (
             <option key={driver} value={driver}>
               {driver}

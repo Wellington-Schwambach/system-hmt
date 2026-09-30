@@ -22,9 +22,70 @@ export const Card = styled.article`
 export const CardHeader = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+`;
+
+export const HeaderMain = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+export const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+`;
+
+export const HeaderNavButton = styled.button`
+  width: 2.15rem;
+  height: 2.15rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.65rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  cursor: pointer;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.brandGreen};
+    border-color: ${({ theme }) => theme.colors.brandGreenBorder};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+`;
+
+export const TodayButton = styled.button`
+  min-height: 2.15rem;
+  padding: 0 0.7rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.65rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 850;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.brandGreenBorder};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+
+  &:disabled {
+    color: ${({ theme }) => theme.colors.dashboardTextSoft};
+    cursor: default;
+    opacity: 0.65;
+  }
+
+  @media (max-width: ${breakpoints.mobile}) {
+    display: none;
+  }
 `;
 
 export const HeaderIcon = styled.span`
@@ -168,9 +229,38 @@ export const NoteCard = styled.article<{ $completed: boolean }>`
     $completed ? theme.colors.brandGreenSoft : theme.colors.dashboardSurface};
 `;
 
+export const NoteCardHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+`;
+
 export const NoteCardTitle = styled.strong`
+  min-width: 0;
   color: ${({ theme }) => theme.colors.dashboardText};
   font-size: 0.9rem;
+`;
+
+export const NoteEditButton = styled.button`
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+  border-radius: 0.6rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+  font: inherit;
+  font-size: 0.67rem;
+  font-weight: 850;
+  cursor: pointer;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+  }
 `;
 
 export const NoteCardMeta = styled.span`

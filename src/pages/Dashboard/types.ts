@@ -14,6 +14,7 @@ export interface DashboardNote {
   source: string;
   isManual: boolean;
   canDelete: boolean;
+  canEdit: boolean;
   isCompleted: boolean;
   completedAt: string | null;
   completedByName: string | null;

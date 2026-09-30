@@ -72,15 +72,15 @@ export function SettlementDetailsModal({
         <Content>
           <SummaryGrid>
             <SummaryItem>
-              <span>Total de fretes</span>
-              <strong>{formatCurrency(settlement.totals.totalNetFreight)}</strong>
+              <span>Total das viagens</span>
+              <strong>{formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight)}</strong>
             </SummaryItem>
             <SummaryItem>
               <span>Percentual</span>
               <strong>{formatDecimal(settlement.totals.bonusPercent)}%</strong>
             </SummaryItem>
             <SummaryItem>
-              <span>Bonificação</span>
+              <span>Gratificação</span>
               <strong>{formatCurrency(settlement.totals.bonusValue)}</strong>
             </SummaryItem>
             <SummaryItem $highlight>
@@ -105,8 +105,16 @@ export function SettlementDetailsModal({
                 <strong>{formatCurrency(settlement.totals.otherEarnings)}</strong>
               </DetailItem>
               <DetailItem>
-                <span>Total de descontos</span>
-                <strong>{formatCurrency(settlement.totals.totalDiscounts)}</strong>
+                <span>Total positivo</span>
+                <strong>{formatCurrency(settlement.totals.totalPositive ?? settlement.totals.totalEarnings)}</strong>
+              </DetailItem>
+              <DetailItem>
+                <span>Total negativo</span>
+                <strong>{formatCurrency(settlement.totals.totalNegative ?? settlement.totals.totalDiscounts)}</strong>
+              </DetailItem>
+              <DetailItem>
+                <span>Despesas informativas</span>
+                <strong>{formatCurrency(settlement.totals.neutralExpenses ?? 0)}</strong>
               </DetailItem>
             </DetailGrid>
           </Section>
@@ -143,14 +151,14 @@ export function SettlementDetailsModal({
                   </tr>
                 </thead>
                 <tbody>
-                  {settlement.travels.map((travel) => (
+                  {[...settlement.travels].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id).map((travel) => (
                     <tr key={travel.id}>
                       <td>{formatDate(travel.date)}</td>
                       <td>{travel.cteNumber}</td>
                       <td>{travel.origin}</td>
                       <td>{travel.destination}</td>
                       <td>{travel.plate}</td>
-                      <td>{formatCurrency(travel.netFreight)}</td>
+                      <td>{formatCurrency(travel.originalNetFreight ?? travel.netFreight)}{(travel.settlementCrewSize ?? 1) > 1 ? ` · Acerto: ${formatCurrency(travel.settlementNetFreight ?? travel.netFreight)}` : ''}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -160,7 +168,7 @@ export function SettlementDetailsModal({
 
           {settlement.entries.length > 0 && (
             <Section>
-              <SectionTitle>Descontos</SectionTitle>
+              <SectionTitle>Lançamentos</SectionTitle>
               <TableScroll>
                 <Table>
                   <thead>

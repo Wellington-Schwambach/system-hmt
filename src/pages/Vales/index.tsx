@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, CircleCheckBig, Edit3, Plus, ReceiptText, Save, Trash2, X } from 'lucide-react';
 
 import { DateInput } from '../../components/DateInput';
+import { SearchableSelect } from '../../components/SearchableSelect';
 import { useAuth } from '../../contexts/Auth/useAuth';
 import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { vehicleService } from '../Vehicles/services';
 import { valeService } from './services';
-import type { ValeCategory, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
+import type { ValeCategory, ValeCityOption, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
 import {
   Actions,
   Badge,
@@ -97,6 +98,8 @@ const INITIAL_FORM: ValeFormData = {
   finePlate: '',
   fineLocation: '',
   fineNumber: '',
+  fineInfractionAt: `${todayValue()}T00:00`,
+  fineOriginalAmount: '',
 };
 
 function formatCurrency(value: number): string {
@@ -117,6 +120,14 @@ function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
+function formatFineDateTime(value: string | null, fallbackDate: string | null): string {
+  if (value) {
+    const normalized = value.length === 16 ? `${value}:00` : value;
+    return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(normalized));
+  }
+  return formatDate(fallbackDate);
+}
+
 function eventLabel(action: ValeHistoryEvent['action']): string {
   return ({
     CREATED: 'Criado',
@@ -129,7 +140,7 @@ function eventLabel(action: ValeHistoryEvent['action']): string {
 }
 
 function tableColumnCount(category: ValeCategory): number {
-  if (category === 'FINE') return 9;
+  if (category === 'FINE') return 10;
   if (category === 'ADVANCE') return 7;
   if (category === 'LOAN') return 4;
   return 6;
@@ -143,6 +154,8 @@ export function Vales() {
   const [records, setRecords] = useState<ValeRecord[]>([]);
   const [employees, setEmployees] = useState<ValeEmployeeOption[]>([]);
   const [vehiclePlates, setVehiclePlates] = useState<string[]>([]);
+  const [cities, setCities] = useState<ValeCityOption[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
   const [history, setHistory] = useState<ValeHistoryEvent[]>([]);
   const [activeTab, setActiveTab] = useState<'LIST' | 'HISTORY'>('LIST');
   const [activeCategory, setActiveCategory] = useState<ValeCategory>('ADVANCE');
@@ -159,8 +172,8 @@ export function Vales() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([valeService.list(), valeService.options(), vehicleService.list()])
-      .then(([loadedRecords, loadedEmployees, loadedVehicles]) => {
+    Promise.all([valeService.list(), valeService.options(), vehicleService.list(), valeService.cities()])
+      .then(([loadedRecords, loadedEmployees, loadedVehicles, loadedCities]) => {
         if (!active) return;
         setRecords(loadedRecords);
         setEmployees(loadedEmployees);
@@ -168,9 +181,12 @@ export function Vales() {
           Array.from(new Set(loadedVehicles.map((vehicle) => vehicle.plate.trim().toUpperCase()).filter(Boolean)))
             .sort((a, b) => a.localeCompare(b, 'pt-BR')),
         );
+        setCities(loadedCities);
+        setCitiesLoading(false);
       })
       .catch((error) => {
         if (!active) return;
+        setCitiesLoading(false);
         notifications.error('Não foi possível carregar os lançamentos', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
       });
 
@@ -234,6 +250,8 @@ export function Vales() {
       date: todayValue(),
       discountStartMonth: currentMonthValue(),
       employeeId: driverFilter !== 'ALL' ? driverFilter : employees[0] ? String(employees[0].id) : '',
+      fineInfractionAt: `${todayValue()}T00:00`,
+      fineOriginalAmount: '',
     });
     setIsModalOpen(true);
   }
@@ -248,11 +266,15 @@ export function Vales() {
       date: record.withdrawalDate ?? todayValue(),
       discountStartMonth: firstInstallmentMonth(record),
       description: record.description,
-      amount: String(record.amount).replace('.', ','),
       installments: String(record.installmentsTotal),
       finePlate: record.finePlate ?? '',
       fineLocation: record.fineLocation ?? '',
       fineNumber: record.fineNumber ?? '',
+      fineInfractionAt: record.fineInfractionAt ?? `${record.withdrawalDate ?? todayValue()}T00:00`,
+      fineOriginalAmount: record.fineOriginalAmount != null ? String(record.fineOriginalAmount).replace('.', ',') : '',
+      amount: record.category === 'FINE' && record.fineChargeAmount != null
+        ? String(record.fineChargeAmount).replace('.', ',')
+        : String(record.amount).replace('.', ','),
     });
     setIsModalOpen(true);
   }
@@ -266,12 +288,17 @@ export function Vales() {
       notifications.warning('Dados incompletos', 'Informe motorista, mês do primeiro desconto e um valor maior que zero.');
       return;
     }
-    if (form.category !== 'LOAN' && !form.date) {
-      notifications.warning('Data obrigatória', form.category === 'FINE' ? 'Informe a data da multa.' : 'Informe a data do lançamento.');
+    if (form.category !== 'LOAN' && form.category !== 'FINE' && !form.date) {
+      notifications.warning('Data obrigatória', 'Informe a data do lançamento.');
       return;
     }
-    if (form.category === 'FINE' && (!form.finePlate.trim() || !form.fineLocation.trim() || !form.fineNumber.trim())) {
-      notifications.warning('Dados da multa incompletos', 'Informe placa, local e número da multa.');
+    const fineOriginalAmount = Number(form.fineOriginalAmount.trim().replace(/\./g, '').replace(',', '.'));
+    if (form.category === 'FINE' && (!form.fineInfractionAt || !form.finePlate.trim() || !form.fineLocation.trim() || !form.fineNumber.trim() || !form.description.trim())) {
+      notifications.warning('Dados da multa incompletos', 'Informe data e hora da infração, placa, local, número e descrição da multa.');
+      return;
+    }
+    if (form.category === 'FINE' && (!Number.isFinite(fineOriginalAmount) || fineOriginalAmount <= 0)) {
+      notifications.warning('Valor original inválido', 'Informe o valor original da multa.');
       return;
     }
     if (!editing && (!Number.isInteger(installments) || installments < 1 || installments > 60)) {
@@ -427,13 +454,14 @@ export function Vales() {
                   <thead>
                     <tr>
                       <th>Desconto</th>
-                      {activeCategory !== 'LOAN' && <th>{activeCategory === 'FINE' ? 'Data multa' : 'Data'}</th>}
+                      {activeCategory !== 'LOAN' && <th>{activeCategory === 'FINE' ? 'Data/hora infração' : 'Data'}</th>}
                       {activeCategory === 'FINE' && <th>Placa</th>}
                       {activeCategory === 'FINE' && <th>Local</th>}
                       {activeCategory === 'FINE' && <th>Nº multa</th>}
-                      {activeCategory !== 'LOAN' && <th>Observação</th>}
+                      {activeCategory !== 'LOAN' && <th>{activeCategory === 'FINE' ? 'Descrição' : 'Observação'}</th>}
+                      {activeCategory === 'FINE' && <th>Valor original</th>}
                       <th>Parcela</th>
-                      <th>{activeCategory === 'LOAN' ? 'Valor parcela' : 'Valor'}</th>
+                      <th>{activeCategory === 'LOAN' ? 'Valor parcela' : activeCategory === 'FINE' ? 'Valor à cobrar' : 'Valor'}</th>
                       {activeCategory === 'ADVANCE' && <th>Faturar</th>}
                       <th>Ações</th>
                     </tr>
@@ -452,11 +480,12 @@ export function Vales() {
                       {group.records.map((record) => (
                         <tr key={record.id}>
                           <td><strong>{formatMonth(record.discountMonth)}</strong></td>
-                          {activeCategory !== 'LOAN' && <td><strong>{formatDate(record.withdrawalDate)}</strong></td>}
+                          {activeCategory !== 'LOAN' && <td><strong>{activeCategory === 'FINE' ? formatFineDateTime(record.fineInfractionAt, record.withdrawalDate) : formatDate(record.withdrawalDate)}</strong></td>}
                           {activeCategory === 'FINE' && <td>{record.finePlate || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineLocation || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineNumber || '-'}</td>}
                           {activeCategory !== 'LOAN' && <td>{record.description || '-'}</td>}
+                          {activeCategory === 'FINE' && <td><strong>{record.fineOriginalAmount != null ? formatCurrency(record.fineOriginalAmount) : '-'}</strong></td>}
                           <td><strong>{record.installmentNumber}/{record.installmentsTotal}</strong></td>
                           <td><strong>{formatCurrency(record.amount)}</strong></td>
                           {activeCategory === 'ADVANCE' && (
@@ -523,6 +552,8 @@ export function Vales() {
                       finePlate: category === 'FINE' ? current.finePlate : '',
                       fineLocation: category === 'FINE' ? current.fineLocation : '',
                       fineNumber: category === 'FINE' ? current.fineNumber : '',
+                      fineInfractionAt: category === 'FINE' ? (current.fineInfractionAt || `${todayValue()}T00:00`) : '',
+                      fineOriginalAmount: category === 'FINE' ? current.fineOriginalAmount : '',
                       description: category === 'LOAN' ? '' : current.description,
                     }));
                   }}
@@ -545,8 +576,13 @@ export function Vales() {
               {form.category === 'FINE' && (
                 <>
                   <FormGrid>
-                    <Field>Data multa
-                      <DateInput value={form.date} onValueChange={(value) => setForm((current) => ({ ...current, date: value }))} required />
+                    <Field>Data e hora da infração
+                      <Input
+                        type="datetime-local"
+                        value={form.fineInfractionAt}
+                        onChange={(event) => setForm((current) => ({ ...current, fineInfractionAt: event.target.value }))}
+                        required
+                      />
                     </Field>
                     <Field>Placa
                       <Select
@@ -564,12 +600,39 @@ export function Vales() {
                   </FormGrid>
                   <FormGrid>
                     <Field>Local
-                      <Input value={form.fineLocation} onChange={(event) => setForm((current) => ({ ...current, fineLocation: event.target.value }))} required />
+                      <SearchableSelect
+                        id="fine-location"
+                        value={form.fineLocation}
+                        options={[
+                          ...(form.fineLocation && !cities.some((city) => `${city.name} / ${city.stateAbbreviation}` === form.fineLocation)
+                            ? [{ value: form.fineLocation, label: form.fineLocation, searchText: form.fineLocation }]
+                            : []),
+                          ...cities.map((city) => ({
+                            value: `${city.name} / ${city.stateAbbreviation}`,
+                            label: `${city.name} / ${city.stateAbbreviation}`,
+                            searchText: `${city.name} ${city.stateAbbreviation}`,
+                          })),
+                        ]}
+                        onChange={(value) => setForm((current) => ({ ...current, fineLocation: value }))}
+                        placeholder="Selecione a cidade"
+                        searchPlaceholder="Pesquisar cidade..."
+                        emptyMessage="Nenhuma cidade encontrada."
+                        loading={citiesLoading}
+                        clearable={false}
+                      />
                     </Field>
                     <Field>Nº Multa
                       <Input value={form.fineNumber} onChange={(event) => setForm((current) => ({ ...current, fineNumber: event.target.value }))} required />
                     </Field>
                   </FormGrid>
+                  <Field>Descrição
+                    <Textarea
+                      value={form.description}
+                      onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Descrição da infração..."
+                      required
+                    />
+                  </Field>
                 </>
               )}
 
@@ -580,7 +643,12 @@ export function Vales() {
               )}
 
               <FormGrid>
-                <Field>{form.category === 'LOAN' ? 'Valor da parcela' : editing ? 'Valor da parcela' : 'Valor total'}
+                {form.category === 'FINE' ? (
+                  <Field>Valor original
+                    <Input inputMode="decimal" value={form.fineOriginalAmount} onChange={(event) => setForm((current) => ({ ...current, fineOriginalAmount: event.target.value }))} placeholder="0,00" required />
+                  </Field>
+                ) : null}
+                <Field>{form.category === 'FINE' ? 'Valor à cobrar' : form.category === 'LOAN' ? 'Valor da parcela' : editing ? 'Valor da parcela' : 'Valor total'}
                   <Input inputMode="decimal" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" required />
                 </Field>
                 {editing ? (
@@ -611,9 +679,9 @@ export function Vales() {
                 />
               </Field>
 
-              {form.category !== 'LOAN' && (
+              {form.category !== 'LOAN' && form.category !== 'FINE' && (
                 <Field>Observação
-                  <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder={form.category === 'FINE' ? 'Observações sobre a multa...' : 'Observações sobre o lançamento...'} />
+                  <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Observações sobre o lançamento..." />
                 </Field>
               )}
 

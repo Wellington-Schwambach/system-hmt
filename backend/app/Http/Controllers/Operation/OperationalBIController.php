@@ -164,8 +164,11 @@ class OperationalBIController extends Controller
         $arlaLiters = $fuelRecords->sum(fn (FuelRecord $record): float => (float) $record->arla_liters);
         $grossFreight = $travels->sum(fn (Travel $travel): float => (float) $travel->gross_freight);
         $netFreight = $travels->sum(fn (Travel $travel): float => (float) $travel->net_freight);
+        $thirdPartyTotal = $travels
+            ->filter(fn (Travel $travel): bool => strtoupper((string) $travel->operation_type) === 'THIRD_PARTY')
+            ->sum(fn (Travel $travel): float => (float) $travel->third_party_payout_amount);
         $trips = $travels->filter(fn (Travel $travel): bool => $this->countsAsTrip($travel))->count();
-        $freightDifference = $grossFreight - $netFreight;
+        $freightDifference = $netFreight - $thirdPartyTotal;
 
         return [
             'fuel_investment' => round($fuelInvestment, 2),
@@ -175,8 +178,9 @@ class OperationalBIController extends Controller
             'trips' => $trips,
             'gross_freight' => round($grossFreight, 2),
             'net_freight' => round($netFreight, 2),
+            'third_party_total' => round($thirdPartyTotal, 2),
             'freight_difference' => round($freightDifference, 2),
-            'operational_result' => round($netFreight - $fuelInvestment, 2),
+            'operational_result' => round($freightDifference - $fuelInvestment, 2),
             'average_freight' => $trips > 0 ? round($netFreight / $trips, 2) : 0.0,
             'average_fuel_ticket' => $fuelRecords->count() > 0 ? round($fuelInvestment / $fuelRecords->count(), 2) : 0.0,
         ];
@@ -235,6 +239,7 @@ class OperationalBIController extends Controller
                 'plate' => $plate,
                 'trips' => 0,
                 'net_freight' => 0.0,
+                'third_party_total' => 0.0,
                 'fuel_investment' => 0.0,
                 'diesel_liters' => 0.0,
             ]);
@@ -243,6 +248,9 @@ class OperationalBIController extends Controller
                 $current['trips']++;
             }
             $current['net_freight'] += (float) $travel->net_freight;
+            if (strtoupper((string) $travel->operation_type) === 'THIRD_PARTY') {
+                $current['third_party_total'] += (float) $travel->third_party_payout_amount;
+            }
             $vehicles->put($plate, $current);
         }
 
@@ -253,6 +261,7 @@ class OperationalBIController extends Controller
                 'plate' => $plate,
                 'trips' => 0,
                 'net_freight' => 0.0,
+                'third_party_total' => 0.0,
                 'fuel_investment' => 0.0,
                 'diesel_liters' => 0.0,
             ]);
@@ -264,9 +273,14 @@ class OperationalBIController extends Controller
 
         return $vehicles->map(function (array $vehicle): array {
             $vehicle['net_freight'] = round($vehicle['net_freight'], 2);
+            $vehicle['third_party_total'] = round($vehicle['third_party_total'], 2);
             $vehicle['fuel_investment'] = round($vehicle['fuel_investment'], 2);
             $vehicle['diesel_liters'] = round($vehicle['diesel_liters'], 3);
-            $vehicle['operational_result'] = round($vehicle['net_freight'] - $vehicle['fuel_investment'], 2);
+            $vehicle['operational_result'] = round(
+                $vehicle['net_freight'] - $vehicle['third_party_total'] - $vehicle['fuel_investment'],
+                2,
+            );
+            unset($vehicle['third_party_total']);
             return $vehicle;
         })->sortByDesc('operational_result')->values()->all();
     }

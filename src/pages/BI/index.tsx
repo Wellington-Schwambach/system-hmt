@@ -4,7 +4,6 @@ import {
   BarChart3,
   CalendarDays,
   Fuel,
-  Gauge,
   Map,
   RefreshCw,
   Route,
@@ -234,43 +233,43 @@ export function BI() {
       <KPIGrid aria-label="Indicadores do período selecionado">
         <MetricCard
           icon={Fuel}
-          label="Investimento em combustível"
+          label="Valores combustível"
           value={formatCurrency(metrics.fuelInvestment)}
           detail={`${metrics.fuelings} abastecimento(s) • ticket médio ${formatCurrency(metrics.averageFuelTicket)}`}
           comparison={comparisons.fuelInvestment}
           inverseComparison
         />
         <MetricCard
-          icon={Gauge}
-          label="Diesel consumido"
-          value={`${formatDecimal(metrics.dieselLiters)} L`}
-          detail={`${formatDecimal(metrics.arlaLiters)} L de ARLA no período`}
-        />
-        <MetricCard
           icon={Map}
-          label="Viagens realizadas"
+          label="Total de viagens"
           value={formatInteger(metrics.trips)}
-          detail={`Frete bruto de ${formatCurrency(metrics.grossFreight)}`}
+          detail="Viagens realizadas no período selecionado"
           comparison={comparisons.trips}
         />
         <MetricCard
           icon={Wallet}
-          label="Frete líquido"
+          label="Total líquido"
           value={formatCurrency(metrics.netFreight)}
           detail={`Média de ${formatCurrency(metrics.averageFreight)} por viagem`}
           comparison={comparisons.netFreight}
         />
         <MetricCard
           icon={Truck}
-          label="Diferença do frete"
-          value={formatCurrency(metrics.freightDifference)}
-          detail="Diferença entre frete bruto e líquido"
+          label="Total terceiros"
+          value={formatCurrency(metrics.thirdPartyTotal)}
+          detail="Valores de repasse das viagens terceirizadas"
         />
         <MetricCard
           icon={BarChart3}
-          label="Resultado após combustível"
+          label="Total diferença"
+          value={formatCurrency(metrics.freightDifference)}
+          detail="Total líquido menos total de terceiros"
+        />
+        <MetricCard
+          icon={BarChart3}
+          label="Total após combustível"
           value={formatCurrency(metrics.operationalResult)}
-          detail="Frete líquido menos combustível do período"
+          detail="Total diferença menos combustível do período"
           comparison={comparisons.operationalResult}
         />
       </KPIGrid>

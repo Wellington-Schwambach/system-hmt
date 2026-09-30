@@ -88,7 +88,7 @@ export function SettlementList({
                   <TH>Período</TH>
                   <TH>Viagens</TH>
                   <TH>Fretes</TH>
-                  <TH>Bônus</TH>
+                  <TH>Gratificação</TH>
                   <TH>A receber</TH>
                   <TH>Gravado em</TH>
                   <TH>Ações</TH>
@@ -101,14 +101,6 @@ export function SettlementList({
                       <DriverCell>
                         <DriverName>{settlement.driver}</DriverName>
                         <DriverInlineActions>
-                          <IconActionButton
-                            type="button"
-                            onClick={() => onEdit(settlement)}
-                            aria-label={`Editar acerto de ${settlement.driver}`}
-                            title="Editar acerto"
-                          >
-                            <Pencil size={13} aria-hidden="true" />
-                          </IconActionButton>
                           <IconActionButton
                             type="button"
                             $danger
@@ -125,7 +117,7 @@ export function SettlementList({
                       {formatDate(settlement.startDate)} a {formatDate(settlement.endDate)}
                     </TD>
                     <TD>{settlement.travels.length}</TD>
-                    <TD $numeric>{formatCurrency(settlement.totals.totalNetFreight)}</TD>
+                    <TD $numeric>{formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight)}</TD>
                     <TD $numeric>{settlement.totals.bonusPercent}%</TD>
                     <TD $numeric $highlight>
                       {formatCurrency(settlement.totals.totalReceivable)}
@@ -133,6 +125,10 @@ export function SettlementList({
                     <TD>{formatDate(settlement.savedAt.slice(0, 10))}</TD>
                     <TD>
                       <Actions>
+                        <ActionButton type="button" onClick={() => onEdit(settlement)}>
+                          <Pencil size={14} aria-hidden="true" />
+                          Editar
+                        </ActionButton>
                         <ActionButton type="button" onClick={() => onView(settlement)}>
                           <Eye size={14} aria-hidden="true" />
                           Visualizar
@@ -166,13 +162,6 @@ export function SettlementList({
                   <DriverInlineActions>
                     <IconActionButton
                       type="button"
-                      onClick={() => onEdit(settlement)}
-                      aria-label={`Editar acerto de ${settlement.driver}`}
-                    >
-                      <Pencil size={14} aria-hidden="true" />
-                    </IconActionButton>
-                    <IconActionButton
-                      type="button"
                       $danger
                       onClick={() => onDelete(settlement)}
                       aria-label={`Excluir acerto de ${settlement.driver}`}
@@ -189,10 +178,10 @@ export function SettlementList({
                   </div>
                   <div>
                     <MobileLabel>Fretes</MobileLabel>
-                    <MobileValue>{formatCurrency(settlement.totals.totalNetFreight)}</MobileValue>
+                    <MobileValue>{formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight)}</MobileValue>
                   </div>
                   <div>
-                    <MobileLabel>Bônus</MobileLabel>
+                    <MobileLabel>Gratificação</MobileLabel>
                     <MobileValue>{settlement.totals.bonusPercent}%</MobileValue>
                   </div>
                   <div>
@@ -204,6 +193,10 @@ export function SettlementList({
                 </MobileGrid>
 
                 <Actions>
+                  <ActionButton type="button" onClick={() => onEdit(settlement)}>
+                    <Pencil size={14} aria-hidden="true" />
+                    Editar
+                  </ActionButton>
                   <ActionButton type="button" onClick={() => onView(settlement)}>
                     <Eye size={14} aria-hidden="true" />
                     Visualizar

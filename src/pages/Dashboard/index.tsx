@@ -7,11 +7,12 @@ import { useAuth } from '../../contexts/Auth/useAuth';
 import { CalendarCard } from './components/CalendarCard';
 import { MetricCard } from './components/MetricCard';
 import { NotesCard } from './components/NotesCard';
+import { NoteScheduleModal } from './components/NoteScheduleModal';
 import { SectionHeading } from './components/SectionHeading';
 import { SupportButton } from './components/SupportButton';
 import { getDashboardData } from './services';
 import { MetricsGrid, WidgetsGrid } from './styles';
-import type { CalendarDay, DashboardData, DashboardMetric } from './types';
+import type { CalendarDay, DashboardData, DashboardMetric, DashboardNote } from './types';
 
 const TOTAL_CALENDAR_CELLS = 42;
 
@@ -57,23 +58,24 @@ function getCalendarDays(
 export function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const currentMonthKey = monthKey(currentDate);
+  const [scheduleNote, setScheduleNote] = useState<DashboardNote | null>(null);
+  const calendarMonthKey = monthKey(calendarDate);
 
   const refreshDashboard = useCallback(async () => {
     try {
       setError('');
-      const dashboardData = await getDashboardData();
+      const dashboardData = await getDashboardData(calendarMonthKey);
       setData(dashboardData);
     } catch {
       setError('Não foi possível atualizar os dados do Dashboard agora.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [calendarMonthKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -81,11 +83,10 @@ export function Dashboard() {
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [currentMonthKey, refreshDashboard]);
+  }, [refreshDashboard]);
 
   useEffect(() => {
     const refreshVisibleDashboard = () => {
-      setCurrentDate(new Date());
       if (!document.hidden) {
         void refreshDashboard();
       }
@@ -110,8 +111,8 @@ export function Dashboard() {
   }, [refreshDashboard]);
 
   const calendarDays = useMemo(
-    () => getCalendarDays(currentDate, data?.noteCounts ?? {}),
-    [currentDate, data?.noteCounts],
+    () => getCalendarDays(calendarDate, data?.noteCounts ?? {}),
+    [calendarDate, data?.noteCounts],
   );
 
   const monthLabel = useMemo(
@@ -119,16 +120,35 @@ export function Dashboard() {
       new Intl.DateTimeFormat('pt-BR', {
         month: 'long',
         year: 'numeric',
-      }).format(currentDate),
-    [currentDate],
+      }).format(calendarDate),
+    [calendarDate],
   );
+
+  const metricsMonthLabel = useMemo(() => {
+    if (!data?.period?.year || !data?.period?.month) {
+      return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date());
+    }
+
+    return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
+      .format(new Date(data.period.year, data.period.month - 1, 1, 12));
+  }, [data]);
+
+  const isCurrentCalendarMonth = useMemo(() => {
+    const today = new Date();
+    return calendarDate.getFullYear() === today.getFullYear()
+      && calendarDate.getMonth() === today.getMonth();
+  }, [calendarDate]);
+
+  const changeCalendarMonth = useCallback((delta: number) => {
+    setCalendarDate((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1, 12));
+  }, []);
 
   const metrics = useMemo<DashboardMetric[]>(() => [
     {
       id: 'loads',
       title: 'Cargas',
       value: loading && !data ? '—' : String(data?.metrics.loads ?? 0),
-      caption: `${monthLabel} • abrir calendário de cargas`,
+      caption: `${metricsMonthLabel} • abrir calendário de cargas`,
       icon: PackageCheck,
       path: '/logistic/calendar',
     },
@@ -136,7 +156,7 @@ export function Dashboard() {
       id: 'travels',
       title: 'Viagens',
       value: loading && !data ? '—' : String(data?.metrics.travels ?? 0),
-      caption: `${monthLabel} • abrir viagens`,
+      caption: `${metricsMonthLabel} • abrir viagens`,
       icon: Truck,
       path: '/travel',
     },
@@ -144,11 +164,11 @@ export function Dashboard() {
       id: 'fuel',
       title: 'Abastecidas',
       value: loading && !data ? '—' : String(data?.metrics.fuelings ?? 0),
-      caption: `${monthLabel} • abrir combustíveis`,
+      caption: `${metricsMonthLabel} • abrir combustíveis`,
       icon: Fuel,
       path: '/fuel',
     },
-  ], [data, loading, monthLabel]);
+  ], [data, loading, metricsMonthLabel]);
 
   return (
     <>
@@ -160,7 +180,7 @@ export function Dashboard() {
 
       <SectionHeading
         title="Visão geral da operação"
-        subtitle={error || `Dados operacionais de ${monthLabel}`}
+        subtitle={error || `Dados operacionais de ${metricsMonthLabel}`}
       />
 
       <WidgetsGrid>
@@ -168,14 +188,29 @@ export function Dashboard() {
           monthLabel={monthLabel}
           days={calendarDays}
           notes={data?.calendarNotes ?? []}
+          isCurrentMonth={isCurrentCalendarMonth}
+          onPreviousMonth={() => changeCalendarMonth(-1)}
+          onNextMonth={() => changeCalendarMonth(1)}
+          onToday={() => setCalendarDate(new Date())}
+          onEditNote={setScheduleNote}
         />
         <NotesCard
           notes={data?.dailyNotes ?? []}
           users={data?.noteUsers ?? []}
           currentUserId={user?.id ?? null}
           onRefresh={refreshDashboard}
+          onEditNote={setScheduleNote}
         />
       </WidgetsGrid>
+
+      {scheduleNote ? (
+        <NoteScheduleModal
+          key={`${scheduleNote.id}:${scheduleNote.dueAt ?? scheduleNote.dueDate ?? 'no-date'}`}
+          note={scheduleNote}
+          onClose={() => setScheduleNote(null)}
+          onSaved={refreshDashboard}
+        />
+      ) : null}
 
       <SupportButton />
     </>

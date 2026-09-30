@@ -12,6 +12,7 @@ import type {
   SettlementCrewEvent,
   SettlementFuelRecord,
   SettlementTotals,
+  SettlementTravelRecord,
   VehicleAverageSummaryData,
 } from './types';
 
@@ -209,14 +210,14 @@ export function filterDriverTravels(
   startDate: string,
   endDate: string,
   driverId?: number | null,
-): TravelRecord[] {
+): SettlementTravelRecord[] {
   const segments = buildCrewSegments(crewEvents);
 
   return travels
     .filter((travel) =>
       travel.operationType === 'FLEET' && travel.date >= startDate && travel.date <= endDate,
     )
-    .map((travel): TravelRecord | null => {
+    .map((travel): SettlementTravelRecord | null => {
       const crew = resolveTravelCrew(travel, segments, driver, driverId);
       if (crew === null || crew.length === 0) return null;
 
@@ -224,21 +225,28 @@ export function filterDriverTravels(
       const primary = normalizedCrew[0] ?? null;
       const secondary = normalizedCrew[1] ?? null;
 
+      const settlementNetFreight = driverFreightShare(travel, normalizedCrew, driver, driverId);
+
       return {
         ...travel,
-        // Para o Acerto, os motoristas exibidos na viagem refletem quem estava
-        // efetivamente ativo no conjunto na data da viagem. Isso faz o mesmo
-        // recorte temporal usado pelas médias das abastecidas.
+        // Para o Acerto, a composição da própria viagem é preservada. O histórico
+        // do conjunto só entra como fallback em viagens antigas sem motoristas salvos.
         driver: normalizedCrew.map((member) => member.name).filter(Boolean).join(' / '),
         driverOneId: primary?.id ?? null,
         driverOne: primary?.name ?? '',
         driverTwoId: secondary?.id ?? null,
         driverTwo: secondary?.name ?? '',
-        netFreight: driverFreightShare(travel, normalizedCrew, driver, driverId),
+        originalNetFreight: travel.netFreight,
+        settlementNetFreight,
+        settlementSharePercent: travel.netFreight > 0 ? (settlementNetFreight / travel.netFreight) * 100 : 100,
+        settlementCrewSize: normalizedCrew.length,
       };
     })
-    .filter((travel): travel is TravelRecord => travel !== null)
-    .sort((firstTravel, secondTravel) => secondTravel.date.localeCompare(firstTravel.date));
+    .filter((travel): travel is SettlementTravelRecord => travel !== null)
+    .sort((firstTravel, secondTravel) => {
+      const dateComparison = firstTravel.date.localeCompare(secondTravel.date);
+      return dateComparison !== 0 ? dateComparison : firstTravel.id - secondTravel.id;
+    });
 }
 
 interface CrewMember {
@@ -368,20 +376,6 @@ function segmentTouchesTravelDate(segment: CrewSegment, travelDate: string): boo
   return startDate <= travelDate && (endDate === null || endDate >= travelDate);
 }
 
-function crewSimilarityScore(candidate: CrewMember[], snapshot: CrewMember[]): number {
-  if (snapshot.length === 0) return 0;
-
-  const candidateIds = new Set(candidate.map(crewMemberIdentity));
-  const snapshotIds = new Set(snapshot.map(crewMemberIdentity));
-  let overlap = 0;
-  snapshotIds.forEach((identity) => {
-    if (candidateIds.has(identity)) overlap += 1;
-  });
-
-  const exact = candidateIds.size === snapshotIds.size && overlap === snapshotIds.size;
-  return (exact ? 1000 : 0) + overlap * 100 - Math.abs(candidate.length - snapshot.length) * 10;
-}
-
 function resolveTravelCrew(
   travel: TravelRecord,
   segments: CrewSegment[],
@@ -389,30 +383,31 @@ function resolveTravelCrew(
   driverId?: number | null,
 ): CrewMember[] | null {
   const snapshotCrew = travelCrewMembers(travel);
+
+  // A composição gravada na própria viagem é a fonte de verdade do rateio.
+  // Ex.: se em 21/08 a viagem foi salva somente com Diego, ela é 100% dele,
+  // mesmo que o histórico do conjunto tenha uma composição com dois motoristas
+  // tocando a mesma data. Isso é especialmente importante porque a viagem não
+  // possui horário e uma troca de conjunto pode acontecer no meio do dia.
+  if (snapshotCrew.length > 0) {
+    return snapshotCrew.some((member) => memberMatchesDriver(member, driver, driverId))
+      ? snapshotCrew
+      : null;
+  }
+
+  // Fallback apenas para viagens antigas que não possuem motorista persistido.
+  // Nelas usamos o histórico do conjunto para recuperar a composição provável
+  // daquele dia, sem completar/alterar uma viagem que já tenha motoristas salvos.
   const candidates = segments
     .filter((segment) =>
       segment.plate === travel.plate &&
       segmentTouchesTravelDate(segment, travel.date) &&
       segment.members.some((member) => memberMatchesDriver(member, driver, driverId)),
     )
-    .sort((first, second) => {
-      // A viagem possui apenas data, sem horário operacional. Se houve troca de
-      // composição no mesmo dia, usamos os motoristas já gravados na própria
-      // viagem como desempate. Persistindo empate, vale o segmento mais recente.
-      const scoreDifference =
-        crewSimilarityScore(second.members, snapshotCrew) - crewSimilarityScore(first.members, snapshotCrew);
-      if (scoreDifference !== 0) return scoreDifference;
-      return second.startAt.localeCompare(first.startAt);
-    });
+    .sort((first, second) => second.startAt.localeCompare(first.startAt));
 
-  if (candidates.length > 0) {
-    return uniqueCrewMembers(candidates[0].members);
-  }
-
-  // Compatibilidade com viagens antigas sem histórico completo de conjuntos.
-  // Nesses casos preservamos os motoristas que ficaram registrados na viagem.
-  return snapshotCrew.some((member) => memberMatchesDriver(member, driver, driverId))
-    ? snapshotCrew
+  return candidates.length > 0
+    ? uniqueCrewMembers(candidates[0].members)
     : null;
 }
 
@@ -594,14 +589,21 @@ export function getSuggestedBonusPercent(vehicleSummaries: VehicleAverageSummary
 }
 
 export function calculateSettlementTotals(
-  travels: TravelRecord[],
+  travels: SettlementTravelRecord[],
   bonusPercent: number,
   baseSalary: number,
   dailyAllowance: number,
   otherEarnings: number,
   entries: FinancialEntry[],
 ): SettlementTotals {
-  const totalNetFreight = travels.reduce((sum, travel) => sum + travel.netFreight, 0);
+  const totalOriginalNetFreight = travels.reduce(
+    (sum, travel) => sum + (travel.originalNetFreight ?? travel.netFreight),
+    0,
+  );
+  const totalNetFreight = travels.reduce(
+    (sum, travel) => sum + (travel.settlementNetFreight ?? travel.netFreight),
+    0,
+  );
   const bonusValue = totalNetFreight * (bonusPercent / 100);
   const advances = entries
     .filter((entry) => entry.type === 'ADVANCE')
@@ -615,10 +617,14 @@ export function calculateSettlementTotals(
   const otherDiscounts = entries
     .filter((entry) => entry.type === 'OTHER_DISCOUNT')
     .reduce((sum, entry) => sum + entry.value, 0);
+  const neutralExpenses = entries
+    .filter((entry) => entry.type === 'NEUTRAL_EXPENSE')
+    .reduce((sum, entry) => sum + entry.value, 0);
   const totalEarnings = baseSalary + bonusValue + dailyAllowance + otherEarnings;
   const totalDiscounts = advances + fines + loans + otherDiscounts;
 
   return {
+    totalOriginalNetFreight,
     totalNetFreight,
     bonusPercent,
     bonusValue,
@@ -630,7 +636,10 @@ export function calculateSettlementTotals(
     fines,
     loans,
     otherDiscounts,
+    neutralExpenses,
     totalDiscounts,
+    totalPositive: totalEarnings,
+    totalNegative: totalDiscounts,
     totalReceivable: totalEarnings - totalDiscounts,
   };
 }

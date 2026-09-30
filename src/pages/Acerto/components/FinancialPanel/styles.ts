@@ -228,7 +228,7 @@ export const EntryList = styled.div`
 
 export const EntryItem = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.45rem 0.5rem;
@@ -260,11 +260,72 @@ export const EntryCopy = styled.div`
   }
 `;
 
-export const EntryValue = styled.strong`
-  color: ${({ theme }) => theme.colors.danger};
+export const EntryValue = styled.strong<{ $neutral?: boolean }>`
+  color: ${({ $neutral, theme }) => $neutral ? theme.colors.dashboardTextMuted : theme.colors.danger};
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+`;
+
+
+export const EditButton = styled.button`
+  width: 1.7rem;
+  height: 1.7rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0.5rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+  cursor: pointer;
+`;
+
+export const LoadWarning = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  border-radius: 0.7rem;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  font-size: 0.65rem;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 0 0 auto;
+    border: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    font-weight: 850;
+    cursor: pointer;
+  }
+`;
+
+export const BalanceTotals = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+
+  > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.18rem;
+    padding: 0.6rem;
+    border-radius: 0.7rem;
+    font-size: 0.63rem;
+    font-weight: 800;
+  }
+
+  > div strong { font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+  .positive { color: ${({ theme }) => theme.colors.brandGreenDark}; background: ${({ theme }) => theme.colors.brandGreenSoft}; }
+  .negative { color: ${({ theme }) => theme.colors.danger}; background: ${({ theme }) => theme.colors.dangerSoft}; }
 `;
 
 export const RemoveButton = styled.button`
@@ -297,7 +358,7 @@ export const TotalReceivable = styled.div`
   gap: 1rem;
   padding: 1rem 1.15rem;
   color: ${({ theme }) => theme.colors.white};
-  background: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.brandGreenDark};
 
   span {
     font-size: 0.68rem;
@@ -307,7 +368,7 @@ export const TotalReceivable = styled.div`
   }
 
   strong {
-    color: #7ff0ad;
+    color: ${({ theme }) => theme.colors.white};
     font-size: clamp(1.45rem, 3vw, 2rem);
     font-variant-numeric: tabular-nums;
   }

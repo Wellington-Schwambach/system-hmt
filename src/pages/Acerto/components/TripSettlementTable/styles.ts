@@ -113,6 +113,9 @@ export const TotalValue = styled.td`
   font-size: 0.95rem !important;
   text-align: right;
   font-variant-numeric: tabular-nums;
+
+  span, small { display: block; }
+  small { margin-top: 0.12rem; color: ${({ theme }) => theme.colors.dashboardTextMuted}; font-size: 0.58rem; }
 `;
 
 export const EmptyState = styled.div`

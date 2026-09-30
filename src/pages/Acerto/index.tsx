@@ -15,11 +15,13 @@ import { SettlementList } from './components/SettlementList';
 import { SettlementTabs } from './components/SettlementTabs';
 import { TripSettlementTable } from './components/TripSettlementTable';
 import { VehicleAverageSummary } from './components/VehicleAverageSummary';
+import { ValeEntryEditModal } from './components/ValeEntryEditModal';
 import { useDriverSettlement } from './hooks';
 import { printSettlementReport } from './services';
 import { formatDate } from './utils';
 import type {
   DriverSettlementSnapshot,
+  FinancialEntry,
   FinancialEntryType,
   SettlementTab,
 } from './types';
@@ -45,11 +47,25 @@ export function Acerto() {
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
   const [entryType, setEntryType] = useState<FinancialEntryType>('ADVANCE');
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
+  const [editingValeEntry, setEditingValeEntry] = useState<FinancialEntry | null>(null);
   const [selectedSettlement, setSelectedSettlement] =
     useState<DriverSettlementSnapshot | null>(null);
 
   function handleOpenEntryModal(type: FinancialEntryType) {
+    setEditingEntry(null);
     setEntryType(type);
+    setIsEntryModalOpen(true);
+  }
+
+  function handleEditEntry(entry: FinancialEntry) {
+    if (entry.source === 'VALE') {
+      setEditingValeEntry(entry);
+      return;
+    }
+
+    setEntryType(entry.type);
+    setEditingEntry(entry);
     setIsEntryModalOpen(true);
   }
 
@@ -94,7 +110,7 @@ export function Acerto() {
   async function handleClearValues() {
     const shouldClear = await notifications.confirm({
       title: 'Limpar valores?',
-      message: 'Bonificações, proventos e descontos desta tela serão zerados.',
+      message: 'Gratificação, proventos, descontos e despesas informativas desta tela serão zerados.',
       type: 'warning',
       confirmLabel: 'Limpar valores',
     });
@@ -151,7 +167,7 @@ export function Acerto() {
             {activeTab === 'FORM'
               ? settlement.editingSettlementId
                 ? 'Edite os dados do acerto selecionado e salve as alterações.'
-                : 'Monte um novo acerto com viagens, médias, proventos e descontos em uma única tela.'
+                : 'Monte um novo acerto com viagens, médias, proventos, descontos e despesas em uma única tela.'
               : 'Consulte todos os acertos gravados e imprima ou salve o espelho em PDF quando precisar.'}
           </Subtitle>
         </TitleGroup>
@@ -230,6 +246,7 @@ export function Acerto() {
           <TripGrid>
             <TripSettlementTable
               travels={settlement.travels}
+              totalOriginalNetFreight={settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight}
               totalNetFreight={settlement.totals.totalNetFreight}
             />
             <VehicleAverageSummary
@@ -249,6 +266,7 @@ export function Acerto() {
             otherEarnings={settlement.otherEarnings}
             entries={settlement.entries}
             totals={settlement.totals}
+            valesLoadError={settlement.valesLoadError}
             onBonusPercentChange={settlement.setBonusPercent}
             onBaseSalaryChange={settlement.setBaseSalary}
             onDailyAllowanceChange={settlement.setDailyAllowance}
@@ -257,7 +275,9 @@ export function Acerto() {
               settlement.setBonusPercent(String(settlement.suggestedBonusPercent))
             }
             onAddEntry={handleOpenEntryModal}
+            onEditEntry={handleEditEntry}
             onRemoveEntry={settlement.removeEntry}
+            onRetryVales={settlement.retryVales}
           />
         </>
       ) : activeTab === 'LIST' ? (
@@ -297,8 +317,29 @@ export function Acerto() {
         <EntryModal
           isOpen
           type={entryType}
-          onClose={() => setIsEntryModalOpen(false)}
-          onSubmit={(formData) => settlement.addEntry(entryType, formData)}
+          editing={Boolean(editingEntry)}
+          initialData={editingEntry ? {
+            date: editingEntry.date,
+            description: editingEntry.description,
+            value: String(editingEntry.value).replace('.', ','),
+          } : null}
+          onClose={() => {
+            setIsEntryModalOpen(false);
+            setEditingEntry(null);
+          }}
+          onSubmit={(formData) => editingEntry
+            ? settlement.updateManualEntry(editingEntry.id, formData)
+            : settlement.addEntry(entryType, formData)}
+        />
+      )}
+
+      {editingValeEntry && (
+        <ValeEntryEditModal
+          key={editingValeEntry.id}
+          isOpen
+          entry={editingValeEntry}
+          onClose={() => setEditingValeEntry(null)}
+          onSubmit={(form) => settlement.updateValeEntry(editingValeEntry, form)}
         />
       )}
 

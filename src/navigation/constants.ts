@@ -2,6 +2,7 @@ import {
   BarChart3,
   ClipboardList,
   Fuel,
+  Handshake,
   Landmark,
   LayoutDashboard,
   Link2,
@@ -109,6 +110,14 @@ export const APP_NAVIGATION_ITEMS: NavigationItem[] = [
     label: 'Viagens',
     icon: Map,
     path: '/travel',
+    permission: 'travel',
+  },
+
+  {
+    id: 'third-party-management',
+    label: 'Gestão de Terceiros',
+    icon: Handshake,
+    path: '/terceiros',
     permission: 'travel',
   },
 

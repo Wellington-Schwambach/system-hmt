@@ -1,5 +1,5 @@
-import { BellRing, CalendarDays, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { BellRing, CalendarDays, ChevronLeft, ChevronRight, Pencil, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { WEEK_DAYS } from '../../constants';
 import type { CalendarCardProps } from './types';
@@ -9,8 +9,12 @@ import {
   CalendarGrid,
   Day,
   DayNumber,
+  HeaderActions,
   HeaderIcon,
+  HeaderMain,
+  HeaderNavButton,
   HeaderTitle,
+  TodayButton,
   LoadMeta,
   Modal,
   ModalBody,
@@ -20,7 +24,9 @@ import {
   ModalSubtitle,
   ModalTitle,
   NoteCard,
+  NoteCardHeader,
   NoteCardMeta,
+  NoteEditButton,
   NoteCardText,
   NoteCardTitle,
   NoteCount,
@@ -34,8 +40,18 @@ function formatDate(date: string): string {
   return new Intl.DateTimeFormat('pt-BR').format(new Date(year, month - 1, day, 12));
 }
 
-export function CalendarCard({ monthLabel, days, notes }: CalendarCardProps) {
+export function CalendarCard({
+  monthLabel,
+  days,
+  notes,
+  isCurrentMonth,
+  onPreviousMonth,
+  onNextMonth,
+  onToday,
+  onEditNote,
+}: CalendarCardProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const lastWheelAt = useRef(0);
 
   const selectedNotes = useMemo(
     () => (selectedDate ? notes.filter((note) => note.dueDate === selectedDate) : []),
@@ -63,13 +79,42 @@ export function CalendarCard({ monthLabel, days, notes }: CalendarCardProps) {
     <>
       <Card>
         <CardHeader>
-          <HeaderIcon>
-            <CalendarDays size={20} aria-hidden="true" />
-          </HeaderIcon>
-          <HeaderTitle>{monthLabel}</HeaderTitle>
+          <HeaderMain>
+            <HeaderIcon>
+              <CalendarDays size={20} aria-hidden="true" />
+            </HeaderIcon>
+            <HeaderTitle>{monthLabel}</HeaderTitle>
+          </HeaderMain>
+
+          <HeaderActions>
+            <TodayButton type="button" onClick={onToday} disabled={isCurrentMonth}>Hoje</TodayButton>
+            <HeaderNavButton type="button" onClick={onPreviousMonth} aria-label="Mês anterior" title="Mês anterior">
+              <ChevronLeft size={18} aria-hidden="true" />
+            </HeaderNavButton>
+            <HeaderNavButton type="button" onClick={onNextMonth} aria-label="Próximo mês" title="Próximo mês">
+              <ChevronRight size={18} aria-hidden="true" />
+            </HeaderNavButton>
+          </HeaderActions>
         </CardHeader>
 
-        <CalendarGrid aria-label={`Calendário de alertas de ${monthLabel}`}>
+        <CalendarGrid
+          aria-label={`Calendário de alertas de ${monthLabel}`}
+          onWheel={(event) => {
+            if (Math.abs(event.deltaY) < 18) return;
+
+            const now = Date.now();
+            if (now - lastWheelAt.current < 280) {
+              event.preventDefault();
+              return;
+            }
+
+            lastWheelAt.current = now;
+            event.preventDefault();
+            if (event.deltaY > 0) onNextMonth();
+            else onPreviousMonth();
+          }}
+          title="Use a roda do mouse para navegar entre os meses"
+        >
           {WEEK_DAYS.map((weekDay) => (
             <WeekDay key={weekDay}>{weekDay}</WeekDay>
           ))}
@@ -120,7 +165,21 @@ export function CalendarCard({ monthLabel, days, notes }: CalendarCardProps) {
               {selectedNotes.length ? <SectionLabel>Notas e vencimentos</SectionLabel> : null}
               {selectedNotes.map((note) => (
                 <NoteCard key={note.id} $completed={note.isCompleted}>
-                  <NoteCardTitle>{note.title}</NoteCardTitle>
+                  <NoteCardHeader>
+                    <NoteCardTitle>{note.title}</NoteCardTitle>
+                    {note.isManual && note.canEdit ? (
+                      <NoteEditButton
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(null);
+                          onEditNote(note);
+                        }}
+                        title="Editar data da nota"
+                      >
+                        <Pencil size={14} aria-hidden="true" /> Editar data
+                      </NoteEditButton>
+                    ) : null}
+                  </NoteCardHeader>
                   <NoteCardMeta>
                     {note.isCompleted
                       ? `Concluída${note.completedByName ? ` por ${note.completedByName}` : ''}`

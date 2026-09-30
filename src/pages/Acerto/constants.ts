@@ -21,4 +21,5 @@ export const ENTRY_LABELS: Record<FinancialEntryType, string> = {
   FINE: 'Multa',
   LOAN: 'Empréstimo',
   OTHER_DISCOUNT: 'Outro desconto',
+  NEUTRAL_EXPENSE: 'Despesa',
 };

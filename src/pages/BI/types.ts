@@ -11,6 +11,7 @@ export interface BIMetrics {
   trips: number;
   grossFreight: number;
   netFreight: number;
+  thirdPartyTotal: number;
   freightDifference: number;
   operationalResult: number;
   averageFreight: number;
