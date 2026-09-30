@@ -5,10 +5,10 @@ import { DateInput } from '../../components/DateInput';
 import { SearchableSelect } from '../../components/SearchableSelect';
 import { useAuth } from '../../contexts/Auth/useAuth';
 import { useNotifications } from '../../contexts/Notifications';
-import { getApiErrorMessage } from '../../utils/apiError';
-import { vehicleService } from '../Vehicles/services';
+import { getApiErrorFeedback } from '../../utils/apiError';
 import { valeService } from './services';
 import type { ValeCategory, ValeCityOption, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
+import { validateValeForm } from './validation';
 import {
   Actions,
   Badge,
@@ -172,22 +172,20 @@ export function Vales() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([valeService.list(), valeService.options(), vehicleService.list(), valeService.cities()])
-      .then(([loadedRecords, loadedEmployees, loadedVehicles, loadedCities]) => {
+    Promise.all([valeService.list(), valeService.formOptions()])
+      .then(([loadedRecords, formOptions]) => {
         if (!active) return;
         setRecords(loadedRecords);
-        setEmployees(loadedEmployees);
-        setVehiclePlates(
-          Array.from(new Set(loadedVehicles.map((vehicle) => vehicle.plate.trim().toUpperCase()).filter(Boolean)))
-            .sort((a, b) => a.localeCompare(b, 'pt-BR')),
-        );
-        setCities(loadedCities);
+        setEmployees(formOptions.employees);
+        setVehiclePlates(formOptions.vehiclePlates);
+        setCities(formOptions.cities);
         setCitiesLoading(false);
       })
       .catch((error) => {
         if (!active) return;
         setCitiesLoading(false);
-        notifications.error('Não foi possível carregar os lançamentos', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+        const feedback = getApiErrorFeedback(error, 'Não foi possível carregar os lançamentos.');
+        notifications.error(feedback.title, feedback.message, feedback.details);
       });
 
     return () => {
@@ -281,28 +279,14 @@ export function Vales() {
 
   async function handleSave(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const amount = Number(form.amount.trim().replace(/\./g, '').replace(',', '.'));
-    const installments = Number(form.installments);
 
-    if (!form.employeeId || !form.discountStartMonth || !Number.isFinite(amount) || amount <= 0) {
-      notifications.warning('Dados incompletos', 'Informe motorista, mês do primeiro desconto e um valor maior que zero.');
-      return;
-    }
-    if (form.category !== 'LOAN' && form.category !== 'FINE' && !form.date) {
-      notifications.warning('Data obrigatória', 'Informe a data do lançamento.');
-      return;
-    }
-    const fineOriginalAmount = Number(form.fineOriginalAmount.trim().replace(/\./g, '').replace(',', '.'));
-    if (form.category === 'FINE' && (!form.fineInfractionAt || !form.finePlate.trim() || !form.fineLocation.trim() || !form.fineNumber.trim() || !form.description.trim())) {
-      notifications.warning('Dados da multa incompletos', 'Informe data e hora da infração, placa, local, número e descrição da multa.');
-      return;
-    }
-    if (form.category === 'FINE' && (!Number.isFinite(fineOriginalAmount) || fineOriginalAmount <= 0)) {
-      notifications.warning('Valor original inválido', 'Informe o valor original da multa.');
-      return;
-    }
-    if (!editing && (!Number.isInteger(installments) || installments < 1 || installments > 60)) {
-      notifications.warning('Parcelas inválidas', 'Informe entre 1 e 60 parcelas.');
+    const validationErrors = validateValeForm(form, { editing: Boolean(editing) });
+    if (validationErrors.length > 0) {
+      notifications.warning(
+        'Revise o lançamento antes de gravar',
+        'Há informações que precisam ser corrigidas.',
+        validationErrors,
+      );
       return;
     }
 
@@ -325,7 +309,8 @@ export function Vales() {
       setActiveCategory(form.category);
       setIsModalOpen(false);
     } catch (error) {
-      notifications.error('Não foi possível salvar', getApiErrorMessage(error, 'Confira os dados e tente novamente.'));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível gravar o lançamento.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setSaving(false);
     }
@@ -347,7 +332,8 @@ export function Vales() {
       setRecords((current) => current.map((item) => (item.id === updated.id ? updated : item)));
       notifications.success('Parcela faturada', `O faturamento de ${record.employeeName} foi registrado.`);
     } catch (error) {
-      notifications.error('Não foi possível faturar', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível faturar a parcela.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setInvoicingId(null);
     }
@@ -368,7 +354,8 @@ export function Vales() {
       setRecords((current) => current.filter((item) => item.id !== record.id));
       notifications.success('Parcela excluída', 'O registro foi removido.');
     } catch (error) {
-      notifications.error('Não foi possível excluir', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível excluir a parcela.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
     }
   }
 
@@ -377,7 +364,8 @@ export function Vales() {
     try {
       setHistory(await valeService.history());
     } catch (error) {
-      notifications.error('Não foi possível carregar o histórico', getApiErrorMessage(error, 'Tente novamente em alguns instantes.'));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível carregar o histórico.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
     }
   }
 
