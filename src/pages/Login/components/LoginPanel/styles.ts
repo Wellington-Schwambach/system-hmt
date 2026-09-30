@@ -30,10 +30,13 @@ export const PanelContainer = styled.section`
 
 export const MobileBrand = styled.div`
   display: none;
+  width: 100%;
   margin-bottom: 2rem;
 
   @media (max-width: ${breakpoints.tablet}) {
-    display: block;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
 `;
 

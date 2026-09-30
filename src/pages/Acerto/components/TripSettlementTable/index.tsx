@@ -18,7 +18,7 @@ import {
   FreightValue,
 } from './styles';
 
-export function TripSettlementTable({ travels, totalNetFreight }: TripSettlementTableProps) {
+export function TripSettlementTable({ travels, totalOriginalNetFreight, totalNetFreight }: TripSettlementTableProps) {
   return (
     <Card>
       <Header>
@@ -60,9 +60,11 @@ export function TripSettlementTable({ travels, totalNetFreight }: TripSettlement
                   <TD>{travel.plate}</TD>
                   <TD $numeric>
                     <FreightValue>
-                      <strong>{formatCurrency(travel.netFreight)}</strong>
-                      {(travel.driverTwoId !== null || travel.driverTwo.trim() !== '') && (
-                        <small>50% · 2 motoristas</small>
+                      <strong>{formatCurrency(travel.originalNetFreight ?? travel.netFreight)}</strong>
+                      {(travel.settlementCrewSize ?? 1) > 1 ? (
+                        <small>No acerto: {formatCurrency(travel.settlementNetFreight ?? travel.netFreight)} · 50%</small>
+                      ) : (
+                        <small>No acerto: valor integral</small>
                       )}
                     </FreightValue>
                   </TD>
@@ -71,8 +73,12 @@ export function TripSettlementTable({ travels, totalNetFreight }: TripSettlement
             </tbody>
             <TotalRow>
               <tr>
-                <td colSpan={5}>Total de fretes líquidos</td>
-                <TotalValue>{formatCurrency(totalNetFreight)}</TotalValue>
+                <td colSpan={4}>Total das viagens</td>
+                <TotalValue>{formatCurrency(totalOriginalNetFreight)}</TotalValue>
+                <TotalValue>
+                  <span>{formatCurrency(totalNetFreight)}</span>
+                  <small>considerado no acerto</small>
+                </TotalValue>
               </tr>
             </TotalRow>
           </Table>

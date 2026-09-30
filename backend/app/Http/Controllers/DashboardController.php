@@ -17,28 +17,42 @@ class DashboardController extends Controller
     public function index(Request $request, DailyNotesService $dailyNotes): JsonResponse
     {
         $now = CarbonImmutable::now();
-        $monthStart = $now->startOfMonth()->startOfDay();
-        $monthEnd = $now->endOfMonth()->endOfDay();
+        $metricsMonthStart = $now->startOfMonth()->startOfDay();
+        $metricsMonthEnd = $now->endOfMonth()->endOfDay();
+
+        $calendarMonth = trim((string) $request->query('calendar_month', $now->format('Y-m')));
+        if (! preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $calendarMonth)) {
+            $calendarMonth = $now->format('Y-m');
+        }
+
+        try {
+            $calendarReference = CarbonImmutable::createFromFormat('Y-m-d', $calendarMonth.'-01') ?: $now;
+        } catch (\Throwable) {
+            $calendarReference = $now;
+        }
+
+        $calendarMonthStart = $calendarReference->startOfMonth()->startOfDay();
+        $calendarMonthEnd = $calendarReference->endOfMonth()->endOfDay();
 
         $travels = Travel::query()
             ->with('ctes:id,travel_id,cte_type')
-            ->whereBetween('travel_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->whereBetween('travel_date', [$metricsMonthStart->toDateString(), $metricsMonthEnd->toDateString()])
             ->get();
 
         $fuelings = FuelRecord::query()
-            ->whereBetween('fuel_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->whereBetween('fuel_date', [$metricsMonthStart->toDateString(), $metricsMonthEnd->toDateString()])
             ->count();
 
         $loadsCount = LogisticsLoad::query()
             ->whereNotNull('loading_at')
-            ->whereBetween('loading_at', [$monthStart, $monthEnd])
+            ->whereBetween('loading_at', [$metricsMonthStart, $metricsMonthEnd])
             ->count();
 
         /** @var User $user */
         $user = $request->user();
 
         try {
-            $notePayload = $dailyNotes->dashboardPayload($user, $monthStart, $monthEnd, $now);
+            $notePayload = $dailyNotes->dashboardPayload($user, $calendarMonthStart, $calendarMonthEnd, $now);
         } catch (\Throwable $exception) {
             // Notas/alertas são complementares ao Dashboard. Uma inconsistência ou migration
             // pendente nesse módulo não pode derrubar os indicadores principais da tela.
@@ -70,8 +84,8 @@ class DashboardController extends Controller
                 'year' => $now->year,
                 'month' => $now->month,
                 'key' => $now->format('Y-m'),
-                'start' => $monthStart->toDateString(),
-                'end' => $monthEnd->toDateString(),
+                'start' => $metricsMonthStart->toDateString(),
+                'end' => $metricsMonthEnd->toDateString(),
             ],
             'metrics' => [
                 'loads' => $loadsCount,

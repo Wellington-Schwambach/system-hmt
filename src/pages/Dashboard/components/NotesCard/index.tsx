@@ -6,6 +6,7 @@ import {
   Clock3,
   FileText,
   Plus,
+  Pencil,
   Trash2,
   Truck,
   X,
@@ -64,6 +65,7 @@ interface NotesCardProps {
   users: DashboardNoteUser[];
   currentUserId: number | null;
   onRefresh: () => Promise<void>;
+  onEditNote: (note: DashboardNote) => void;
 }
 
 interface NoteFormState {
@@ -166,7 +168,7 @@ function completedMeta(note: DashboardNote): string | null {
   }).format(completedAt)}`;
 }
 
-export function NotesCard({ notes, users, currentUserId, onRefresh }: NotesCardProps) {
+export function NotesCard({ notes, users, currentUserId, onRefresh, onEditNote }: NotesCardProps) {
   const notifications = useNotifications();
   const [selectedNote, setSelectedNote] = useState<DashboardNote | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -238,7 +240,12 @@ export function NotesCard({ notes, users, currentUserId, onRefresh }: NotesCardP
     setIsSaving(true);
     try {
       await createDashboardNote(payload);
-      notifications.success('Nota cadastrada', 'O lembrete já está disponível para os usuários selecionados.');
+      notifications.success(
+        'Nota cadastrada',
+        form.date
+          ? 'O lembrete ficará no calendário e aparecerá nas pendências a partir da data definida.'
+          : 'O lembrete já está disponível como pendência contínua.',
+      );
       setIsCreating(false);
       await onRefresh();
     } catch (error) {
@@ -395,6 +402,19 @@ export function NotesCard({ notes, users, currentUserId, onRefresh }: NotesCardP
             </ModalBody>
 
             <ModalFooter>
+              {selectedNote.isManual && selectedNote.canEdit ? (
+                <ActionButton
+                  type="button"
+                  $primary
+                  onClick={() => {
+                    const note = selectedNote;
+                    setSelectedNote(null);
+                    onEditNote(note);
+                  }}
+                >
+                  <Pencil size={16} /> Editar data
+                </ActionButton>
+              ) : null}
               {selectedNote.isManual && selectedNote.canDelete ? (
                 <ActionButton type="button" $danger onClick={() => void removeSelectedNote()} disabled={isDeleting}>
                   <Trash2 size={16} /> {isDeleting ? 'Excluindo...' : 'Excluir nota'}
@@ -442,7 +462,7 @@ export function NotesCard({ notes, users, currentUserId, onRefresh }: NotesCardP
                 </FullField>
 
                 <Field>
-                  Data, se necessário
+                  Data de exibição, se necessário
                   <Input
                     type="date"
                     value={form.date}

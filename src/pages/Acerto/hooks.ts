@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { fuelService } from '../Fuel/services';
 import { travelService } from '../Travel/services';
+import { valeService } from '../Vales/services';
+import type { ValeFormData } from '../Vales/types';
 import type {
   DriverSettlementSnapshot,
   FinancialEntry,
@@ -48,10 +50,7 @@ interface SnapshotOptions {
 
 export function useDriverSettlement() {
   const cachedData = useMemo(() => loadSettlementData(), []);
-  const cachedInitialDriver =
-    cachedData.drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
-    cachedData.drivers[0] ??
-    '';
+  const cachedInitialDriver = '';
 
   const [loadedData, setLoadedData] = useState<LoadedSettlementData>(cachedData);
   const [selectedDriver, setSelectedDriverState] = useState(cachedInitialDriver);
@@ -72,6 +71,8 @@ export function useDriverSettlement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [valesLoadError, setValesLoadError] = useState(false);
+  const [valeRefreshToken, setValeRefreshToken] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -89,14 +90,9 @@ export function useDriverSettlement() {
         const drivers = driverOptions.map((driver) => driver.name);
         setLoadedData({ travels, fuelRecords, crewEvents, drivers, driverOptions });
         setSettlements(sortSettlements(savedSettlements));
-        setSelectedDriverState((currentDriver) => {
-          if (drivers.includes(currentDriver)) return currentDriver;
-          return (
-            drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
-            drivers[0] ??
-            ''
-          );
-        });
+        setSelectedDriverState((currentDriver) =>
+          drivers.includes(currentDriver) ? currentDriver : '',
+        );
         setLoadError(false);
       })
       .catch(() => {
@@ -127,38 +123,58 @@ export function useDriverSettlement() {
   useEffect(() => {
     let active = true;
 
-    if (!selectedDriverOption || editingSettlementId) {
+    if (!selectedDriverOption) {
       return () => {
         active = false;
       };
     }
 
-    settlementService.pendingVales(selectedDriverOption.id, dateRange.startDate, dateRange.endDate)
+    settlementService.pendingVales(
+      selectedDriverOption.id,
+      dateRange.startDate,
+      dateRange.endDate,
+      editingSettlementId ?? undefined,
+    )
       .then((pendingVales) => {
         if (!active) return;
         setEntries((currentEntries) => [
           ...currentEntries.filter((entry) => entry.source !== 'VALE'),
-          ...pendingVales.map((vale) => ({
-            id: `vale-${vale.id}`,
-            type: vale.category,
-            date: vale.date,
-            description: vale.installmentsTotal > 1
-              ? `${vale.description || ENTRY_LABELS[vale.category]} · Parcela ${vale.installmentNumber}/${vale.installmentsTotal}`
-              : (vale.description || ENTRY_LABELS[vale.category]),
-            value: vale.amount,
-            source: 'VALE' as const,
-            valeId: vale.id,
-          })),
+          ...pendingVales.map((vale) => {
+            const baseDescription = vale.category === 'FINE'
+              ? [vale.fineNumber ? `Nº Auto ${vale.fineNumber}` : '', vale.description].filter(Boolean).join(' - ')
+              : (vale.description || ENTRY_LABELS[vale.category]);
+            const description = vale.installmentsTotal > 1
+              ? `${baseDescription || ENTRY_LABELS[vale.category]} · Parcela ${vale.installmentNumber}/${vale.installmentsTotal}`
+              : (baseDescription || ENTRY_LABELS[vale.category]);
+
+            return {
+              id: `vale-${vale.id}`,
+              type: vale.category,
+              date: vale.withdrawalDate ?? vale.date,
+              description,
+              value: vale.amount,
+              source: 'VALE' as const,
+              valeId: vale.id,
+              valeRecord: vale,
+            };
+          }),
         ]);
+        setValesLoadError(false);
       })
       .catch(() => {
-        // O Acerto continua utilizável com lançamentos manuais caso os vales não carreguem.
+        if (active) setValesLoadError(true);
       });
 
     return () => {
       active = false;
     };
-  }, [dateRange.endDate, dateRange.startDate, editingSettlementId, selectedDriverOption]);
+  }, [
+    dateRange.endDate,
+    dateRange.startDate,
+    editingSettlementId,
+    selectedDriverOption,
+    valeRefreshToken,
+  ]);
 
   const travels = useMemo(
     () =>
@@ -333,8 +349,29 @@ export function useDriverSettlement() {
     return true;
   }, []);
 
+  const updateManualEntry = useCallback((entryId: string, formData: FinancialEntryFormData) => {
+    const value = parseDecimalInput(formData.value);
+    if (value <= 0) return false;
+
+    setEntries((currentEntries) => currentEntries.map((entry) =>
+      entry.id === entryId && entry.source !== 'VALE'
+        ? { ...entry, date: formData.date, description: formData.description.trim(), value }
+        : entry,
+    ));
+    setSavedAt('');
+    return true;
+  }, []);
+
+  const updateValeEntry = useCallback(async (entry: FinancialEntry, formData: ValeFormData) => {
+    if (entry.source !== 'VALE' || !entry.valeId) return false;
+    await valeService.updateFromSettlement(entry.valeId, formData, editingSettlementId);
+    setValeRefreshToken((current) => current + 1);
+    setSavedAt('');
+    return true;
+  }, [editingSettlementId]);
+
   const removeEntry = useCallback((entryId: string) => {
-    setEntries((currentEntries) => currentEntries.filter((entry) => entry.id !== entryId));
+    setEntries((currentEntries) => currentEntries.filter((entry) => entry.id !== entryId || entry.source === 'VALE'));
     setSavedAt('');
   }, []);
 
@@ -404,16 +441,13 @@ export function useDriverSettlement() {
     setBaseSalary('');
     setDailyAllowance('');
     setOtherEarnings('');
-    setEntries([]);
+    setEntries((currentEntries) => currentEntries.filter((entry) => entry.source === 'VALE'));
+    setValeRefreshToken((current) => current + 1);
     setSavedAt('');
   }, []);
 
   const startNewSettlement = useCallback(() => {
-    const initialDriver =
-      loadedData.drivers.find((driver) => driver.toLocaleLowerCase('pt-BR').includes('patrick')) ??
-      loadedData.drivers[0] ??
-      '';
-    setSelectedDriverState(initialDriver);
+    setSelectedDriverState('');
     setPeriodMode('MONTH');
     setSelectedMonth(DEFAULT_MONTH);
     setCustomStartDate(`${DEFAULT_MONTH}-01`);
@@ -426,7 +460,7 @@ export function useDriverSettlement() {
     setSelectedFuelRecordIdsOverride(null);
     setEditingSettlementId(null);
     setSavedAt('');
-  }, [loadedData.drivers]);
+  }, []);
 
   return {
     drivers: loadedData.drivers,
@@ -454,6 +488,7 @@ export function useDriverSettlement() {
     loading,
     saving,
     loadError,
+    valesLoadError,
     canSave: Boolean(selectedDriverOption && travels.length > 0),
     setSelectedDriver,
     applyMonth,
@@ -463,6 +498,8 @@ export function useDriverSettlement() {
     setDailyAllowance,
     setOtherEarnings,
     addEntry,
+    updateManualEntry,
+    updateValeEntry,
     removeEntry,
     toggleFuelRecord,
     selectFuelRecordsByGroup,
@@ -473,5 +510,6 @@ export function useDriverSettlement() {
     loadHistory,
     resetFinancialData,
     startNewSettlement,
+    retryVales: () => setValeRefreshToken((current) => current + 1),
   };
 }

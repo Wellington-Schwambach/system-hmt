@@ -7,6 +7,7 @@ use App\Http\Controllers\Fleet\EmployeeController;
 use App\Http\Controllers\Fleet\LocationController;
 use App\Http\Controllers\Fleet\VehicleController;
 use App\Http\Controllers\Operation\TravelController;
+use App\Http\Controllers\Operation\ThirdPartyManagementController;
 use App\Http\Controllers\Operation\FuelController;
 use App\Http\Controllers\Operation\VehicleSetController;
 use App\Http\Controllers\Operation\LogisticsController;
@@ -23,6 +24,8 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
     Route::post('/dashboard/notes', [DashboardNoteController::class, 'store'])
         ->middleware('permission:dashboard');
     Route::put('/dashboard/note-completion', [DashboardNoteController::class, 'setCompletion'])
+        ->middleware('permission:dashboard');
+    Route::put('/dashboard/notes/{dailyNote}/schedule', [DashboardNoteController::class, 'updateSchedule'])
         ->middleware('permission:dashboard');
     Route::delete('/dashboard/notes/{dailyNote}', [DashboardNoteController::class, 'destroy'])
         ->middleware('permission:dashboard');
@@ -168,6 +171,14 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::put('/{driverDeduction}', [DriverDeductionController::class, 'update']);
             Route::patch('/{driverDeduction}/invoice', [DriverDeductionController::class, 'invoice']);
             Route::delete('/{driverDeduction}', [DriverDeductionController::class, 'destroy']);
+        });
+
+    Route::prefix('third-party-management')
+        ->middleware('permission:travel')
+        ->group(function (): void {
+            Route::get('/', [ThirdPartyManagementController::class, 'index']);
+            Route::patch('/{travel}', [ThirdPartyManagementController::class, 'update']);
+            Route::patch('/{travel}/paid', [ThirdPartyManagementController::class, 'markPaid']);
         });
 
     Route::prefix('travels')

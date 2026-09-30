@@ -381,6 +381,7 @@ export function FuelFormModal({
                     id="fuel-km"
                     type="number"
                     min="0"
+                    max="9999999"
                     step="1"
                     value={formData.km}
                     onChange={(event) => handleChange('km', event.target.value)}

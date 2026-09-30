@@ -13,6 +13,7 @@ interface ApiOperationalBIResponse {
     trips: number;
     gross_freight: number;
     net_freight: number;
+    third_party_total: number;
     freight_difference: number;
     operational_result: number;
     average_freight: number;
@@ -77,6 +78,7 @@ function mapResponse(data: ApiOperationalBIResponse): BIOperationalData {
       trips: numberValue(data.metrics.trips),
       grossFreight: numberValue(data.metrics.gross_freight),
       netFreight: numberValue(data.metrics.net_freight),
+      thirdPartyTotal: numberValue(data.metrics.third_party_total),
       freightDifference: numberValue(data.metrics.freight_difference),
       operationalResult: numberValue(data.metrics.operational_result),
       averageFreight: numberValue(data.metrics.average_freight),

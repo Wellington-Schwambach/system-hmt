@@ -52,7 +52,7 @@ class SaveFuelRecordRequest extends FormRequest
             'fuel_date' => ['required', 'date_format:Y-m-d'],
             'billing_month' => ['required', 'date_format:Y-m'],
             'station' => ['required', 'string', 'max:120'],
-            'km' => ['nullable', 'integer', 'min:0', 'max:999999999'],
+            'km' => ['nullable', 'integer', 'min:0', 'max:9999999'],
             'diesel_liters' => ['required', 'numeric', 'gt:0', 'max:999999999.999'],
             'diesel_total_value' => ['required', 'numeric', 'gt:0', 'max:999999999999.99'],
             'arla_liters' => ['nullable', 'numeric', 'min:0', 'max:999999999.999'],
@@ -71,6 +71,7 @@ class SaveFuelRecordRequest extends FormRequest
             'fuel_date.required' => 'Informe a data do abastecimento.',
             'billing_month.required' => 'Informe o mês de faturamento.',
             'billing_month.date_format' => 'Informe um mês de faturamento válido.',
+            'km.max' => 'O KM informado é muito alto. Confira o odômetro antes de salvar.',
             'station.required' => 'Informe o posto.',
             'diesel_liters.required' => 'Informe os litros de Diesel.',
             'diesel_liters.gt' => 'Os litros de Diesel devem ser maiores que zero.',
@@ -91,6 +92,21 @@ class SaveFuelRecordRequest extends FormRequest
                         'arla_liters',
                         'Para informar ARLA, preencha a litragem e o valor total.'
                     );
+                }
+
+                if ($this->filled('km') && $this->filled('vehicle_id')) {
+                    $vehicle = \App\Models\Vehicle::query()->find((int) $this->input('vehicle_id'));
+                    $fuelKm = (int) $this->input('km');
+                    $vehicleKm = (int) ($vehicle?->current_km ?? 0);
+
+                    // Um único abastecimento não deve conseguir inflar o odômetro da frota
+                    // por erro de digitação. Leituras históricas menores continuam permitidas.
+                    if ($vehicleKm > 0 && $fuelKm > $vehicleKm + 250000) {
+                        $validator->errors()->add(
+                            'km',
+                            'O KM informado está mais de 250.000 km acima do KM atual do veículo. Confira o valor antes de salvar.'
+                        );
+                    }
                 }
 
                 if ($this->filled('driver_id')) {

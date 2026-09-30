@@ -16,6 +16,7 @@ const EMPTY_DATA: BIOperationalData = {
     trips: 0,
     grossFreight: 0,
     netFreight: 0,
+    thirdPartyTotal: 0,
     freightDifference: 0,
     operationalResult: 0,
     averageFreight: 0,

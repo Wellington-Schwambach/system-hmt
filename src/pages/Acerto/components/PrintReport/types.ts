@@ -1,11 +1,10 @@
-import type { FinancialEntry, SettlementTotals, VehicleAverageSummaryData } from '../../types';
-import type { TravelRecord } from '../../../Travel/types';
+import type { FinancialEntry, SettlementTotals, SettlementTravelRecord, VehicleAverageSummaryData } from '../../types';
 
 export interface PrintReportProps {
   driver: string;
   startDate: string;
   endDate: string;
-  travels: TravelRecord[];
+  travels: SettlementTravelRecord[];
   vehicleSummaries: VehicleAverageSummaryData[];
   entries: FinancialEntry[];
   totals: SettlementTotals;

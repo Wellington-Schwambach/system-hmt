@@ -2,7 +2,7 @@ import type { FuelRecord } from '../Fuel/types';
 import type { TravelRecord } from '../Travel/types';
 
 export type SettlementPeriodMode = 'MONTH' | 'CUSTOM';
-export type FinancialEntryType = 'ADVANCE' | 'FINE' | 'LOAN' | 'OTHER_DISCOUNT';
+export type FinancialEntryType = 'ADVANCE' | 'FINE' | 'LOAN' | 'OTHER_DISCOUNT' | 'NEUTRAL_EXPENSE';
 export type SettlementTab = 'FORM' | 'LIST' | 'HISTORY';
 
 export interface SettlementDriverOption {
@@ -18,17 +18,28 @@ export interface FinancialEntry {
   value: number;
   source?: 'MANUAL' | 'VALE';
   valeId?: number;
+  valeRecord?: SettlementPendingVale;
 }
 
 export interface SettlementPendingVale {
   id: number;
   employeeId: number;
-  category: FinancialEntryType;
+  employeeName: string;
+  category: Exclude<FinancialEntryType, 'NEUTRAL_EXPENSE'>;
   date: string;
+  discountMonth: string;
+  withdrawalDate: string | null;
   description: string;
+  finePlate: string | null;
+  fineLocation: string | null;
+  fineNumber: string | null;
+  fineInfractionAt: string | null;
+  fineOriginalAmount: number | null;
+  fineChargeAmount: number | null;
   amount: number;
   installmentNumber: number;
   installmentsTotal: number;
+  invoiced: boolean;
 }
 
 export interface FinancialEntryFormData {
@@ -38,6 +49,13 @@ export interface FinancialEntryFormData {
 }
 
 export type SettlementCrewMode = 'SOLO' | 'PAIR';
+
+export interface SettlementTravelRecord extends TravelRecord {
+  originalNetFreight: number;
+  settlementNetFreight: number;
+  settlementSharePercent: number;
+  settlementCrewSize: number;
+}
 
 export interface SettlementFuelRecord extends FuelRecord {
   averageGroupKey: string;
@@ -73,6 +91,7 @@ export interface VehicleAverageSummaryData {
 }
 
 export interface SettlementTotals {
+  totalOriginalNetFreight: number;
   totalNetFreight: number;
   bonusPercent: number;
   bonusValue: number;
@@ -84,7 +103,10 @@ export interface SettlementTotals {
   fines: number;
   loans: number;
   otherDiscounts: number;
+  neutralExpenses: number;
   totalDiscounts: number;
+  totalPositive: number;
+  totalNegative: number;
   totalReceivable: number;
 }
 
@@ -95,7 +117,7 @@ export interface DriverSettlementSnapshot {
   startDate: string;
   endDate: string;
   savedAt: string;
-  travels: TravelRecord[];
+  travels: SettlementTravelRecord[];
   selectedFuelRecordIds: number[];
   vehicleSummaries: VehicleAverageSummaryData[];
   entries: FinancialEntry[];

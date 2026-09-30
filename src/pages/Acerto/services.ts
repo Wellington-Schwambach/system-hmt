@@ -34,7 +34,8 @@ function buildTravelsRows(settlement: DriverSettlementSnapshot): string {
     return '<tr><td colspan="6" class="empty-row">Nenhuma viagem encontrada no período.</td></tr>';
   }
 
-  return settlement.travels
+  return [...settlement.travels]
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
     .map(
       (travel) => `
         <tr>
@@ -44,8 +45,10 @@ function buildTravelsRows(settlement: DriverSettlementSnapshot): string {
           <td>${escapeHtml(travel.destination)}</td>
           <td>${escapeHtml(travel.plate)}</td>
           <td class="numeric">
-            ${escapeHtml(formatCurrency(travel.netFreight))}
-            ${(travel.driverTwoId !== null || travel.driverTwo.trim() !== '') ? '<span class="rateio">50% · 2 motoristas</span>' : ''}
+            ${escapeHtml(formatCurrency(travel.originalNetFreight ?? travel.netFreight))}
+            ${(travel.settlementCrewSize ?? 1) > 1
+              ? `<span class="rateio">No acerto: ${escapeHtml(formatCurrency(travel.settlementNetFreight ?? travel.netFreight))} · 50%</span>`
+              : '<span class="rateio">No acerto: valor integral</span>'}
           </td>
         </tr>`,
     )
@@ -76,11 +79,12 @@ function buildVehicleRows(settlement: DriverSettlementSnapshot): string {
 }
 
 function buildDiscountRows(settlement: DriverSettlementSnapshot): string {
-  if (settlement.entries.length === 0) {
+  const discountEntries = settlement.entries.filter((entry) => entry.type !== 'NEUTRAL_EXPENSE');
+  if (discountEntries.length === 0) {
     return '<p class="empty-message">Nenhum desconto lançado neste acerto.</p>';
   }
 
-  const rows = settlement.entries
+  const rows = discountEntries
     .map(
       (entry) => `
         <tr>
@@ -106,6 +110,31 @@ function buildDiscountRows(settlement: DriverSettlementSnapshot): string {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+
+function buildNeutralExpenseRows(settlement: DriverSettlementSnapshot): string {
+  const expenses = settlement.entries.filter((entry) => entry.type === 'NEUTRAL_EXPENSE');
+  if (expenses.length === 0) return '';
+
+  const rows = expenses.map((entry) => `
+    <tr>
+      <td>${escapeHtml(formatDate(entry.date))}</td>
+      <td>${escapeHtml(entry.description || 'Despesa')}</td>
+      <td class="numeric">${escapeHtml(formatCurrency(entry.value))}</td>
+    </tr>`).join('');
+
+  return `
+    <section class="section allow-break">
+      <h2 class="section-title">Despesas informativas</h2>
+      <p class="section-note">Estes valores aparecem no espelho, mas não somam nem descontam do total do acerto.</p>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr><th>Data</th><th>Descrição</th><th class="numeric">Valor</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
 }
 
 function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string {
@@ -303,6 +332,15 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
         text-align: center;
       }
 
+      .section-note {
+        margin: -2px 0 8px;
+        color: #66736c;
+        font-size: 9px;
+      }
+
+      .positive-total { color: #007b3d; font-weight: 800; }
+      .negative-total { color: #b83232; font-weight: 800; }
+
       .summary-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -447,7 +485,11 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
             <tbody>
               ${buildTravelsRows(settlement)}
               <tr class="table-total">
-                <td colspan="5" class="numeric">Total de fretes líquidos</td>
+                <td colspan="5" class="numeric">Total das viagens</td>
+                <td class="numeric">${escapeHtml(formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight))}</td>
+              </tr>
+              <tr class="table-total">
+                <td colspan="5" class="numeric">Frete considerado no acerto</td>
                 <td class="numeric">${escapeHtml(formatCurrency(settlement.totals.totalNetFreight))}</td>
               </tr>
             </tbody>
@@ -478,16 +520,21 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
         ${buildDiscountRows(settlement)}
       </section>
 
+      ${buildNeutralExpenseRows(settlement)}
+
       <section class="section">
         <h2 class="section-title">Demonstrativo financeiro</h2>
         <div class="summary-grid">
-          <div class="summary-row"><span>Total de fretes</span><strong>${escapeHtml(
+          <div class="summary-row"><span>Total das viagens</span><strong>${escapeHtml(
+            formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight),
+          )}</strong></div>
+          <div class="summary-row"><span>Frete considerado no acerto</span><strong>${escapeHtml(
             formatCurrency(settlement.totals.totalNetFreight),
           )}</strong></div>
           <div class="summary-row"><span>Percentual aplicado</span><strong>${escapeHtml(
             formatDecimal(settlement.totals.bonusPercent),
           )}%</strong></div>
-          <div class="summary-row"><span>Bonificação</span><strong>${escapeHtml(
+          <div class="summary-row"><span>Gratificação</span><strong>${escapeHtml(
             formatCurrency(settlement.totals.bonusValue),
           )}</strong></div>
           <div class="summary-row"><span>Salário base</span><strong>${escapeHtml(
@@ -513,6 +560,15 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
           )}</strong></div>
           <div class="summary-row"><span>Total de descontos</span><strong>- ${escapeHtml(
             formatCurrency(settlement.totals.totalDiscounts),
+          )}</strong></div>
+          <div class="summary-row positive-total"><span>Total positivo</span><strong>${escapeHtml(
+            formatCurrency(settlement.totals.totalPositive ?? settlement.totals.totalEarnings),
+          )}</strong></div>
+          <div class="summary-row negative-total"><span>Total negativo</span><strong>- ${escapeHtml(
+            formatCurrency(settlement.totals.totalNegative ?? settlement.totals.totalDiscounts),
+          )}</strong></div>
+          <div class="summary-row"><span>Despesas informativas</span><strong>${escapeHtml(
+            formatCurrency(settlement.totals.neutralExpenses ?? 0),
           )}</strong></div>
         </div>
         <div class="receivable">
@@ -603,17 +659,20 @@ export const settlementService = {
       details: event.details ?? {},
     }));
   },
-  async pendingVales(driverId: number, startDate: string, endDate: string): Promise<SettlementPendingVale[]> {
-    const response = await api.get<{ records: Array<{
-      id: number;
-      employeeId: number;
-      category: SettlementPendingVale['category'];
-      date: string;
-      description: string;
-      amount: number;
-      installmentNumber: number;
-      installmentsTotal: number;
-    }> }>('/api/vales/pending', { params: { driver_id: driverId, start_date: startDate, end_date: endDate } });
+  async pendingVales(
+    driverId: number,
+    startDate: string,
+    endDate: string,
+    settlementId?: string,
+  ): Promise<SettlementPendingVale[]> {
+    const response = await api.get<{ records: SettlementPendingVale[] }>('/api/vales/pending', {
+      params: {
+        driver_id: driverId,
+        start_date: startDate,
+        end_date: endDate,
+        settlement_id: settlementId ? Number(settlementId) : undefined,
+      },
+    });
     return response.data.records;
   },
   async drivers(): Promise<Array<{ id: number; name: string }>> {

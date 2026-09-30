@@ -1,6 +1,7 @@
-import type { TravelRecord } from '../../../Travel/types';
+import type { SettlementTravelRecord } from '../../types';
 
 export interface TripSettlementTableProps {
-  travels: TravelRecord[];
+  travels: SettlementTravelRecord[];
+  totalOriginalNetFreight: number;
   totalNetFreight: number;
 }

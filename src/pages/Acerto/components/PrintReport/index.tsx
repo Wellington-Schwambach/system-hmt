@@ -57,14 +57,14 @@ export function PrintReport({
               </tr>
             </thead>
             <tbody>
-              {travels.map((travel) => (
+              {[...travels].sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id).map((travel) => (
                 <tr key={travel.id}>
                   <td>{formatDate(travel.date)}</td>
                   <td>{travel.cteNumber}</td>
                   <td>{travel.origin}</td>
                   <td>{travel.destination}</td>
                   <td>{travel.plate}</td>
-                  <td>{formatCurrency(travel.netFreight)}</td>
+                  <td>{formatCurrency(travel.originalNetFreight ?? travel.netFreight)}{(travel.settlementCrewSize ?? 1) > 1 ? ` · Acerto: ${formatCurrency(travel.settlementNetFreight ?? travel.netFreight)}` : ''}</td>
                 </tr>
               ))}
             </tbody>
@@ -91,7 +91,7 @@ export function PrintReport({
 
         {entries.length > 0 && (
           <Section>
-            <SectionTitle>Descontos lançados</SectionTitle>
+            <SectionTitle>Lançamentos</SectionTitle>
             <Table>
               <thead>
                 <tr>
@@ -119,15 +119,15 @@ export function PrintReport({
           <SectionTitle>Demonstrativo financeiro</SectionTitle>
           <SummaryGrid>
             <SummaryRow>
-              <span>Total de fretes</span>
-              <strong>{formatCurrency(totals.totalNetFreight)}</strong>
+              <span>Total das viagens</span>
+              <strong>{formatCurrency(totals.totalOriginalNetFreight ?? totals.totalNetFreight)}</strong>
             </SummaryRow>
             <SummaryRow>
               <span>Percentual aplicado</span>
               <strong>{totals.bonusPercent}%</strong>
             </SummaryRow>
             <SummaryRow>
-              <span>Bonificação</span>
+              <span>Gratificação</span>
               <strong>{formatCurrency(totals.bonusValue)}</strong>
             </SummaryRow>
             <SummaryRow>
@@ -157,6 +157,18 @@ export function PrintReport({
             <SummaryRow>
               <span>Outros descontos</span>
               <strong>- {formatCurrency(totals.otherDiscounts)}</strong>
+            </SummaryRow>
+            <SummaryRow>
+              <span>Total positivo</span>
+              <strong>{formatCurrency(totals.totalPositive ?? totals.totalEarnings)}</strong>
+            </SummaryRow>
+            <SummaryRow>
+              <span>Total negativo</span>
+              <strong>- {formatCurrency(totals.totalNegative ?? totals.totalDiscounts)}</strong>
+            </SummaryRow>
+            <SummaryRow>
+              <span>Despesas informativas</span>
+              <strong>{formatCurrency(totals.neutralExpenses ?? 0)}</strong>
             </SummaryRow>
           </SummaryGrid>
           <SummaryRow $total>

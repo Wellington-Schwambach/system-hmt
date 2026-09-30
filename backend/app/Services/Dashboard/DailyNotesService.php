@@ -116,7 +116,7 @@ class DailyNotesService
             // Os alertas personalizados são carregados separadamente dos automáticos.
             // Assim, uma inconsistência em vencimentos de veículo/colaborador não pode
             // fazer os alertas criados manualmente desaparecerem do Dashboard.
-            $manualEvents = $this->manualEvents($user, $today);
+            $manualEvents = $this->manualEvents($user, $today, $now);
         } catch (\Throwable $exception) {
             Log::warning('Falha ao montar alertas personalizados das Notas do Dia.', [
                 'user_id' => $user->id,
@@ -183,14 +183,10 @@ class DailyNotesService
                 return $daysUntil <= $leadDays;
             }
 
-            // Lembretes criados manualmente devem ficar visíveis assim que são criados,
-            // mesmo que possuam uma data futura. Depois da data, permanecem até serem
-            // concluídos. Isso evita a sensação de que o lembrete "sumiu" ao ser salvo.
-            if (($event['is_completed'] ?? false) === true && $daysUntil < 0) {
-                return false;
-            }
-
-            return true;
+            // Lembretes manuais futuros ficam somente no calendário. Eles entram em
+            // "Notas do dia" quando a data/hora programada realmente chegar e permanecem
+            // como pendência depois disso até serem concluídos.
+            return (bool) ($event['_is_due'] ?? ($daysUntil <= 0));
         });
 
         $dailyNotes = $dailySystem
@@ -483,7 +479,7 @@ class DailyNotesService
     }
 
     /** @return Collection<int, array<string, mixed>> */
-    private function manualEvents(User $user, CarbonImmutable $today): Collection
+    private function manualEvents(User $user, CarbonImmutable $today, CarbonImmutable $now): Collection
     {
         if (! Schema::hasTable('daily_notes') || ! Schema::hasTable('daily_note_recipients')) {
             return collect();
@@ -546,7 +542,7 @@ class DailyNotesService
             ->orderBy('note.scheduled_at')
             ->orderBy('note.id')
             ->get()
-            ->map(function (object $row) use ($today, $hasNoteType, $hasDaysBefore, $timezone, $user): array {
+            ->map(function (object $row) use ($today, $now, $hasNoteType, $hasDaysBefore, $timezone, $user): array {
                 $scheduled = null;
                 if ($row->scheduled_at !== null && (string) $row->scheduled_at !== '') {
                     $scheduled = CarbonImmutable::parse((string) $row->scheduled_at, $timezone);
@@ -575,10 +571,15 @@ class DailyNotesService
                         (int) $row->created_by === (int) $user->id
                         || mb_strtolower(trim((string) $user->role)) === 'administrador'
                     ),
+                    'can_edit' => $noteType === 'manual' && (
+                        (int) $row->created_by === (int) $user->id
+                        || mb_strtolower(trim((string) $user->role)) === 'administrador'
+                    ),
                     '_lead_days' => $noteType === 'custom' ? $daysBefore : 0,
                     '_days_until' => $scheduled
                         ? $today->diffInDays($scheduled->startOfDay(), false)
                         : 0,
+                    '_is_due' => $scheduled === null || $scheduled->lessThanOrEqualTo($now),
                 ];
             })
             ->values();
@@ -607,6 +608,7 @@ class DailyNotesService
             'source' => $source,
             'is_manual' => false,
             'can_delete' => false,
+            'can_edit' => false,
             '_lead_days' => $leadDays,
             '_days_until' => $today->diffInDays($due, false),
         ];
@@ -617,7 +619,7 @@ class DailyNotesService
      */
     private function stripInternalFields(array $event): array
     {
-        unset($event['_lead_days'], $event['_days_until']);
+        unset($event['_lead_days'], $event['_days_until'], $event['_is_due']);
         return $event;
     }
 }
