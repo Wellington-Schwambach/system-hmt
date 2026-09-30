@@ -3,11 +3,11 @@ import { Save, X } from 'lucide-react';
 
 import { DateInput } from '../../../../components/DateInput';
 import { SearchableSelect } from '../../../../components/SearchableSelect';
-import { getApiErrorMessage } from '../../../../utils/apiError';
+import { getApiErrorFeedback } from '../../../../utils/apiError';
 import { useNotifications } from '../../../../contexts/Notifications';
 import { valeService } from '../../../Vales/services';
 import type { ValeCityOption, ValeEmployeeOption, ValeFormData } from '../../../Vales/types';
-import { vehicleService } from '../../../Vehicles/services';
+import { validateValeForm } from '../../../Vales/validation';
 import type { ValeEntryEditModalProps } from './types';
 import { Actions, Button, CloseButton, Field, Form, Grid, Header, Input, Modal, Overlay, Select, Textarea } from './styles';
 
@@ -49,27 +49,44 @@ export function ValeEntryEditModal({ isOpen, entry, onClose, onSubmit }: ValeEnt
   useEffect(() => {
     if (!isOpen) return;
     let active = true;
-    Promise.all([valeService.options(), vehicleService.list(), valeService.cities()])
-      .then(([driverOptions, vehicles, cityOptions]) => {
+    valeService.formOptions()
+      .then((formOptions) => {
         if (!active) return;
-        setEmployees(driverOptions);
-        setPlates(Array.from(new Set(vehicles.map((vehicle) => vehicle.plate.trim().toUpperCase()).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')));
-        setCities(cityOptions);
+        setEmployees(formOptions.employees);
+        setPlates(formOptions.vehiclePlates);
+        setCities(formOptions.cities);
         setCitiesLoading(false);
       })
-      .catch(() => { if (active) setCitiesLoading(false); });
+      .catch((error) => {
+        if (!active) return;
+        setCitiesLoading(false);
+        const feedback = getApiErrorFeedback(error, 'Não foi possível carregar as opções do lançamento.');
+        notifications.error(feedback.title, feedback.message, feedback.details);
+      });
     return () => { active = false; };
-  }, [isOpen]);
+  }, [isOpen, notifications]);
 
   if (!isOpen || !record) return null;
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const validationErrors = validateValeForm(form, { editing: true });
+    if (validationErrors.length > 0) {
+      notifications.warning(
+        'Revise o lançamento antes de salvar',
+        'Há informações que precisam ser corrigidas.',
+        validationErrors,
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       if (await onSubmit(form)) onClose();
     } catch (error) {
-      notifications.error('Não foi possível editar o lançamento', getApiErrorMessage(error, 'Confira os dados e tente novamente.'));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível editar o lançamento.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setSaving(false);
     }

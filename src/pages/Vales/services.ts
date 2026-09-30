@@ -1,11 +1,6 @@
 import { api } from '../../services/api';
 import type { ValeCityOption, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
-
-function parseAmount(value: string): number {
-  const normalized = value.trim().replace(/\./g, '').replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
+import { parseValeMoney } from './validation';
 
 function payload(form: ValeFormData) {
   return {
@@ -18,13 +13,13 @@ function payload(form: ValeFormData) {
         : form.date,
     discount_start_month: form.discountStartMonth,
     description: form.description.trim() || null,
-    amount: parseAmount(form.amount),
+    amount: parseValeMoney(form.amount),
     installments: Number(form.installments || '1'),
     fine_plate: form.category === 'FINE' ? form.finePlate.trim() : null,
     fine_location: form.category === 'FINE' ? form.fineLocation.trim() : null,
     fine_number: form.category === 'FINE' ? form.fineNumber.trim() : null,
     fine_infraction_at: form.category === 'FINE' ? form.fineInfractionAt : null,
-    fine_original_amount: form.category === 'FINE' ? parseAmount(form.fineOriginalAmount) : null,
+    fine_original_amount: form.category === 'FINE' ? parseValeMoney(form.fineOriginalAmount) : null,
   };
 }
 
@@ -39,8 +34,26 @@ export const valeService = {
     return response.data.employees;
   },
 
+  async formOptions(): Promise<{ employees: ValeEmployeeOption[]; vehiclePlates: string[]; cities: ValeCityOption[] }> {
+    const response = await api.get<{
+      employees: ValeEmployeeOption[];
+      vehicle_plates: string[];
+      cities: Array<{ id: number; name: string; state_abbreviation: string }>;
+    }>('/api/vales/options');
+
+    return {
+      employees: response.data.employees,
+      vehiclePlates: response.data.vehicle_plates,
+      cities: response.data.cities.map((city) => ({
+        id: city.id,
+        name: city.name,
+        stateAbbreviation: city.state_abbreviation,
+      })),
+    };
+  },
+
   async cities(): Promise<ValeCityOption[]> {
-    const response = await api.get<{ cities: Array<{ id: number; name: string; state_abbreviation: string }> }>('/api/travels/cities');
+    const response = await api.get<{ cities: Array<{ id: number; name: string; state_abbreviation: string }> }>('/api/vales/options');
     return response.data.cities.map((city) => ({
       id: city.id,
       name: city.name,

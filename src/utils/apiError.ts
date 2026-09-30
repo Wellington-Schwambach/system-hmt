@@ -6,6 +6,15 @@ interface BackendErrorBody {
   errors?: Record<string, string[] | string>;
 }
 
+const SAFE_SERVER_CODES = new Set([
+  'VALES_DATABASE_UPDATE_REQUIRED',
+  'VALES_DATABASE_REFERENCE_ERROR',
+  'VALES_DATABASE_CONFLICT',
+  'VALES_DATABASE_VALUE_ERROR',
+  'VALES_DATABASE_ERROR',
+  'VALES_UNEXPECTED_ERROR',
+]);
+
 export interface ApiErrorFeedback {
   title: string;
   message: string;
@@ -152,6 +161,22 @@ const FIELD_LABELS: Record<string, string> = {
   'ctes.insurance_amount': 'seguro do CT-e',
   'ctes.toll_amount': 'pedágio do CT-e',
   'ctes.icms_amount': 'ICMS do CT-e',
+
+  employee_id: 'motorista',
+  category: 'tipo de lançamento',
+  withdrawal_date: 'data do lançamento',
+  discount_start_month: 'mês do desconto da 1ª parcela',
+  description: 'descrição / observação',
+  amount: 'valor',
+  installments: 'número de parcelas',
+  fine_plate: 'placa da multa',
+  fine_location: 'local da infração',
+  fine_number: 'Nº Auto / Nº Multa',
+  fine_infraction_at: 'data e hora da infração',
+  fine_original_amount: 'valor original da multa',
+  settlement_id: 'acerto vinculado',
+  record: 'lançamento',
+  server: 'servidor',
 };
 
 const FILE_FIELDS = new Set([
@@ -293,6 +318,37 @@ function sanitizeBackendMessage(message?: string): string | null {
   return trimmed;
 }
 
+function classifyServerFailure(message?: string): ApiErrorFeedback | null {
+  const value = message?.trim() ?? '';
+  if (!value) return null;
+
+  if (/(undefined column|column .* does not exist|undefined table|relation .* does not exist)/i.test(value)) {
+    return {
+      title: 'Banco de dados desatualizado',
+      message: 'A versão do sistema instalada no servidor exige uma atualização do banco antes de gravar Vales, Multas ou Descontos.',
+      details: ['Execute as migrations pendentes no servidor com php artisan migrate e tente novamente.'],
+    };
+  }
+
+  if (/(duplicate key|unique constraint)/i.test(value)) {
+    return {
+      title: 'Registro duplicado',
+      message: 'O servidor identificou um registro que conflita com outro já gravado.',
+      details: ['Atualize a tela e confira se o lançamento já foi salvo antes de tentar novamente.'],
+    };
+  }
+
+  if (/(numeric field overflow|value out of range|out of range for type)/i.test(value)) {
+    return {
+      title: 'Valor fora do limite',
+      message: 'Um dos valores informados é maior do que o servidor consegue armazenar.',
+      details: ['Revise os valores monetários e a quantidade de parcelas.'],
+    };
+  }
+
+  return null;
+}
+
 export function getApiErrorFeedback(
   error: unknown,
   fallbackMessage = 'Não foi possível concluir a operação.',
@@ -323,7 +379,20 @@ export function getApiErrorFeedback(
   const backendMessage = sanitizeBackendMessage(backend?.message);
 
   // Nunca exibe exceções/SQL/stack trace do servidor para o usuário final.
+  // Para erros conhecidos, exibe apenas a explicação segura enviada pelo backend.
   if (status >= 500) {
+    const classified = classifyServerFailure(backend?.message);
+    if (classified) return { ...classified, status };
+
+    if (backend?.code && SAFE_SERVER_CODES.has(backend.code)) {
+      return {
+        title: backend.code === 'VALES_DATABASE_UPDATE_REQUIRED' ? 'Banco de dados desatualizado' : defaults.title,
+        message: backendMessage || defaults.message || fallbackMessage,
+        details,
+        status,
+      };
+    }
+
     return {
       title: defaults.title,
       message: defaults.message || fallbackMessage,

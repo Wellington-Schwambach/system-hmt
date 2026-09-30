@@ -4,21 +4,29 @@ namespace App\Http\Controllers\Operation;
 
 use App\Http\Controllers\Controller;
 use App\Models\DriverDeduction;
+use App\Models\BrazilCity;
 use App\Models\DriverDeductionEvent;
 use App\Models\Employee;
+use App\Models\Vehicle;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class DriverDeductionController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->ensureDatabaseReady();
         $query = DriverDeduction::query()->with(['employee:id,employee_code,full_name,job_title', 'settlement:id,start_date,end_date']);
 
         if ($request->filled('employee_id')) {
@@ -60,11 +68,36 @@ class DriverDeductionController extends Controller
                 'isDriver' => true,
             ]);
 
-        return response()->json(['employees' => $employees]);
+        $vehiclePlates = Vehicle::query()
+            ->whereNotNull('plate')
+            ->where('plate', '<>', '')
+            ->orderBy('plate')
+            ->pluck('plate')
+            ->map(fn (string $plate): string => strtoupper(trim($plate)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $cities = BrazilCity::query()
+            ->with('state:id,abbreviation')
+            ->orderBy('name')
+            ->get(['id', 'state_id', 'name'])
+            ->map(fn (BrazilCity $city): array => [
+                'id' => (int) $city->id,
+                'name' => $city->name,
+                'state_abbreviation' => $city->state?->abbreviation ?? '',
+            ]);
+
+        return response()->json([
+            'employees' => $employees,
+            'vehicle_plates' => $vehiclePlates,
+            'cities' => $cities,
+        ]);
     }
 
     public function pending(Request $request): JsonResponse
     {
+        $this->ensureDatabaseReady();
         $validated = $request->validate([
             'driver_id' => ['required', 'integer', Rule::exists('employees', 'id')],
             'start_date' => ['required', 'date_format:Y-m-d'],
@@ -98,6 +131,7 @@ class DriverDeductionController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->ensureDatabaseReady();
         $validated = $this->validatePayload($request, true);
         $installments = (int) $validated['installments'];
         $group = (string) Str::uuid();
@@ -118,21 +152,22 @@ class DriverDeductionController extends Controller
         $baseCents = $isLoan ? $amountCents : intdiv($amountCents, $installments);
         $remainder = $isLoan ? 0 : $amountCents % $installments;
 
-        $records = DB::transaction(function () use (
-            $request,
-            $validated,
-            $installments,
-            $group,
-            $discountStart,
-            $withdrawalDate,
-            $category,
-            $isLoan,
-            $baseCents,
-            $remainder,
-        ): array {
-            $created = [];
+        try {
+            $records = DB::transaction(function () use (
+                $request,
+                $validated,
+                $installments,
+                $group,
+                $discountStart,
+                $withdrawalDate,
+                $category,
+                $isLoan,
+                $baseCents,
+                $remainder,
+            ): array {
+                $created = [];
 
-            for ($index = 0; $index < $installments; $index++) {
+                for ($index = 0; $index < $installments; $index++) {
                 $installmentCents = $isLoan ? $baseCents : $baseCents + ($index < $remainder ? 1 : 0);
                 $deduction = DriverDeduction::query()->create([
                     'employee_id' => $validated['employee_id'],
@@ -166,8 +201,15 @@ class DriverDeductionController extends Controller
                 $created[] = $deduction->load('employee', 'settlement');
             }
 
-            return $created;
-        });
+                return $created;
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'gravar');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'gravar');
+        }
 
         return response()->json([
             'message' => $installments > 1
@@ -179,11 +221,13 @@ class DriverDeductionController extends Controller
 
     public function update(Request $request, DriverDeduction $driverDeduction): JsonResponse
     {
+        $this->ensureDatabaseReady();
         $validated = $this->validatePayload($request, false);
         $allowedSettlementId = isset($validated['settlement_id']) ? (int) $validated['settlement_id'] : null;
         $this->ensureEditable($driverDeduction, $allowedSettlementId);
 
-        $updated = DB::transaction(function () use ($request, $validated, $driverDeduction, $allowedSettlementId): DriverDeduction {
+        try {
+            $updated = DB::transaction(function () use ($request, $validated, $driverDeduction, $allowedSettlementId): DriverDeduction {
             $groupRecords = $driverDeduction->installment_group
                 ? DriverDeduction::query()->where('installment_group', $driverDeduction->installment_group)->orderBy('installment_number')->get()
                 : collect([$driverDeduction]);
@@ -226,8 +270,15 @@ class DriverDeductionController extends Controller
                 $this->recordEvent($record, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($record), $request);
             }
 
-            return $driverDeduction->fresh(['employee', 'settlement']);
-        });
+                return $driverDeduction->fresh(['employee', 'settlement']);
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'editar');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'editar');
+        }
 
         return response()->json([
             'message' => 'Lançamento atualizado com sucesso.',
@@ -237,6 +288,7 @@ class DriverDeductionController extends Controller
 
     public function invoice(Request $request, DriverDeduction $driverDeduction): JsonResponse
     {
+        $this->ensureDatabaseReady();
         if ($driverDeduction->category !== DriverDeduction::CATEGORY_ADVANCE) {
             throw ValidationException::withMessages([
                 'record' => 'Somente vales podem ser faturados.',
@@ -250,7 +302,8 @@ class DriverDeductionController extends Controller
             ]);
         }
 
-        $updated = DB::transaction(function () use ($request, $driverDeduction): DriverDeduction {
+        try {
+            $updated = DB::transaction(function () use ($request, $driverDeduction): DriverDeduction {
             $before = $this->auditSnapshot($driverDeduction);
             $driverDeduction->forceFill([
                 'invoiced' => true,
@@ -260,8 +313,15 @@ class DriverDeductionController extends Controller
             ])->save();
             $driverDeduction->refresh();
             $this->recordEvent($driverDeduction, DriverDeductionEvent::ACTION_INVOICED, $before, $this->auditSnapshot($driverDeduction), $request);
-            return $driverDeduction;
-        });
+                return $driverDeduction;
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'faturar');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'faturar');
+        }
 
         return response()->json([
             'message' => 'Parcela faturada com sucesso.',
@@ -271,20 +331,30 @@ class DriverDeductionController extends Controller
 
     public function destroy(Request $request, DriverDeduction $driverDeduction): Response
     {
+        $this->ensureDatabaseReady();
         $this->ensureEditable($driverDeduction);
 
-        DB::transaction(function () use ($request, $driverDeduction): void {
-            $before = $this->auditSnapshot($driverDeduction);
-            $driverDeduction->forceFill(['deleted_by' => $request->user()?->id])->save();
-            $this->recordEvent($driverDeduction, DriverDeductionEvent::ACTION_DELETED, $before, null, $request);
-            $driverDeduction->delete();
-        });
+        try {
+            DB::transaction(function () use ($request, $driverDeduction): void {
+                $before = $this->auditSnapshot($driverDeduction);
+                $driverDeduction->forceFill(['deleted_by' => $request->user()?->id])->save();
+                $this->recordEvent($driverDeduction, DriverDeductionEvent::ACTION_DELETED, $before, null, $request);
+                $driverDeduction->delete();
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'excluir');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'excluir');
+        }
 
         return response()->noContent();
     }
 
     public function history(): JsonResponse
     {
+        $this->ensureDatabaseReady();
         $events = DriverDeductionEvent::query()
             ->with('user:id,name,username')
             ->latest('occurred_at')
@@ -323,7 +393,9 @@ class DriverDeductionController extends Controller
                 DriverDeduction::CATEGORY_OTHER,
             ])],
             'discount_start_month' => ['required', 'date_format:Y-m'],
-            'description' => ['nullable', 'string', 'max:255'],
+            'description' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['required', 'string', 'max:255']
+                : ['nullable', 'string', 'max:255'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999.99'],
             'withdrawal_date' => $category === DriverDeduction::CATEGORY_LOAN
                 ? ['nullable', 'date_format:Y-m-d']
@@ -350,7 +422,183 @@ class DriverDeductionController extends Controller
             $rules['installments'] = ['required', 'integer', 'between:1,60'];
         }
 
-        return $request->validate($rules);
+        $messages = [
+            'employee_id.required' => 'Selecione o motorista.',
+            'employee_id.exists' => 'O motorista selecionado não está ativo ou não está cadastrado como motorista da empresa.',
+            'category.required' => 'Selecione o tipo de lançamento.',
+            'category.in' => 'O tipo de lançamento informado é inválido.',
+            'discount_start_month.required' => 'Informe o mês do desconto da 1ª parcela.',
+            'discount_start_month.date_format' => 'Informe o mês do desconto no formato mês/ano.',
+            'amount.required' => 'Informe o valor do lançamento.',
+            'amount.numeric' => 'O valor informado não é um número válido.',
+            'amount.gt' => 'O valor precisa ser maior que zero.',
+            'amount.max' => 'O valor informado ultrapassa o limite permitido.',
+            'withdrawal_date.required' => 'Informe a data do lançamento.',
+            'withdrawal_date.date_format' => 'Informe uma data válida para o lançamento.',
+            'description.required' => 'Informe a descrição da multa.',
+            'description.max' => 'A descrição/observação pode ter no máximo 255 caracteres.',
+            'fine_plate.required' => 'Selecione a placa da multa.',
+            'fine_plate.max' => 'A placa da multa ultrapassa o tamanho permitido.',
+            'fine_location.required' => 'Selecione o local/cidade da infração.',
+            'fine_location.max' => 'O local da infração pode ter no máximo 255 caracteres.',
+            'fine_number.required' => 'Informe o Nº Auto / Nº Multa.',
+            'fine_number.max' => 'O Nº Auto / Nº Multa pode ter no máximo 100 caracteres.',
+            'fine_infraction_at.required' => 'Informe a data e a hora da infração.',
+            'fine_infraction_at.date_format' => 'Informe uma data e hora válidas para a infração.',
+            'fine_original_amount.required' => 'Informe o valor original da multa.',
+            'fine_original_amount.numeric' => 'O valor original da multa é inválido.',
+            'fine_original_amount.gt' => 'O valor original da multa precisa ser maior que zero.',
+            'installments.required' => 'Informe o número de parcelas.',
+            'installments.integer' => 'O número de parcelas precisa ser um número inteiro.',
+            'installments.between' => 'Informe entre 1 e 60 parcelas.',
+            'settlement_id.exists' => 'O Acerto vinculado não foi encontrado. Atualize a tela e tente novamente.',
+        ];
+
+        $attributes = [
+            'employee_id' => 'motorista',
+            'category' => 'tipo de lançamento',
+            'discount_start_month' => 'mês do desconto da 1ª parcela',
+            'description' => 'descrição / observação',
+            'amount' => $category === DriverDeduction::CATEGORY_FINE
+                ? 'valor à cobrar'
+                : ($category === DriverDeduction::CATEGORY_LOAN ? 'valor da parcela' : 'valor'),
+            'withdrawal_date' => 'data',
+            'fine_plate' => 'placa da multa',
+            'fine_location' => 'local da infração',
+            'fine_number' => 'Nº Auto / Nº Multa',
+            'fine_infraction_at' => 'data e hora da infração',
+            'fine_original_amount' => 'valor original da multa',
+            'installments' => 'número de parcelas',
+            'settlement_id' => 'Acerto vinculado',
+        ];
+
+        return $request->validate($rules, $messages, $attributes);
+    }
+
+    private function ensureDatabaseReady(): void
+    {
+        $requiredColumns = [
+            'employee_id',
+            'category',
+            'entry_date',
+            'withdrawal_date',
+            'description',
+            'amount',
+            'installment_group',
+            'installment_number',
+            'installments_total',
+            'status',
+            'driver_settlement_id',
+            'invoiced',
+            'invoiced_at',
+            'invoiced_by',
+            'fine_plate',
+            'fine_location',
+            'fine_number',
+            'fine_infraction_at',
+            'fine_original_amount',
+            'fine_charge_amount',
+            'created_by',
+            'updated_by',
+            'deleted_by',
+        ];
+
+        $deductionsReady = Schema::hasTable('driver_deductions')
+            && Schema::hasColumns('driver_deductions', $requiredColumns);
+        $eventsReady = Schema::hasTable('driver_deduction_events');
+
+        if ($deductionsReady && $eventsReady) {
+            return;
+        }
+
+        throw new HttpResponseException(response()->json([
+            'code' => 'VALES_DATABASE_UPDATE_REQUIRED',
+            'message' => 'O banco de dados do servidor está desatualizado para a versão atual de Vales, Multas e Descontos.',
+            'errors' => [
+                'server' => [
+                    'Execute as migrations pendentes no servidor com php artisan migrate e tente novamente.',
+                ],
+            ],
+        ], 503));
+    }
+
+    private function throwDatabaseFailure(QueryException $exception, string $action): never
+    {
+        $reference = 'VLS-'.strtoupper(Str::random(8));
+        $sqlState = (string) ($exception->errorInfo[0] ?? $exception->getCode());
+
+        Log::error('Falha no banco ao operar Vales/Multas/Descontos.', [
+            'reference' => $reference,
+            'action' => $action,
+            'sql_state' => $sqlState,
+            'exception' => $exception,
+        ]);
+
+        [$status, $code, $message, $detail] = match ($sqlState) {
+            '42P01', '42703' => [
+                503,
+                'VALES_DATABASE_UPDATE_REQUIRED',
+                'O banco de dados do servidor está desatualizado para esta versão da tela.',
+                'Execute as migrations pendentes no servidor com php artisan migrate e tente novamente.',
+            ],
+            '23503' => [
+                422,
+                'VALES_DATABASE_REFERENCE_ERROR',
+                'Não foi possível concluir a gravação porque um registro relacionado não existe mais.',
+                'Atualize a página, selecione novamente o motorista/Acerto e tente outra vez.',
+            ],
+            '23505' => [
+                409,
+                'VALES_DATABASE_CONFLICT',
+                'O servidor identificou um conflito com um registro já existente.',
+                'Atualize a tela e confira se o lançamento já foi gravado antes de tentar novamente.',
+            ],
+            '22001', '22003' => [
+                422,
+                'VALES_DATABASE_VALUE_ERROR',
+                'Um dos valores informados ultrapassa o limite aceito pelo servidor.',
+                'Revise valores, textos e número de parcelas antes de tentar novamente.',
+            ],
+            default => [
+                500,
+                'VALES_DATABASE_ERROR',
+                'O banco de dados recusou a operação e o lançamento não foi gravado.',
+                'Tente novamente. Se o erro continuar, informe o código de suporte ao administrador.',
+            ],
+        };
+
+        throw new HttpResponseException(response()->json([
+            'code' => $code,
+            'message' => $message,
+            'errors' => [
+                'server' => [
+                    $detail,
+                    'Código de suporte: '.$reference,
+                ],
+            ],
+        ], $status));
+    }
+
+    private function throwUnexpectedFailure(Throwable $exception, string $action): never
+    {
+        $reference = 'VLS-'.strtoupper(Str::random(8));
+
+        Log::error('Falha inesperada ao operar Vales/Multas/Descontos.', [
+            'reference' => $reference,
+            'action' => $action,
+            'exception' => $exception,
+        ]);
+
+        throw new HttpResponseException(response()->json([
+            'code' => 'VALES_UNEXPECTED_ERROR',
+            'message' => 'O servidor encontrou um erro inesperado e o lançamento não foi gravado.',
+            'errors' => [
+                'server' => [
+                    'Tente novamente. Se o erro continuar, informe o código de suporte ao administrador.',
+                    'Código de suporte: '.$reference,
+                ],
+            ],
+        ], 500));
     }
 
     private function ensureEditable(DriverDeduction $deduction, ?int $allowedSettlementId = null): void
