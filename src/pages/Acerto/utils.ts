@@ -544,12 +544,18 @@ export function getVehicleAverageSummaries(
     .map(([groupKey, availableRecords]) => {
       const first = availableRecords[0];
       const selectedRecords = availableRecords.filter((record) => selectedIds.has(record.id));
-      const validRecords = selectedRecords.filter(
-        (record) => record.distanceKm !== null && record.distanceKm > 0 && record.dieselLiters > 0,
+      const validDistanceRecords = selectedRecords.filter(
+        (record) => record.distanceKm !== null && record.distanceKm > 0,
       );
-      const totalDistance = validRecords.reduce((sum, record) => sum + (record.distanceKm ?? 0), 0);
-      const totalLiters = validRecords.reduce((sum, record) => sum + record.dieselLiters, 0);
-      const average = totalLiters > 0 ? totalDistance / totalLiters : null;
+      const totalDistance = validDistanceRecords.reduce(
+        (sum, record) => sum + (record.distanceKm ?? 0),
+        0,
+      );
+      const totalLiters = selectedRecords.reduce(
+        (sum, record) => sum + Math.max(record.dieselLiters, 0),
+        0,
+      );
+      const average = totalDistance > 0 && totalLiters > 0 ? totalDistance / totalLiters : null;
 
       return {
         groupKey,
@@ -560,7 +566,7 @@ export function getVehicleAverageSummaries(
         crewDriverNames: [...first.crewDriverNames],
         tripsCount: travelGroupCounts[groupKey] ?? 0,
         averageKmPerLiter: average,
-        fuelingsCount: validRecords.length,
+        fuelingsCount: selectedRecords.length,
         availableFuelingsCount: availableRecords.length,
         source: average === null ? ('UNAVAILABLE' as const) : ('SELECTED' as const),
       };
