@@ -97,11 +97,12 @@ export function FuelSelectionModal({
     (total, record) => total + (record.distanceKm ?? 0),
     0,
   );
-  const selectedLiters = currentSelectedAverageRecords.reduce(
+  const selectedLiters = currentSelectedRecords.reduce(
     (total, record) => total + record.dieselLiters,
     0,
   );
-  const selectedAverage = selectedLiters > 0 ? selectedDistance / selectedLiters : null;
+  const selectedAverage =
+    selectedDistance > 0 && selectedLiters > 0 ? selectedDistance / selectedLiters : null;
 
   const selectedKmInitial = currentSelectedAverageRecords.length
     ? currentSelectedAverageRecords.reduce<number | null>((lowest, record) => {
@@ -166,7 +167,10 @@ export function FuelSelectionModal({
             <StatusDot />
             {selectedRecords.length} de {fuelRecords.length} abastecida(s) selecionada(s)
           </span>
-          <small>{selectedValidCount} selecionada(s) com KM válido entram no cálculo da média.</small>
+          <small>
+            Todos os litros selecionados entram na média; {selectedValidCount} registro(s) têm KM
+            válido para somar distância.
+          </small>
         </SelectionSummary>
 
         {fuelRecords.length === 0 ? (
@@ -239,7 +243,7 @@ export function FuelSelectionModal({
                   <Metric>
                     <span>Litros consumidos</span>
                     <strong>
-                      {currentSelectedAverageRecords.length ? `${formatDecimal(selectedLiters)} L` : '-'}
+                      {currentSelectedRecords.length ? `${formatDecimal(selectedLiters)} L` : '-'}
                     </strong>
                   </Metric>
                   <Metric $accent>
@@ -280,7 +284,7 @@ export function FuelSelectionModal({
                                 <span>
                                   <strong>{formatDate(record.date)}</strong>
                                   <small>Mês faturado: {formatMonth(record.billingMonth || record.date.slice(0, 7))}</small>
-                                  {!hasAverage && <small>Sem KM válido · não altera a média</small>}
+                                  {!hasAverage && <small>Sem KM válido · litros entram na média</small>}
                                 </span>
                               </SelectionCell>
                             </td>
@@ -307,7 +311,10 @@ export function FuelSelectionModal({
         )}
 
         <Footer>
-          <span>Abastecidas sem KM também podem ser marcadas; somente registros com KM válido alteram a média.</span>
+          <span>
+            Todas as abastecidas selecionadas somam litros; somente registros com KM válido somam
+            KM percorrido.
+          </span>
           <Actions>
             <button type="button" onClick={onClose}>
               <Check size={16} aria-hidden="true" />
