@@ -2,6 +2,10 @@ import type { ValeFormData } from './types';
 
 const MAX_AMOUNT = 9_999_999_999.99;
 
+export function normalizeFineNumberInput(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 100);
+}
+
 export function parseValeMoney(value: string): number {
   const normalized = value.trim().replace(/\./g, '').replace(',', '.');
   const parsed = Number(normalized);
@@ -40,7 +44,7 @@ export function validateValeForm(form: ValeFormData, options?: { editing?: boole
     errors.push('O valor informado ultrapassa o limite permitido pelo sistema.');
   }
 
-  if (!editing && (!Number.isInteger(installments) || installments < 1 || installments > 60)) {
+  if ((!editing || form.category === 'LOAN') && (!Number.isInteger(installments) || installments < 1 || installments > 60)) {
     errors.push('Informe entre 1 e 60 parcelas.');
   }
 
@@ -75,13 +79,23 @@ export function validateValeForm(form: ValeFormData, options?: { editing?: boole
     } else if (form.fineLocation.trim().length > 255) {
       errors.push('O local da infração pode ter no máximo 255 caracteres.');
     }
-    if (!form.fineNumber.trim()) {
+    const normalizedFineNumber = normalizeFineNumberInput(form.fineNumber);
+    if (!normalizedFineNumber) {
       errors.push('Informe o Nº Auto / Nº Multa.');
-    } else if (form.fineNumber.trim().length > 100) {
-      errors.push('O Nº Auto / Nº Multa pode ter no máximo 100 caracteres.');
+    } else if (!/^[A-Z0-9]+$/.test(normalizedFineNumber)) {
+      errors.push('Informe um Nº Auto / Nº Multa válido.');
+    }
+    if (form.fineInfractionCode.trim()) {
+      const normalizedInfractionCode = form.fineInfractionCode.toUpperCase().replace(/[^0-9O]/g, '').replace(/O/g, '0');
+      if (!/^\d{5}$/.test(normalizedInfractionCode)) {
+        errors.push('Informe o Código da Infração com 5 dígitos, incluindo o desdobramento. Ex.: 74550.');
+      }
     }
     if (!form.description.trim()) {
       errors.push('Informe a descrição da multa.');
+    }
+    if (form.fineObservation.trim().length > 1000) {
+      errors.push('A observação da multa pode ter no máximo 1000 caracteres.');
     }
     if (!Number.isFinite(originalAmount) || originalAmount <= 0) {
       errors.push('Informe um valor original da multa maior que zero.');

@@ -8,13 +8,14 @@ import { useNotifications } from '../../contexts/Notifications';
 import { getApiErrorFeedback } from '../../utils/apiError';
 import { valeService } from './services';
 import type { ValeCategory, ValeCityOption, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
-import { validateValeForm } from './validation';
+import { normalizeFineNumberInput, validateValeForm } from './validation';
 import {
   Actions,
   Badge,
   CategoryBar,
   Empty,
   Field,
+  FieldHint,
   FilterButton,
   FilterField,
   FilterGroup,
@@ -98,8 +99,10 @@ const INITIAL_FORM: ValeFormData = {
   finePlate: '',
   fineLocation: '',
   fineNumber: '',
+  fineInfractionCode: '',
   fineInfractionAt: `${todayValue()}T00:00`,
   fineOriginalAmount: '',
+  fineObservation: '',
 };
 
 function formatCurrency(value: number): string {
@@ -140,9 +143,9 @@ function eventLabel(action: ValeHistoryEvent['action']): string {
 }
 
 function tableColumnCount(category: ValeCategory): number {
-  if (category === 'FINE') return 10;
+  if (category === 'FINE') return 11;
   if (category === 'ADVANCE') return 7;
-  if (category === 'LOAN') return 4;
+  if (category === 'LOAN') return 5;
   return 6;
 }
 
@@ -248,8 +251,10 @@ export function Vales() {
       date: todayValue(),
       discountStartMonth: currentMonthValue(),
       employeeId: driverFilter !== 'ALL' ? driverFilter : employees[0] ? String(employees[0].id) : '',
+      fineInfractionCode: '',
       fineInfractionAt: `${todayValue()}T00:00`,
       fineOriginalAmount: '',
+      fineObservation: '',
     });
     setIsModalOpen(true);
   }
@@ -267,9 +272,11 @@ export function Vales() {
       installments: String(record.installmentsTotal),
       finePlate: record.finePlate ?? '',
       fineLocation: record.fineLocation ?? '',
-      fineNumber: record.fineNumber ?? '',
+      fineNumber: normalizeFineNumberInput(record.fineNumber ?? ''),
+      fineInfractionCode: record.fineInfractionCode ?? '',
       fineInfractionAt: record.fineInfractionAt ?? `${record.withdrawalDate ?? todayValue()}T00:00`,
       fineOriginalAmount: record.fineOriginalAmount != null ? String(record.fineOriginalAmount).replace('.', ',') : '',
+      fineObservation: record.fineObservation ?? '',
       amount: record.category === 'FINE' && record.fineChargeAmount != null
         ? String(record.fineChargeAmount).replace('.', ',')
         : String(record.amount).replace('.', ','),
@@ -446,7 +453,8 @@ export function Vales() {
                       {activeCategory === 'FINE' && <th>Placa</th>}
                       {activeCategory === 'FINE' && <th>Local</th>}
                       {activeCategory === 'FINE' && <th>Nº multa</th>}
-                      {activeCategory !== 'LOAN' && <th>{activeCategory === 'FINE' ? 'Descrição' : 'Observação'}</th>}
+                      <th>{activeCategory === 'FINE' ? 'Descrição' : 'Observação'}</th>
+                      {activeCategory === 'FINE' && <th>Observação</th>}
                       {activeCategory === 'FINE' && <th>Valor original</th>}
                       <th>Parcela</th>
                       <th>{activeCategory === 'LOAN' ? 'Valor parcela' : activeCategory === 'FINE' ? 'Valor à cobrar' : 'Valor'}</th>
@@ -472,7 +480,8 @@ export function Vales() {
                           {activeCategory === 'FINE' && <td>{record.finePlate || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineLocation || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineNumber || '-'}</td>}
-                          {activeCategory !== 'LOAN' && <td>{record.description || '-'}</td>}
+                          <td>{record.description || '-'}</td>
+                          {activeCategory === 'FINE' && <td>{record.fineObservation || '-'}</td>}
                           {activeCategory === 'FINE' && <td><strong>{record.fineOriginalAmount != null ? formatCurrency(record.fineOriginalAmount) : '-'}</strong></td>}
                           <td><strong>{record.installmentNumber}/{record.installmentsTotal}</strong></td>
                           <td><strong>{formatCurrency(record.amount)}</strong></td>
@@ -540,9 +549,11 @@ export function Vales() {
                       finePlate: category === 'FINE' ? current.finePlate : '',
                       fineLocation: category === 'FINE' ? current.fineLocation : '',
                       fineNumber: category === 'FINE' ? current.fineNumber : '',
+                      fineInfractionCode: category === 'FINE' ? current.fineInfractionCode : '',
                       fineInfractionAt: category === 'FINE' ? (current.fineInfractionAt || `${todayValue()}T00:00`) : '',
                       fineOriginalAmount: category === 'FINE' ? current.fineOriginalAmount : '',
-                      description: category === 'LOAN' ? '' : current.description,
+                      fineObservation: category === 'FINE' ? current.fineObservation : '',
+                      description: current.description,
                     }));
                   }}
                   disabled={Boolean(editing)}
@@ -610,14 +621,32 @@ export function Vales() {
                       />
                     </Field>
                     <Field>Nº Multa
-                      <Input value={form.fineNumber} onChange={(event) => setForm((current) => ({ ...current, fineNumber: event.target.value }))} required />
+                      <Input
+                        value={form.fineNumber}
+                        onChange={(event) => {
+                          const fineNumber = normalizeFineNumberInput(event.target.value);
+                          setForm((current) => ({ ...current, fineNumber }));
+                        }}
+                        maxLength={100}
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                        required
+                      />
                     </Field>
                   </FormGrid>
+                  <Field>Código da infração
+                    <Input
+                      value={form.fineInfractionCode}
+                      onChange={(event) => {
+                        setForm((current) => ({ ...current, fineInfractionCode: event.target.value }));
+                      }}
+                      inputMode="numeric"
+                    />
+                  </Field>
                   <Field>Descrição
                     <Textarea
                       value={form.description}
                       onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="Descrição da infração..."
                       required
                     />
                   </Field>
@@ -639,7 +668,7 @@ export function Vales() {
                 <Field>{form.category === 'FINE' ? 'Valor à cobrar' : form.category === 'LOAN' ? 'Valor da parcela' : editing ? 'Valor da parcela' : 'Valor total'}
                   <Input inputMode="decimal" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0,00" required />
                 </Field>
-                {editing ? (
+                {editing && form.category !== 'LOAN' ? (
                   <Field>Parcela
                     <Input value={`${editing.installmentNumber}/${editing.installmentsTotal}`} disabled />
                   </Field>
@@ -658,6 +687,15 @@ export function Vales() {
                 )}
               </FormGrid>
 
+              {form.category === 'LOAN' && (() => {
+                const installmentValue = Number(form.amount.trim().replace(/\./g, '').replace(',', '.'));
+                const installmentCount = Number(form.installments);
+                const total = Number.isFinite(installmentValue) && installmentValue > 0 && Number.isInteger(installmentCount) && installmentCount > 0
+                  ? installmentValue * installmentCount
+                  : null;
+                return <FieldHint>Empréstimo: o valor informado é por parcela. {total != null ? `Total estimado: ${formatCurrency(total)} (${installmentCount}x de ${formatCurrency(installmentValue)}).` : 'Informe valor e quantidade para visualizar o total estimado.'}</FieldHint>;
+              })()}
+
               <Field>Desconto 1ª parcela (mês)
                 <Input
                   type="month"
@@ -667,9 +705,19 @@ export function Vales() {
                 />
               </Field>
 
-              {form.category !== 'LOAN' && form.category !== 'FINE' && (
+              {form.category !== 'FINE' && (
                 <Field>Observação
                   <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Observações sobre o lançamento..." />
+                </Field>
+              )}
+
+              {form.category === 'FINE' && (
+                <Field>Observação
+                  <Textarea
+                    value={form.fineObservation}
+                    onChange={(event) => setForm((current) => ({ ...current, fineObservation: event.target.value }))}
+                    placeholder="Observações adicionais sobre a multa..."
+                  />
                 </Field>
               )}
 

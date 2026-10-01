@@ -33,9 +33,11 @@ export interface SettlementPendingVale {
   finePlate: string | null;
   fineLocation: string | null;
   fineNumber: string | null;
+  fineInfractionCode: string | null;
   fineInfractionAt: string | null;
   fineOriginalAmount: number | null;
   fineChargeAmount: number | null;
+  fineObservation: string | null;
   amount: number;
   installmentNumber: number;
   installmentsTotal: number;
