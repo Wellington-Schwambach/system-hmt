@@ -178,9 +178,11 @@ class DriverDeductionController extends Controller
                     'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
                     'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
                     'fine_number' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_number'] : null,
+                    'fine_infraction_code' => $category === DriverDeduction::CATEGORY_FINE ? ($validated['fine_infraction_code'] ?? null) : null,
                     'fine_infraction_at' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_infraction_at'] : null,
                     'fine_original_amount' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_original_amount'] : null,
                     'fine_charge_amount' => $category === DriverDeduction::CATEGORY_FINE ? $validated['amount'] : null,
+                    'fine_observation' => $category === DriverDeduction::CATEGORY_FINE ? ($validated['fine_observation'] ?? null) : null,
                     'amount' => $installmentCents / 100,
                     'installment_group' => $group,
                     'installment_number' => $index + 1,
@@ -200,6 +202,7 @@ class DriverDeductionController extends Controller
                 );
                 $created[] = $deduction->load('employee', 'settlement');
             }
+
 
                 return $created;
             });
@@ -226,49 +229,135 @@ class DriverDeductionController extends Controller
         $allowedSettlementId = isset($validated['settlement_id']) ? (int) $validated['settlement_id'] : null;
         $this->ensureEditable($driverDeduction, $allowedSettlementId);
 
+        if ($validated['category'] !== $driverDeduction->category) {
+            throw ValidationException::withMessages([
+                'category' => ['O tipo do lançamento não pode ser alterado durante a edição.'],
+            ]);
+        }
+
         try {
             $updated = DB::transaction(function () use ($request, $validated, $driverDeduction, $allowedSettlementId): DriverDeduction {
-            $groupRecords = $driverDeduction->installment_group
-                ? DriverDeduction::query()->where('installment_group', $driverDeduction->installment_group)->orderBy('installment_number')->get()
-                : collect([$driverDeduction]);
+                $groupRecords = $driverDeduction->installment_group
+                    ? DriverDeduction::query()
+                        ->where('installment_group', $driverDeduction->installment_group)
+                        ->orderBy('installment_number')
+                        ->get()
+                    : collect([$driverDeduction]);
 
-            foreach ($groupRecords as $record) {
-                $this->ensureEditable($record, $allowedSettlementId);
-            }
+                foreach ($groupRecords as $record) {
+                    $this->ensureEditable($record, $allowedSettlementId);
+                }
 
-            $discountStart = CarbonImmutable::createFromFormat('Y-m', $validated['discount_start_month'])->startOfMonth();
-            $withdrawalDate = ! empty($validated['withdrawal_date']) ? $validated['withdrawal_date'] : null;
-            $category = $validated['category'];
-            $requestedAmount = (float) $validated['amount'];
-            $fineChargeCents = (int) round($requestedAmount * 100);
-            $fineInstallments = max(1, $groupRecords->count());
-            $fineBaseCents = intdiv($fineChargeCents, $fineInstallments);
-            $fineRemainder = $fineChargeCents % $fineInstallments;
+                $discountStart = CarbonImmutable::createFromFormat('Y-m', $validated['discount_start_month'])->startOfMonth();
+                $withdrawalDate = ! empty($validated['withdrawal_date']) ? $validated['withdrawal_date'] : null;
+                $category = $validated['category'];
+                $requestedAmount = (float) $validated['amount'];
 
-            foreach ($groupRecords as $record) {
-                $before = $this->auditSnapshot($record);
-                $record->forceFill([
-                    'employee_id' => $validated['employee_id'],
-                    'category' => $category,
-                    'entry_date' => $discountStart->addMonthsNoOverflow(max(0, ((int) $record->installment_number) - 1))->format('Y-m-d'),
-                    'withdrawal_date' => $withdrawalDate,
-                    'description' => $validated['description'] ?? null,
-                    'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
-                    'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
-                    'fine_number' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_number'] : null,
-                    'fine_infraction_at' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_infraction_at'] : null,
-                    'fine_original_amount' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_original_amount'] : null,
-                    'fine_charge_amount' => $category === DriverDeduction::CATEGORY_FINE ? $requestedAmount : null,
-                    'amount' => $category === DriverDeduction::CATEGORY_FINE
-                        ? ($fineBaseCents + ((((int) $record->installment_number) - 1) < $fineRemainder ? 1 : 0)) / 100
-                        : ($category === DriverDeduction::CATEGORY_LOAN || (int) $record->id === (int) $driverDeduction->id
-                            ? $requestedAmount
-                            : $record->amount),
-                    'updated_by' => $request->user()?->id,
-                ])->save();
-                $record->refresh();
-                $this->recordEvent($record, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($record), $request);
-            }
+                if ($category === DriverDeduction::CATEGORY_LOAN) {
+                    $desiredInstallments = (int) $validated['installments'];
+                    $groupId = $driverDeduction->installment_group ?: (string) Str::uuid();
+                    $existingByNumber = $groupRecords->keyBy(fn (DriverDeduction $record): int => (int) $record->installment_number);
+
+                    foreach ($groupRecords as $record) {
+                        if ((int) $record->installment_number > $desiredInstallments && $record->driver_settlement_id !== null) {
+                            throw ValidationException::withMessages([
+                                'installments' => ['Não é possível reduzir as parcelas porque uma das parcelas removidas já pertence a um Acerto.'],
+                            ]);
+                        }
+                    }
+
+                    $resultRecords = collect();
+                    for ($number = 1; $number <= $desiredInstallments; $number++) {
+                        /** @var DriverDeduction|null $record */
+                        $record = $existingByNumber->get($number);
+                        $values = [
+                            'employee_id' => $validated['employee_id'],
+                            'category' => DriverDeduction::CATEGORY_LOAN,
+                            'entry_date' => $discountStart->addMonthsNoOverflow($number - 1)->format('Y-m-d'),
+                            'withdrawal_date' => null,
+                            'description' => $validated['description'] ?? null,
+                            'fine_plate' => null,
+                            'fine_location' => null,
+                            'fine_number' => null,
+                            'fine_infraction_code' => null,
+                            'fine_infraction_at' => null,
+                            'fine_original_amount' => null,
+                            'fine_charge_amount' => null,
+                            'fine_observation' => null,
+                            'amount' => $requestedAmount,
+                            'installment_group' => $groupId,
+                            'installment_number' => $number,
+                            'installments_total' => $desiredInstallments,
+                            'updated_by' => $request->user()?->id,
+                        ];
+
+                        if ($record) {
+                            $before = $this->auditSnapshot($record);
+                            $record->forceFill($values)->save();
+                            $record->refresh();
+                            $this->recordEvent($record, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($record), $request);
+                        } else {
+                            $record = DriverDeduction::query()->create([
+                                ...$values,
+                                'status' => DriverDeduction::STATUS_PENDING,
+                                'driver_settlement_id' => null,
+                                'invoiced' => false,
+                                'created_by' => $request->user()?->id,
+                            ]);
+                            $this->recordEvent($record, DriverDeductionEvent::ACTION_CREATED, null, $this->auditSnapshot($record), $request);
+                        }
+
+                        $resultRecords->push($record);
+                    }
+
+                    foreach ($groupRecords as $record) {
+                        if ((int) $record->installment_number <= $desiredInstallments) {
+                            continue;
+                        }
+                        $before = $this->auditSnapshot($record);
+                        $record->forceFill(['deleted_by' => $request->user()?->id])->save();
+                        $this->recordEvent($record, DriverDeductionEvent::ACTION_DELETED, $before, null, $request);
+                        $record->delete();
+                    }
+
+                    $targetNumber = min((int) $driverDeduction->installment_number, $desiredInstallments);
+                    /** @var DriverDeduction $target */
+                    $target = $resultRecords->first(fn (DriverDeduction $record): bool => (int) $record->installment_number === $targetNumber)
+                        ?? $resultRecords->first();
+
+                    return $target->fresh(['employee', 'settlement']);
+                }
+
+                $fineChargeCents = (int) round($requestedAmount * 100);
+                $fineInstallments = max(1, $groupRecords->count());
+                $fineBaseCents = intdiv($fineChargeCents, $fineInstallments);
+                $fineRemainder = $fineChargeCents % $fineInstallments;
+
+                foreach ($groupRecords as $record) {
+                    $before = $this->auditSnapshot($record);
+                    $record->forceFill([
+                        'employee_id' => $validated['employee_id'],
+                        'category' => $category,
+                        'entry_date' => $discountStart->addMonthsNoOverflow(max(0, ((int) $record->installment_number) - 1))->format('Y-m-d'),
+                        'withdrawal_date' => $withdrawalDate,
+                        'description' => $validated['description'] ?? null,
+                        'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
+                        'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
+                        'fine_number' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_number'] : null,
+                        'fine_infraction_code' => $category === DriverDeduction::CATEGORY_FINE ? ($validated['fine_infraction_code'] ?? null) : null,
+                        'fine_infraction_at' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_infraction_at'] : null,
+                        'fine_original_amount' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_original_amount'] : null,
+                        'fine_charge_amount' => $category === DriverDeduction::CATEGORY_FINE ? $requestedAmount : null,
+                        'fine_observation' => $category === DriverDeduction::CATEGORY_FINE ? ($validated['fine_observation'] ?? null) : null,
+                        'amount' => $category === DriverDeduction::CATEGORY_FINE
+                            ? ($fineBaseCents + ((((int) $record->installment_number) - 1) < $fineRemainder ? 1 : 0)) / 100
+                            : ((int) $record->id === (int) $driverDeduction->id ? $requestedAmount : $record->amount),
+                        'updated_by' => $request->user()?->id,
+                    ])->save();
+                    $record->refresh();
+                    $this->recordEvent($record, DriverDeductionEvent::ACTION_UPDATED, $before, $this->auditSnapshot($record), $request);
+                }
+
 
                 return $driverDeduction->fresh(['employee', 'settlement']);
             });
@@ -378,6 +467,13 @@ class DriverDeductionController extends Controller
     private function validatePayload(Request $request, bool $creating): array
     {
         $category = (string) $request->input('category');
+
+        if ($category === DriverDeduction::CATEGORY_FINE) {
+            $request->merge([
+                'fine_number' => $this->normalizeFineNumber((string) $request->input('fine_number')),
+            ]);
+        }
+
         $rules = [
             'employee_id' => [
                 'required',
@@ -407,18 +503,24 @@ class DriverDeductionController extends Controller
                 ? ['required', 'string', 'max:255']
                 : ['nullable', 'string', 'max:255'],
             'fine_number' => $category === DriverDeduction::CATEGORY_FINE
-                ? ['required', 'string', 'max:100']
+                ? ['required', 'string', 'max:100', 'regex:/^[A-Z0-9]+$/']
                 : ['nullable', 'string', 'max:100'],
+            'fine_infraction_code' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['nullable', 'string', 'regex:/^\d{5}$/']
+                : ['nullable', 'string', 'max:5'],
             'fine_infraction_at' => $category === DriverDeduction::CATEGORY_FINE
                 ? ['required', 'date_format:Y-m-d\TH:i']
                 : ['nullable', 'date_format:Y-m-d\TH:i'],
             'fine_original_amount' => $category === DriverDeduction::CATEGORY_FINE
                 ? ['required', 'numeric', 'gt:0', 'max:9999999999.99']
                 : ['nullable', 'numeric', 'min:0', 'max:9999999999.99'],
+            'fine_observation' => $category === DriverDeduction::CATEGORY_FINE
+                ? ['nullable', 'string', 'max:1000']
+                : ['nullable', 'string', 'max:1000'],
             'settlement_id' => ['nullable', 'integer', Rule::exists('driver_settlements', 'id')],
         ];
 
-        if ($creating) {
+        if ($creating || $category === DriverDeduction::CATEGORY_LOAN) {
             $rules['installments'] = ['required', 'integer', 'between:1,60'];
         }
 
@@ -442,12 +544,15 @@ class DriverDeductionController extends Controller
             'fine_location.required' => 'Selecione o local/cidade da infração.',
             'fine_location.max' => 'O local da infração pode ter no máximo 255 caracteres.',
             'fine_number.required' => 'Informe o Nº Auto / Nº Multa.',
+            'fine_number.regex' => 'Informe um Nº Auto / Nº Multa válido.',
             'fine_number.max' => 'O Nº Auto / Nº Multa pode ter no máximo 100 caracteres.',
+            'fine_infraction_code.regex' => 'O Código da Infração precisa ter 5 dígitos, incluindo o desdobramento.',
             'fine_infraction_at.required' => 'Informe a data e a hora da infração.',
             'fine_infraction_at.date_format' => 'Informe uma data e hora válidas para a infração.',
             'fine_original_amount.required' => 'Informe o valor original da multa.',
             'fine_original_amount.numeric' => 'O valor original da multa é inválido.',
             'fine_original_amount.gt' => 'O valor original da multa precisa ser maior que zero.',
+            'fine_observation.max' => 'A observação da multa pode ter no máximo 1000 caracteres.',
             'installments.required' => 'Informe o número de parcelas.',
             'installments.integer' => 'O número de parcelas precisa ser um número inteiro.',
             'installments.between' => 'Informe entre 1 e 60 parcelas.',
@@ -466,8 +571,10 @@ class DriverDeductionController extends Controller
             'fine_plate' => 'placa da multa',
             'fine_location' => 'local da infração',
             'fine_number' => 'Nº Auto / Nº Multa',
+            'fine_infraction_code' => 'Código da Infração',
             'fine_infraction_at' => 'data e hora da infração',
             'fine_original_amount' => 'valor original da multa',
+            'fine_observation' => 'observação da multa',
             'installments' => 'número de parcelas',
             'settlement_id' => 'Acerto vinculado',
         ];
@@ -495,9 +602,11 @@ class DriverDeductionController extends Controller
             'fine_plate',
             'fine_location',
             'fine_number',
+            'fine_infraction_code',
             'fine_infraction_at',
             'fine_original_amount',
             'fine_charge_amount',
+            'fine_observation',
             'created_by',
             'updated_by',
             'deleted_by',
@@ -621,6 +730,11 @@ class DriverDeductionController extends Controller
         }
     }
 
+    private function normalizeFineNumber(string $number): string
+    {
+        return strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', trim($number)));
+    }
+
     private function categoryLabel(string $category): string
     {
         return match ($category) {
@@ -644,9 +758,11 @@ class DriverDeductionController extends Controller
             'fine_plate' => $deduction->fine_plate,
             'fine_location' => $deduction->fine_location,
             'fine_number' => $deduction->fine_number,
+            'fine_infraction_code' => $deduction->fine_infraction_code,
             'fine_infraction_at' => $deduction->fine_infraction_at?->format('Y-m-d\TH:i'),
             'fine_original_amount' => $deduction->fine_original_amount !== null ? (float) $deduction->fine_original_amount : null,
             'fine_charge_amount' => $deduction->fine_charge_amount !== null ? (float) $deduction->fine_charge_amount : null,
+            'fine_observation' => $deduction->fine_observation,
             'amount' => (float) $deduction->amount,
             'installment_group' => $deduction->installment_group,
             'installment_number' => (int) ($deduction->installment_number ?? 1),
@@ -688,9 +804,11 @@ class DriverDeductionController extends Controller
             'finePlate' => $deduction->fine_plate,
             'fineLocation' => $deduction->fine_location,
             'fineNumber' => $deduction->fine_number,
+            'fineInfractionCode' => $deduction->fine_infraction_code,
             'fineInfractionAt' => $deduction->fine_infraction_at?->format('Y-m-d\TH:i'),
             'fineOriginalAmount' => $deduction->fine_original_amount !== null ? (float) $deduction->fine_original_amount : null,
             'fineChargeAmount' => $deduction->fine_charge_amount !== null ? (float) $deduction->fine_charge_amount : null,
+            'fineObservation' => $deduction->fine_observation,
             'amount' => (float) $deduction->amount,
             'installmentGroup' => $deduction->installment_group,
             'installmentNumber' => (int) ($deduction->installment_number ?? 1),

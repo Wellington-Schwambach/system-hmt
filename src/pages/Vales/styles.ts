@@ -465,6 +465,14 @@ export const Field = styled.label`
   font-weight: 800;
 `;
 
+export const FieldHint = styled.small`
+  min-height: 14px;
+  color: ${({ theme }) => theme.colors.dashboardTextSoft};
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+`;
+
 export const Textarea = styled.textarea`
   box-sizing: border-box;
   width: 100%;

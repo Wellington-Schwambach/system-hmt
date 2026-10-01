@@ -7,7 +7,7 @@ import { getApiErrorFeedback } from '../../../../utils/apiError';
 import { useNotifications } from '../../../../contexts/Notifications';
 import { valeService } from '../../../Vales/services';
 import type { ValeCityOption, ValeEmployeeOption, ValeFormData } from '../../../Vales/types';
-import { validateValeForm } from '../../../Vales/validation';
+import { normalizeFineNumberInput, validateValeForm } from '../../../Vales/validation';
 import type { ValeEntryEditModalProps } from './types';
 import { Actions, Button, CloseButton, Field, Form, Grid, Header, Input, Modal, Overlay, Select, Textarea } from './styles';
 
@@ -39,9 +39,11 @@ export function ValeEntryEditModal({ isOpen, entry, onClose, onSubmit }: ValeEnt
     installments: String(record?.installmentsTotal ?? 1),
     finePlate: record?.finePlate ?? '',
     fineLocation: record?.fineLocation ?? '',
-    fineNumber: record?.fineNumber ?? '',
+    fineNumber: normalizeFineNumberInput(record?.fineNumber ?? ''),
+    fineInfractionCode: record?.fineInfractionCode ?? '',
     fineInfractionAt: record?.fineInfractionAt ?? `${record?.withdrawalDate ?? new Date().toISOString().slice(0, 10)}T00:00`,
     fineOriginalAmount: record?.fineOriginalAmount != null ? moneyInput(record.fineOriginalAmount) : '',
+    fineObservation: record?.fineObservation ?? '',
   }), [record]);
   const [form, setForm] = useState<ValeFormData>(initialForm);
 
@@ -153,9 +155,28 @@ export function ValeEntryEditModal({ isOpen, entry, onClose, onSubmit }: ValeEnt
                   />
                 </Field>
                 <Field>Nº Auto / Multa
-                  <Input value={form.fineNumber} onChange={(event) => setForm((current) => ({ ...current, fineNumber: event.target.value }))} required />
+                  <Input
+                    value={form.fineNumber}
+                    onChange={(event) => {
+                      const fineNumber = normalizeFineNumberInput(event.target.value);
+                      setForm((current) => ({ ...current, fineNumber }));
+                    }}
+                    maxLength={100}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    required
+                  />
                 </Field>
               </Grid>
+              <Field>Código da infração
+                <Input
+                  value={form.fineInfractionCode}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, fineInfractionCode: event.target.value }));
+                  }}
+                  inputMode="numeric"
+                />
+              </Field>
               <Field>Descrição
                 <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} required />
               </Field>
@@ -177,18 +198,38 @@ export function ValeEntryEditModal({ isOpen, entry, onClose, onSubmit }: ValeEnt
             <Field>{form.category === 'FINE' ? 'Valor à cobrar' : 'Valor da parcela'}
               <Input inputMode="decimal" value={form.amount} onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))} required />
             </Field>
-            <Field>Parcela
-              <Input value={`${record.installmentNumber}/${record.installmentsTotal}`} disabled />
-            </Field>
+            {form.category === 'LOAN' ? (
+              <Field>Nº de parcelas
+                <Input
+                  type="number"
+                  min="1"
+                  max="60"
+                  step="1"
+                  value={form.installments}
+                  onChange={(event) => setForm((current) => ({ ...current, installments: event.target.value }))}
+                  required
+                />
+              </Field>
+            ) : (
+              <Field>Parcela
+                <Input value={`${record.installmentNumber}/${record.installmentsTotal}`} disabled />
+              </Field>
+            )}
           </Grid>
 
           <Field>Desconto 1ª parcela (mês)
             <Input type="month" value={form.discountStartMonth} onChange={(event) => setForm((current) => ({ ...current, discountStartMonth: event.target.value }))} required />
           </Field>
 
-          {form.category !== 'LOAN' && form.category !== 'FINE' && (
+          {form.category !== 'FINE' && (
             <Field>Observação
               <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+            </Field>
+          )}
+
+          {form.category === 'FINE' && (
+            <Field>Observação
+              <Textarea value={form.fineObservation} onChange={(event) => setForm((current) => ({ ...current, fineObservation: event.target.value }))} placeholder="Observações adicionais sobre a multa..." />
             </Field>
           )}
 

@@ -1,6 +1,11 @@
 import { api } from '../../services/api';
 import type { ValeCityOption, ValeEmployeeOption, ValeFormData, ValeHistoryEvent, ValeRecord } from './types';
-import { parseValeMoney } from './validation';
+import { normalizeFineNumberInput, parseValeMoney } from './validation';
+
+function normalizeFineInfractionCode(value: string): string | null {
+  const normalized = value.toUpperCase().replace(/[^0-9O]/g, '').replace(/O/g, '0');
+  return normalized || null;
+}
 
 function payload(form: ValeFormData) {
   return {
@@ -17,9 +22,11 @@ function payload(form: ValeFormData) {
     installments: Number(form.installments || '1'),
     fine_plate: form.category === 'FINE' ? form.finePlate.trim() : null,
     fine_location: form.category === 'FINE' ? form.fineLocation.trim() : null,
-    fine_number: form.category === 'FINE' ? form.fineNumber.trim() : null,
+    fine_number: form.category === 'FINE' ? normalizeFineNumberInput(form.fineNumber) : null,
+    fine_infraction_code: form.category === 'FINE' ? normalizeFineInfractionCode(form.fineInfractionCode) : null,
     fine_infraction_at: form.category === 'FINE' ? form.fineInfractionAt : null,
     fine_original_amount: form.category === 'FINE' ? parseValeMoney(form.fineOriginalAmount) : null,
+    fine_observation: form.category === 'FINE' ? (form.fineObservation.trim() || null) : null,
   };
 }
 
@@ -60,6 +67,8 @@ export const valeService = {
       stateAbbreviation: city.state_abbreviation,
     }));
   },
+
+
 
   async create(form: ValeFormData): Promise<ValeRecord[]> {
     const response = await api.post<{ records: ValeRecord[] }>('/api/vales', payload(form));

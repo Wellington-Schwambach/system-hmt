@@ -29,9 +29,11 @@ export interface ValeRecord {
   finePlate: string | null;
   fineLocation: string | null;
   fineNumber: string | null;
+  fineInfractionCode: string | null;
   fineInfractionAt: string | null;
   fineOriginalAmount: number | null;
   fineChargeAmount: number | null;
+  fineObservation: string | null;
   amount: number;
   installmentGroup: string | null;
   installmentNumber: number;
@@ -58,8 +60,10 @@ export interface ValeFormData {
   finePlate: string;
   fineLocation: string;
   fineNumber: string;
+  fineInfractionCode: string;
   fineInfractionAt: string;
   fineOriginalAmount: string;
+  fineObservation: string;
 }
 
 export interface ValeHistoryEvent {
