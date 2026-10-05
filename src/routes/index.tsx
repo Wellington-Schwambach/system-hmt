@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 import { PageLoader } from '../components/PageLoader';
 import { DashboardLayout } from '../layouts/DashboardLayout';
@@ -61,9 +61,43 @@ const AccessDenied = lazy(() =>
   import('../pages/AccessDenied').then((module) => ({ default: module.AccessDenied })),
 );
 
+const ROUTE_TITLES: Record<string, string> = {
+  '/login': 'Login',
+  '/dashboard': 'Dashboard',
+  '/bi': 'BI Operacional',
+  '/fuel': 'Combustível',
+  '/travel': 'Viagens',
+  '/terceiros': 'Gestão de Terceiros',
+  '/conjuntos': 'Conjuntos',
+  '/acertos': 'Acertos',
+  '/vales': 'Vales, Multas e Descontos',
+  '/finance': 'Financeiro',
+  '/maintenance': 'Manutenção',
+  '/logistic': 'Logística',
+  '/logistic/calendar': 'Logística',
+  '/cadastros/veiculos': 'Veículos',
+  '/cadastros/colaboradores': 'Colaboradores',
+  '/cadastros/embarcadores': 'Embarcadores',
+  '/cadastros/empresa': 'Empresa',
+  '/admin/seguranca': 'Segurança',
+  '/sem-acesso': 'Acesso restrito',
+};
+
+function DocumentTitle() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const pageTitle = ROUTE_TITLES[pathname] ?? 'Sistema';
+    document.title = `HMT Transportes | ${pageTitle}`;
+  }, [pathname]);
+
+  return null;
+}
+
 export function AppRoutes() {
   return (
     <BrowserRouter>
+      <DocumentTitle />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route element={<PublicOnlyRoute />}>

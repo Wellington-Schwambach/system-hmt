@@ -96,6 +96,11 @@ export const valeService = {
     return response.data.record;
   },
 
+  async uninvoice(id: number): Promise<ValeRecord> {
+    const response = await api.patch<{ record: ValeRecord }>(`/api/vales/${id}/uninvoice`);
+    return response.data.record;
+  },
+
   async remove(id: number): Promise<void> {
     await api.delete(`/api/vales/${id}`);
   },

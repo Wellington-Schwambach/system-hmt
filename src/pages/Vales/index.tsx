@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, CircleCheckBig, Edit3, Plus, ReceiptText, Save, Trash2, X } from 'lucide-react';
+import { Check, CircleCheckBig, Edit3, Plus, ReceiptText, RotateCcw, Save, Trash2, X } from 'lucide-react';
 
 import { DateInput } from '../../components/DateInput';
 import { SearchableSelect } from '../../components/SearchableSelect';
@@ -31,6 +31,8 @@ import {
   Input,
   InvoiceButton,
   InvoicedLabel,
+  InvoicedWrap,
+  UninvoiceButton,
   Modal,
   ModalActions,
   ModalHeader,
@@ -159,6 +161,7 @@ function eventLabel(action: ValeHistoryEvent['action']): string {
     SETTLED: 'Aplicado no acerto',
     REOPENED: 'Liberado do acerto',
     INVOICED: 'Faturado',
+    UNINVOICED: 'Desfaturado',
   })[action];
 }
 
@@ -407,6 +410,31 @@ export function Vales() {
     }
   }
 
+  async function handleUninvoice(record: ValeRecord) {
+    if (!isAdministrator || record.category !== 'ADVANCE' || !record.invoiced) return;
+
+    const confirmed = await notifications.confirm({
+      title: 'Desfaturar vale?',
+      message: `${record.employeeName} · Parcela ${record.installmentNumber}/${record.installmentsTotal} · ${formatCurrency(record.amount)}. O vale voltará para o status de não faturado.`,
+      type: 'warning',
+      confirmLabel: 'Desfaturar',
+      cancelLabel: 'Cancelar',
+    });
+    if (!confirmed) return;
+
+    setInvoicingId(record.id);
+    try {
+      const updated = await valeService.uninvoice(record.id);
+      setRecords((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      notifications.success('Vale desfaturado', `O faturamento de ${record.employeeName} foi removido.`);
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível desfaturar o vale.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setInvoicingId(null);
+    }
+  }
+
   async function handleDelete(record: ValeRecord) {
     if (!record.canDelete) return;
     const confirmed = await notifications.confirm({
@@ -553,7 +581,19 @@ export function Vales() {
                           {activeCategory === 'ADVANCE' && (
                             <td>
                               {record.invoiced ? (
-                                <InvoicedLabel><Check size={14} /> Faturado</InvoicedLabel>
+                                <InvoicedWrap>
+                                  <InvoicedLabel><Check size={14} /> Faturado</InvoicedLabel>
+                                  {isAdministrator && (
+                                    <UninvoiceButton
+                                      type="button"
+                                      onClick={() => void handleUninvoice(record)}
+                                      disabled={invoicingId === record.id}
+                                      title="Desfaturar este vale (somente administrador)"
+                                    >
+                                      <RotateCcw size={14} /> Desfaturar
+                                    </UninvoiceButton>
+                                  )}
+                                </InvoicedWrap>
                               ) : (
                                 <InvoiceButton
                                   type="button"

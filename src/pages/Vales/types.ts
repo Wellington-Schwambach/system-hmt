@@ -77,7 +77,7 @@ export interface ValeFormData {
 export interface ValeHistoryEvent {
   id: number;
   recordId: number;
-  action: 'CREATED' | 'UPDATED' | 'DELETED' | 'SETTLED' | 'REOPENED' | 'INVOICED';
+  action: 'CREATED' | 'UPDATED' | 'DELETED' | 'SETTLED' | 'REOPENED' | 'INVOICED' | 'UNINVOICED';
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
   userName: string | null;
