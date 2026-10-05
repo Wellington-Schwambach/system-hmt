@@ -38,6 +38,7 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
           <THead>
             <tr>
               <TH>Data</TH>
+              <TH>Unidade</TH>
               <TH>Placa</TH>
               <TH>Posto</TH>
               <TH>KM</TH>
@@ -57,6 +58,7 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
             {records.map((record) => (
               <TR key={record.id}>
                 <TD>{formatDate(record.date)}</TD>
+                <TD>{record.companyUnit === 'FILIAL' ? 'Filial' : 'Matriz'}</TD>
                 <TD>{record.plate}</TD>
                 <TD>{record.station}</TD>
                 <NumericCell>{record.km !== null && record.km > 0 ? formatInteger(record.km) : '—'}</NumericCell>

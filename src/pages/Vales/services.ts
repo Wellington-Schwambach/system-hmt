@@ -17,6 +17,9 @@ function payload(form: ValeFormData) {
         ? form.fineInfractionAt.slice(0, 10)
         : form.date,
     discount_start_month: form.discountStartMonth,
+    advance_location: form.category === 'ADVANCE' ? form.local.trim() : null,
+    boleto_due_date: form.category === 'ADVANCE' ? (form.boletoDueDate || null) : null,
+    weekly_authorized_by: form.category === 'ADVANCE' ? (form.weeklyAuthorizedBy || null) : null,
     description: form.description.trim() || null,
     amount: parseValeMoney(form.amount),
     installments: Number(form.installments || '1'),

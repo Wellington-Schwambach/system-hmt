@@ -2,6 +2,7 @@ export type Shipper = string;
 export type CteType = 'NORMAL' | 'FREIGHT_COMPLEMENT' | 'DAILY';
 export type TravelCteTypeFilter = 'ALL' | CteType;
 export type TravelOperationType = 'FLEET' | 'THIRD_PARTY';
+export type TravelCompanyUnit = 'MATRIZ' | 'FILIAL';
 export type TravelFreightType = 'CABOTAGE' | 'EXPORT_PORT' | 'OTHER';
 
 export interface TravelOptionVehicle {
@@ -91,6 +92,7 @@ export interface TravelRecord {
   shipper: Shipper;
   shipperColor: string;
   operationType: TravelOperationType;
+  companyUnit: TravelCompanyUnit;
   freightType: TravelFreightType | '';
   cst: string;
   vehicleId: number | null;
@@ -130,6 +132,7 @@ export interface TravelFormData {
   origin: string;
   destination: string;
   shipperId: string;
+  companyUnit: TravelCompanyUnit;
   operationType: TravelOperationType;
   freightType: TravelFreightType | '';
   cst: string;

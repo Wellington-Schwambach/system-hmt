@@ -12,6 +12,7 @@ export function getDefaultFuelDate(): string {
 const defaultFuelDate = getDefaultFuelDate();
 
 export const INITIAL_FUEL_FORM: FuelFormData = {
+  companyUnit: 'MATRIZ',
   station: '',
   vehicleId: '',
   trailerId: '',

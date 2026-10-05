@@ -67,6 +67,10 @@ export function TravelMobileList({
 
           <DataGrid>
             <DataItem>
+              <DataLabel>Unidade</DataLabel>
+              <DataValue>{record.companyUnit === 'FILIAL' ? 'Filial' : 'Matriz'}</DataValue>
+            </DataItem>
+            <DataItem>
               <DataLabel>Placa</DataLabel>
               <DataValue>{record.plate}</DataValue>
             </DataItem>

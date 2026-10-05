@@ -139,7 +139,7 @@ export function useDriverSettlement() {
         if (!active) return;
         setEntries((currentEntries) => [
           ...currentEntries.filter((entry) => entry.source !== 'VALE'),
-          ...pendingVales.map((vale) => {
+          ...pendingVales.filter((vale) => vale.category !== 'ADVANCE').map((vale) => {
             const baseDescription = vale.category === 'FINE'
               ? [vale.fineNumber ? `Nº Auto ${vale.fineNumber}` : '', vale.description].filter(Boolean).join(' - ')
               : (vale.description || ENTRY_LABELS[vale.category]);
@@ -265,7 +265,7 @@ export function useDriverSettlement() {
       travels,
       selectedFuelRecordIds: [...selectedFuelRecordIds],
       vehicleSummaries,
-      entries: entries.map((entry) => ({ ...entry })),
+      entries: entries.filter((entry) => entry.type !== 'ADVANCE').map((entry) => ({ ...entry })),
       totals: { ...totals },
     }),
     [
@@ -328,6 +328,7 @@ export function useDriverSettlement() {
   }, [fuelRecords, selectedFuelRecordIds]);
 
   const addEntry = useCallback((type: FinancialEntryType, formData: FinancialEntryFormData) => {
+    if (type === 'ADVANCE') return false;
     const value = parseDecimalInput(formData.value);
 
     if (value <= 0) {
@@ -407,9 +408,9 @@ export function useDriverSettlement() {
     setCustomEndDate(settlement.endDate);
     setBonusPercentOverride(String(settlement.totals.bonusPercent));
     setBaseSalary(formatEditableDecimal(settlement.totals.baseSalary));
-    setDailyAllowance(formatEditableDecimal(settlement.totals.dailyAllowance));
+    setDailyAllowance('0');
     setOtherEarnings(formatEditableDecimal(settlement.totals.otherEarnings));
-    setEntries(settlement.entries.map((entry) => ({ ...entry })));
+    setEntries(settlement.entries.filter((entry) => entry.type !== 'ADVANCE').map((entry) => ({ ...entry })));
     setSelectedFuelRecordIdsOverride([...(settlement.selectedFuelRecordIds ?? [])]);
     setEditingSettlementId(settlement.id);
     setSavedAt('');
@@ -439,7 +440,7 @@ export function useDriverSettlement() {
   const resetFinancialData = useCallback(() => {
     setBonusPercentOverride('');
     setBaseSalary('');
-    setDailyAllowance('');
+    setDailyAllowance('0');
     setOtherEarnings('');
     setEntries((currentEntries) => currentEntries.filter((entry) => entry.source === 'VALE'));
     setValeRefreshToken((current) => current + 1);

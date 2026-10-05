@@ -36,7 +36,6 @@ import {
 } from './styles';
 
 const ENTRY_GROUPS: Array<{ type: FinancialEntryType; title: string; button: string }> = [
-  { type: 'ADVANCE', title: 'Vales', button: 'Adicionar vale' },
   { type: 'FINE', title: 'Multas', button: 'Adicionar multa' },
   { type: 'LOAN', title: 'Empréstimos', button: 'Adicionar empréstimo' },
   { type: 'OTHER_DISCOUNT', title: 'Outros descontos', button: 'Adicionar' },
@@ -47,14 +46,12 @@ export function FinancialPanel({
   bonusPercent,
   suggestedBonusPercent,
   baseSalary,
-  dailyAllowance,
   otherEarnings,
   entries,
   totals,
   valesLoadError,
   onBonusPercentChange,
   onBaseSalaryChange,
-  onDailyAllowanceChange,
   onOtherEarningsChange,
   onApplySuggestedBonus,
   onAddEntry,
@@ -124,17 +121,6 @@ export function FinancialPanel({
               />
             </Field>
             <Field>
-              <Label htmlFor="settlement-daily-allowance">Diárias</Label>
-              <Input
-                id="settlement-daily-allowance"
-                type="text"
-                inputMode="decimal"
-                value={dailyAllowance}
-                onChange={(event) => onDailyAllowanceChange(event.target.value)}
-                placeholder="0,00"
-              />
-            </Field>
-            <Field>
               <Label htmlFor="settlement-other-earnings">Outros</Label>
               <Input
                 id="settlement-other-earnings"
@@ -163,16 +149,8 @@ export function FinancialPanel({
             <strong>{formatCurrency(totals.bonusValue)}</strong>
           </SummaryRow>
           <SummaryRow>
-            <span>Diárias</span>
-            <strong>{formatCurrency(totals.dailyAllowance)}</strong>
-          </SummaryRow>
-          <SummaryRow>
             <span>Outros proventos</span>
             <strong>{formatCurrency(totals.otherEarnings)}</strong>
-          </SummaryRow>
-          <SummaryRow $muted>
-            <span>Vales</span>
-            <strong>- {formatCurrency(totals.advances)}</strong>
           </SummaryRow>
           <SummaryRow $muted>
             <span>Multas</span>

@@ -31,6 +31,7 @@ class Travel extends Model
         'shipper',
         'shipper_id',
         'operation_type',
+        'company_unit',
         'freight_type',
         'cst',
         'vehicle_id',

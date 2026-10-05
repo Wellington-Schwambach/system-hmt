@@ -25,6 +25,10 @@ export interface ValeRecord {
   date: string;
   discountMonth: string;
   withdrawalDate: string | null;
+  advanceLocation: string | null;
+  boletoDueDate: string | null;
+  weeklyAuthorizedBy: 'HENRIQUE' | 'MARINA' | null;
+  weeklyAuthorizedAt: string | null;
   description: string;
   finePlate: string | null;
   fineLocation: string | null;
@@ -45,6 +49,7 @@ export interface ValeRecord {
   invoiced: boolean;
   invoicedAt: string | null;
   canEdit: boolean;
+  canDelete: boolean;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -54,6 +59,9 @@ export interface ValeFormData {
   category: ValeCategory;
   date: string;
   discountStartMonth: string;
+  local: string;
+  boletoDueDate: string;
+  weeklyAuthorizedBy: '' | 'HENRIQUE' | 'MARINA';
   description: string;
   amount: string;
   installments: string;

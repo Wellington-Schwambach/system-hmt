@@ -49,6 +49,7 @@ interface FuelApiRecord {
   trailer_id: number | null;
   trailer_plate: string | null;
   driver_id: number | null;
+  company_unit: 'MATRIZ' | 'FILIAL';
   date: string;
   billing_month: string;
   station: string;
@@ -84,6 +85,7 @@ function mapRecord(record: FuelApiRecord): FuelRecord {
     trailerId: record.trailer_id,
     trailerPlate: record.trailer_plate,
     driverId: record.driver_id,
+    companyUnit: record.company_unit === 'FILIAL' ? 'FILIAL' : 'MATRIZ',
     date: record.date,
     billingMonth: record.billing_month || record.date.slice(0, 7),
     station: record.station,
@@ -105,6 +107,7 @@ function mapRecord(record: FuelApiRecord): FuelRecord {
 
 function payload(data: FuelFormData) {
   return {
+    company_unit: data.companyUnit,
     vehicle_id: Number(data.vehicleId),
     trailer_id: data.trailerId ? Number(data.trailerId) : null,
     driver_id: Number(data.driverId),

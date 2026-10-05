@@ -82,6 +82,23 @@ function currentMonthRange(): { start: string; end: string } {
   };
 }
 
+function getIsoWeekRange(value: string): { start: string; end: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12, 0, 0, 0);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const weekday = date.getDay();
+  const daysSinceMonday = weekday === 0 ? 6 : weekday - 1;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - daysSinceMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+
+  const iso = (item: Date) => `${item.getFullYear()}-${String(item.getMonth() + 1).padStart(2, '0')}-${String(item.getDate()).padStart(2, '0')}`;
+  return { start: iso(monday), end: iso(sunday) };
+}
+
 function firstInstallmentMonth(record: ValeRecord): string {
   const [year, month] = record.discountMonth.split('-').map(Number);
   const value = new Date(Date.UTC(year, month - 1 - Math.max(0, record.installmentNumber - 1), 1));
@@ -93,8 +110,11 @@ const INITIAL_FORM: ValeFormData = {
   category: 'ADVANCE',
   date: todayValue(),
   discountStartMonth: currentMonthValue(),
+  local: '',
+  boletoDueDate: todayValue(),
+  weeklyAuthorizedBy: '',
   description: '',
-  amount: '',
+  amount: '500,00',
   installments: '1',
   finePlate: '',
   fineLocation: '',
@@ -144,7 +164,7 @@ function eventLabel(action: ValeHistoryEvent['action']): string {
 
 function tableColumnCount(category: ValeCategory): number {
   if (category === 'FINE') return 11;
-  if (category === 'ADVANCE') return 7;
+  if (category === 'ADVANCE') return 9;
   if (category === 'LOAN') return 5;
   return 6;
 }
@@ -206,6 +226,21 @@ export function Vales() {
     return true;
   }), [activeCategory, dateFrom, dateTo, driverFilter, invoiceFilter, records]);
 
+  const weeklyAdvanceConflicts = useMemo(() => {
+    if (editing || form.category !== 'ADVANCE' || !form.employeeId) return [];
+    const range = getIsoWeekRange(form.date);
+    if (!range) return [];
+
+    return records.filter((record) => {
+      if (record.category !== 'ADVANCE' || record.employeeId !== Number(form.employeeId)) return false;
+      if (record.installmentNumber !== 1) return false;
+      if (editing?.installmentGroup && record.installmentGroup === editing.installmentGroup) return false;
+      if (!editing?.installmentGroup && editing?.id === record.id) return false;
+      const valeDate = record.withdrawalDate ?? record.date;
+      return valeDate >= range.start && valeDate <= range.end;
+    });
+  }, [editing, form.category, form.date, form.employeeId, records]);
+
   const groupedByDriver = useMemo(() => {
     const groups = new Map<number, { employeeId: number; employeeName: string; records: ValeRecord[]; total: number }>();
 
@@ -251,6 +286,10 @@ export function Vales() {
       date: todayValue(),
       discountStartMonth: currentMonthValue(),
       employeeId: driverFilter !== 'ALL' ? driverFilter : employees[0] ? String(employees[0].id) : '',
+      local: '',
+      boletoDueDate: todayValue(),
+      weeklyAuthorizedBy: '',
+      amount: activeCategory === 'ADVANCE' ? '500,00' : '',
       fineInfractionCode: '',
       fineInfractionAt: `${todayValue()}T00:00`,
       fineOriginalAmount: '',
@@ -268,6 +307,9 @@ export function Vales() {
       category: record.category,
       date: record.withdrawalDate ?? todayValue(),
       discountStartMonth: firstInstallmentMonth(record),
+      local: record.advanceLocation ?? '',
+      boletoDueDate: record.boletoDueDate ?? record.withdrawalDate ?? todayValue(),
+      weeklyAuthorizedBy: '',
       description: record.description,
       installments: String(record.installmentsTotal),
       finePlate: record.finePlate ?? '',
@@ -295,6 +337,27 @@ export function Vales() {
         validationErrors,
       );
       return;
+    }
+
+    if (!editing && form.category === 'ADVANCE' && weeklyAdvanceConflicts.length > 0) {
+      if (!form.weeklyAuthorizedBy) {
+        notifications.warning(
+          'Vale já liberado nesta semana',
+          'Para liberar outro vale na mesma semana, informe se a exceção foi autorizada por Henrique ou Marina.',
+          weeklyAdvanceConflicts.map((record) => `${formatDate(record.withdrawalDate ?? record.date)} · ${formatCurrency(record.amount)} · ${record.advanceLocation || 'Local não informado'}`),
+        );
+        return;
+      }
+
+      const confirmed = await notifications.confirm({
+        title: 'Liberar outro vale nesta semana?',
+        message: `Já existe vale para ${weeklyAdvanceConflicts[0]?.employeeName ?? 'este motorista'} nesta semana. A exceção ficará registrada como autorizada por ${form.weeklyAuthorizedBy === 'HENRIQUE' ? 'Henrique' : 'Marina'}.`,
+        details: weeklyAdvanceConflicts.map((record) => `${formatDate(record.withdrawalDate ?? record.date)} · ${formatCurrency(record.amount)} · ${record.advanceLocation || 'Local não informado'}`),
+        type: 'warning',
+        confirmLabel: 'Liberar mesmo assim',
+        cancelLabel: 'Cancelar',
+      });
+      if (!confirmed) return;
     }
 
     setSaving(true);
@@ -347,7 +410,7 @@ export function Vales() {
   }
 
   async function handleDelete(record: ValeRecord) {
-    if (!record.canEdit) return;
+    if (!record.canDelete) return;
     const confirmed = await notifications.confirm({
       title: 'Excluir parcela?',
       message: `${CATEGORY_LABELS[record.category]} de ${record.employeeName}, parcela ${record.installmentNumber}/${record.installmentsTotal}, no valor de ${formatCurrency(record.amount)}, será removido.`,
@@ -450,6 +513,7 @@ export function Vales() {
                     <tr>
                       <th>Desconto</th>
                       {activeCategory !== 'LOAN' && <th>{activeCategory === 'FINE' ? 'Data/hora infração' : 'Data'}</th>}
+                      {activeCategory === 'ADVANCE' && <th>Local</th>}
                       {activeCategory === 'FINE' && <th>Placa</th>}
                       {activeCategory === 'FINE' && <th>Local</th>}
                       {activeCategory === 'FINE' && <th>Nº multa</th>}
@@ -458,6 +522,7 @@ export function Vales() {
                       {activeCategory === 'FINE' && <th>Valor original</th>}
                       <th>Parcela</th>
                       <th>{activeCategory === 'LOAN' ? 'Valor parcela' : activeCategory === 'FINE' ? 'Valor à cobrar' : 'Valor'}</th>
+                      {activeCategory === 'ADVANCE' && <th>Vencimento boleto</th>}
                       {activeCategory === 'ADVANCE' && <th>Faturar</th>}
                       <th>Ações</th>
                     </tr>
@@ -477,6 +542,7 @@ export function Vales() {
                         <tr key={record.id}>
                           <td><strong>{formatMonth(record.discountMonth)}</strong></td>
                           {activeCategory !== 'LOAN' && <td><strong>{activeCategory === 'FINE' ? formatFineDateTime(record.fineInfractionAt, record.withdrawalDate) : formatDate(record.withdrawalDate)}</strong></td>}
+                          {activeCategory === 'ADVANCE' && <td>{record.advanceLocation || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.finePlate || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineLocation || '-'}</td>}
                           {activeCategory === 'FINE' && <td>{record.fineNumber || '-'}</td>}
@@ -485,6 +551,7 @@ export function Vales() {
                           {activeCategory === 'FINE' && <td><strong>{record.fineOriginalAmount != null ? formatCurrency(record.fineOriginalAmount) : '-'}</strong></td>}
                           <td><strong>{record.installmentNumber}/{record.installmentsTotal}</strong></td>
                           <td><strong>{formatCurrency(record.amount)}</strong></td>
+                          {activeCategory === 'ADVANCE' && <td><strong>{formatDate(record.boletoDueDate)}</strong></td>}
                           {activeCategory === 'ADVANCE' && (
                             <td>
                               {record.invoiced ? (
@@ -504,7 +571,7 @@ export function Vales() {
                           <td>
                             <Actions>
                               <IconButton type="button" onClick={() => openEdit(record)} disabled={!record.canEdit} aria-label="Editar" title={record.canEdit ? 'Editar parcela' : 'Parcela bloqueada para edição'}><Edit3 size={14} /></IconButton>
-                              <IconButton type="button" onClick={() => void handleDelete(record)} disabled={!record.canEdit} aria-label="Excluir" title={record.canEdit ? 'Excluir parcela' : 'Parcela bloqueada para exclusão'}><Trash2 size={14} /></IconButton>
+                              <IconButton type="button" onClick={() => void handleDelete(record)} disabled={!record.canDelete} aria-label="Excluir" title={record.canDelete ? 'Excluir parcela' : 'Parcela faturada ou vinculada a Acerto não pode ser excluída'}><Trash2 size={14} /></IconButton>
                             </Actions>
                           </td>
                         </tr>
@@ -553,6 +620,10 @@ export function Vales() {
                       fineInfractionAt: category === 'FINE' ? (current.fineInfractionAt || `${todayValue()}T00:00`) : '',
                       fineOriginalAmount: category === 'FINE' ? current.fineOriginalAmount : '',
                       fineObservation: category === 'FINE' ? current.fineObservation : '',
+                      local: category === 'ADVANCE' ? current.local : '',
+                      boletoDueDate: category === 'ADVANCE' ? (current.boletoDueDate || todayValue()) : '',
+                      weeklyAuthorizedBy: category === 'ADVANCE' ? current.weeklyAuthorizedBy : '',
+                      amount: category === 'ADVANCE' && !current.amount ? '500,00' : current.amount,
                       description: current.description,
                     }));
                   }}
@@ -655,8 +726,29 @@ export function Vales() {
 
               {form.category !== 'FINE' && form.category !== 'LOAN' && (
                 <Field>Data
-                  <DateInput value={form.date} onValueChange={(value) => setForm((current) => ({ ...current, date: value }))} required />
+                  <DateInput value={form.date} onValueChange={(value) => setForm((current) => ({ ...current, date: value, weeklyAuthorizedBy: current.category === 'ADVANCE' ? '' : current.weeklyAuthorizedBy }))} required />
                 </Field>
+              )}
+
+              {form.category === 'ADVANCE' && (
+                <FormGrid>
+                  <Field>Local
+                    <Input
+                      value={form.local}
+                      onChange={(event) => setForm((current) => ({ ...current, local: event.target.value }))}
+                      placeholder="Ex.: Posto 45"
+                      maxLength={255}
+                      required
+                    />
+                  </Field>
+                  <Field>Vencimento do boleto
+                    <DateInput
+                      value={form.boletoDueDate}
+                      onValueChange={(value) => setForm((current) => ({ ...current, boletoDueDate: value }))}
+                      required
+                    />
+                  </Field>
+                </FormGrid>
               )}
 
               <FormGrid>
@@ -719,6 +811,25 @@ export function Vales() {
                     placeholder="Observações adicionais sobre a multa..."
                   />
                 </Field>
+              )}
+
+              {form.category === 'ADVANCE' && weeklyAdvanceConflicts.length > 0 && (
+                <>
+                  <FieldHint>
+                    Este motorista já possui {weeklyAdvanceConflicts.length === 1 ? 'um vale' : `${weeklyAdvanceConflicts.length} vales`} nesta semana. Para liberar novamente, registre a autorização abaixo.
+                  </FieldHint>
+                  <Field>Autorizado por
+                    <Select
+                      value={form.weeklyAuthorizedBy}
+                      onChange={(event) => setForm((current) => ({ ...current, weeklyAuthorizedBy: event.target.value as ValeFormData['weeklyAuthorizedBy'] }))}
+                      required
+                    >
+                      <option value="">Selecione...</option>
+                      <option value="HENRIQUE">Henrique</option>
+                      <option value="MARINA">Marina</option>
+                    </Select>
+                  </Field>
+                </>
               )}
 
               <ModalActions>

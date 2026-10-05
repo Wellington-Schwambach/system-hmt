@@ -206,6 +206,7 @@ class DriverSettlementController extends Controller
     private function resolveSelectedDeductions(array $snapshot, Employee $driver, ?DriverSettlement $settlement)
     {
         $ids = collect($snapshot['entries'] ?? [])
+            ->filter(fn ($entry): bool => is_array($entry) && ($entry['type'] ?? null) !== DriverDeduction::CATEGORY_ADVANCE)
             ->pluck('valeId')
             ->filter(fn ($id): bool => is_numeric($id))
             ->map(fn ($id): int => (int) $id)
@@ -219,6 +220,7 @@ class DriverSettlementController extends Controller
         $deductions = DriverDeduction::query()
             ->whereIn('id', $ids)
             ->where('employee_id', $driver->id)
+            ->where('category', '<>', DriverDeduction::CATEGORY_ADVANCE)
             ->where(function ($query) use ($settlement): void {
                 $query->where(function ($pending): void {
                     $pending->where('status', DriverDeduction::STATUS_PENDING)
@@ -232,7 +234,7 @@ class DriverSettlementController extends Controller
             ->get();
 
         if ($deductions->count() !== $ids->count()) {
-            abort(422, 'Um ou mais vales selecionados não estão pendentes ou não pertencem ao motorista deste acerto.');
+            abort(422, 'Um ou mais descontos selecionados não estão disponíveis ou não pertencem ao motorista deste acerto.');
         }
 
         return $deductions;
@@ -325,7 +327,112 @@ class DriverSettlementController extends Controller
     {
         $snapshot['driverId'] = (int) $driver->id;
         $snapshot['driver'] = $driver->full_name;
+        return $this->sanitizeSnapshotForBusinessRules($snapshot);
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function sanitizeSnapshotForBusinessRules(array $snapshot): array
+    {
+        $entries = collect($snapshot['entries'] ?? [])
+            ->filter(fn ($entry): bool => is_array($entry) && ($entry['type'] ?? null) !== DriverDeduction::CATEGORY_ADVANCE)
+            ->values();
+
+        $travels = collect($snapshot['travels'] ?? [])
+            ->filter(fn ($travel): bool => is_array($travel))
+            ->map(fn (array $travel): ?array => $this->sanitizeSettlementTravel($travel))
+            ->filter()
+            ->values();
+
+        $snapshot['entries'] = $entries->all();
+        $snapshot['travels'] = $travels->all();
+
+        $totals = is_array($snapshot['totals'] ?? null) ? $snapshot['totals'] : [];
+        $totalOriginalNetFreight = round((float) $travels->sum(fn (array $travel): float => (float) ($travel['originalNetFreight'] ?? $travel['netFreight'] ?? 0)), 2);
+        $totalNetFreight = round((float) $travels->sum(fn (array $travel): float => (float) ($travel['settlementNetFreight'] ?? $travel['netFreight'] ?? 0)), 2);
+        $bonusPercent = (float) ($totals['bonusPercent'] ?? 0);
+        $bonusValue = round($totalNetFreight * ($bonusPercent / 100), 2);
+        $baseSalary = (float) ($totals['baseSalary'] ?? 0);
+        $otherEarnings = (float) ($totals['otherEarnings'] ?? 0);
+        $fines = round((float) $entries->where('type', DriverDeduction::CATEGORY_FINE)->sum('value'), 2);
+        $loans = round((float) $entries->where('type', DriverDeduction::CATEGORY_LOAN)->sum('value'), 2);
+        $otherDiscounts = round((float) $entries->where('type', DriverDeduction::CATEGORY_OTHER)->sum('value'), 2);
+        $neutralExpenses = round((float) $entries->where('type', 'NEUTRAL_EXPENSE')->sum('value'), 2);
+        $totalEarnings = round($baseSalary + $bonusValue + $otherEarnings, 2);
+        $totalDiscounts = round($fines + $loans + $otherDiscounts, 2);
+
+        $snapshot['totals'] = [
+            ...$totals,
+            'totalOriginalNetFreight' => $totalOriginalNetFreight,
+            'totalNetFreight' => $totalNetFreight,
+            'bonusPercent' => $bonusPercent,
+            'bonusValue' => $bonusValue,
+            'baseSalary' => $baseSalary,
+            'dailyAllowance' => 0.0,
+            'otherEarnings' => $otherEarnings,
+            'totalEarnings' => $totalEarnings,
+            'advances' => 0.0,
+            'fines' => $fines,
+            'loans' => $loans,
+            'otherDiscounts' => $otherDiscounts,
+            'neutralExpenses' => $neutralExpenses,
+            'totalDiscounts' => $totalDiscounts,
+            'totalPositive' => $totalEarnings,
+            'totalNegative' => $totalDiscounts,
+            'totalReceivable' => round($totalEarnings - $totalDiscounts, 2),
+        ];
+
         return $snapshot;
+    }
+
+    /** @param array<string, mixed> $travel
+     *  @return array<string, mixed>|null
+     */
+    private function sanitizeSettlementTravel(array $travel): ?array
+    {
+        $ctes = collect(is_array($travel['ctes'] ?? null) ? $travel['ctes'] : [])
+            ->filter(fn ($cte): bool => is_array($cte));
+
+        if ($ctes->isEmpty()) {
+            return ($travel['cteType'] ?? null) === 'DAILY' ? null : $travel;
+        }
+
+        $eligibleCtes = $ctes
+            ->reject(fn (array $cte): bool => ($cte['cteType'] ?? $cte['cte_type'] ?? null) === 'DAILY')
+            ->values();
+
+        if ($eligibleCtes->isEmpty()) {
+            return null;
+        }
+
+        if ($eligibleCtes->count() === $ctes->count()) {
+            return $travel;
+        }
+
+        $eligibleOriginal = round((float) $eligibleCtes->sum(fn (array $cte): float => (float) ($cte['netFreight'] ?? $cte['net_freight'] ?? 0)), 2);
+        $original = (float) ($travel['originalNetFreight'] ?? $travel['netFreight'] ?? 0);
+        $settlement = (float) ($travel['settlementNetFreight'] ?? $travel['netFreight'] ?? 0);
+        $shareRatio = $original > 0 ? $settlement / $original : 1.0;
+        $eligibleSettlement = round($eligibleOriginal * $shareRatio, 2);
+        $firstCte = $eligibleCtes->first();
+
+        $travel['ctes'] = $eligibleCtes->all();
+        $travel['cteType'] = $firstCte['cteType'] ?? $firstCte['cte_type'] ?? 'NORMAL';
+        $travel['cteNumber'] = $eligibleCtes
+            ->map(fn (array $cte): string => (string) ($cte['cteNumber'] ?? $cte['cte_number'] ?? ''))
+            ->filter()
+            ->implode(' / ');
+        $travel['cteSeries'] = $eligibleCtes
+            ->map(fn (array $cte): string => (string) ($cte['cteSeries'] ?? $cte['cte_series'] ?? ''))
+            ->filter()
+            ->implode(' / ');
+        $travel['netFreight'] = $eligibleOriginal;
+        $travel['originalNetFreight'] = $eligibleOriginal;
+        $travel['settlementNetFreight'] = $eligibleSettlement;
+        $travel['settlementSharePercent'] = $eligibleOriginal > 0
+            ? ($eligibleSettlement / $eligibleOriginal) * 100
+            : 100;
+
+        return $travel;
     }
 
     /** @return array<string, mixed> */
@@ -357,6 +464,7 @@ class DriverSettlementController extends Controller
     private function payload(DriverSettlement $settlement): array
     {
         $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
+        $snapshot = $this->sanitizeSnapshotForBusinessRules($snapshot);
         $snapshot['id'] = (string) $settlement->id;
         $snapshot['driverId'] = $settlement->driver_id ? (int) $settlement->driver_id : null;
         $snapshot['driver'] = $settlement->driver_name;

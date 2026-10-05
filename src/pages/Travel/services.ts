@@ -37,6 +37,7 @@ interface ApiTravel {
   shipper: string;
   shipper_color: string;
   operation_type: TravelRecord['operationType'];
+  company_unit: 'MATRIZ' | 'FILIAL';
   freight_type: string | null;
   cst: string | null;
   vehicle_id: number | null;
@@ -156,6 +157,7 @@ function mapTravel(travel: ApiTravel): TravelRecord {
     shipper: travel.shipper,
     shipperColor: travel.shipper_color || '#009E60',
     operationType: travel.operation_type,
+    companyUnit: travel.company_unit === 'FILIAL' ? 'FILIAL' : 'MATRIZ',
     freightType: normalizeFreightType(travel.freight_type),
     cst: travel.cst ?? '',
     vehicleId: travel.vehicle_id,
@@ -192,6 +194,7 @@ function buildPayload(data: TravelFormData) {
     destination: data.destination.trim(),
     shipper_id: data.shipperId ? Number(data.shipperId) : null,
     operation_type: data.operationType,
+    company_unit: data.companyUnit,
     freight_type: data.freightType || null,
     cst: data.cst || null,
     vehicle_id: data.operationType === 'FLEET' && data.vehicleId ? Number(data.vehicleId) : null,

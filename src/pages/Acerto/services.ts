@@ -79,7 +79,7 @@ function buildVehicleRows(settlement: DriverSettlementSnapshot): string {
 }
 
 function buildDiscountRows(settlement: DriverSettlementSnapshot): string {
-  const discountEntries = settlement.entries.filter((entry) => entry.type !== 'NEUTRAL_EXPENSE');
+  const discountEntries = settlement.entries.filter((entry) => entry.type !== 'NEUTRAL_EXPENSE' && entry.type !== 'ADVANCE');
   if (discountEntries.length === 0) {
     return '<p class="empty-message">Nenhum desconto lançado neste acerto.</p>';
   }
@@ -540,14 +540,8 @@ function buildSettlementReportHtml(settlement: DriverSettlementSnapshot): string
           <div class="summary-row"><span>Salário base</span><strong>${escapeHtml(
             formatCurrency(settlement.totals.baseSalary),
           )}</strong></div>
-          <div class="summary-row"><span>Diárias</span><strong>${escapeHtml(
-            formatCurrency(settlement.totals.dailyAllowance),
-          )}</strong></div>
           <div class="summary-row"><span>Outros proventos</span><strong>${escapeHtml(
             formatCurrency(settlement.totals.otherEarnings),
-          )}</strong></div>
-          <div class="summary-row"><span>Vales</span><strong>- ${escapeHtml(
-            formatCurrency(settlement.totals.advances),
           )}</strong></div>
           <div class="summary-row"><span>Multas</span><strong>- ${escapeHtml(
             formatCurrency(settlement.totals.fines),

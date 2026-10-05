@@ -74,6 +74,7 @@ class StoreTravelRequest extends FormRequest
         $this->merge([
             'ctes' => $normalizedCtes,
             'operation_type' => $operationType,
+            'company_unit' => strtoupper(trim((string) $this->input('company_unit', 'MATRIZ'))),
             'freight_type' => strtoupper(trim((string) $this->input('freight_type', ''))),
             'cst' => trim((string) $this->input('cst', '')),
             'origin' => trim((string) $this->input('origin')),
@@ -95,6 +96,7 @@ class StoreTravelRequest extends FormRequest
             'destination' => ['bail', 'required', 'string', 'max:150'],
             'shipper_id' => ['bail', 'required', 'integer', 'exists:shippers,id'],
             'operation_type' => ['bail', 'required', Rule::in(['FLEET', 'THIRD_PARTY'])],
+            'company_unit' => ['bail', 'required', Rule::in(['MATRIZ', 'FILIAL'])],
             'freight_type' => ['bail', 'required', Rule::in(['CABOTAGE', 'EXPORT_PORT', 'OTHER'])],
             'cst' => ['bail', 'required', Rule::in(['00', '90', '60', '41', '40', '51', '20'])],
 
@@ -170,6 +172,8 @@ class StoreTravelRequest extends FormRequest
             'shipper_id.required' => 'Selecione o embarcador.',
             'shipper_id.exists' => 'O embarcador selecionado não existe mais. Atualize as opções e tente novamente.',
             'operation_type.in' => 'Selecione Frota própria ou Terceiro contratado.',
+            'company_unit.required' => 'Selecione Matriz ou Filial.',
+            'company_unit.in' => 'Selecione uma unidade válida: Matriz ou Filial.',
             'freight_type.required' => 'Selecione o tipo de frete.',
             'freight_type.in' => 'Selecione Cabotagem, Exportação Porto ou Outros.',
             'cst.required' => 'Selecione a CST da viagem.',
