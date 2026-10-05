@@ -366,6 +366,44 @@ export const InvoicedLabel = styled.span`
   font-weight: 800;
 `;
 
+export const InvoicedWrap = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+`;
+
+export const UninvoiceButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.brandGreenBorder};
+    color: ${({ theme }) => theme.colors.brandGreenDark};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.colors.brandGreen};
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.55;
+  }
+`;
+
 export const Actions = styled.div`
   display: flex;
   gap: 6px;

@@ -434,6 +434,51 @@ class DriverDeductionController extends Controller
         ]);
     }
 
+    public function uninvoice(Request $request, DriverDeduction $driverDeduction): JsonResponse
+    {
+        $this->ensureDatabaseReady();
+
+        if ($driverDeduction->category !== DriverDeduction::CATEGORY_ADVANCE) {
+            throw ValidationException::withMessages([
+                'record' => 'Somente vales podem ser desfaturados.',
+            ]);
+        }
+
+        if (! $driverDeduction->invoiced) {
+            return response()->json([
+                'message' => 'Esta parcela já está como não faturada.',
+                'record' => $this->payload($driverDeduction->load('employee', 'settlement')),
+            ]);
+        }
+
+        try {
+            $updated = DB::transaction(function () use ($request, $driverDeduction): DriverDeduction {
+                $before = $this->auditSnapshot($driverDeduction);
+                $driverDeduction->forceFill([
+                    'invoiced' => false,
+                    'invoiced_at' => null,
+                    'invoiced_by' => null,
+                    'updated_by' => $request->user()?->id,
+                ])->save();
+                $driverDeduction->refresh();
+                $this->recordEvent($driverDeduction, DriverDeductionEvent::ACTION_UNINVOICED, $before, $this->auditSnapshot($driverDeduction), $request);
+
+                return $driverDeduction;
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'desfaturar');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'desfaturar');
+        }
+
+        return response()->json([
+            'message' => 'Vale desfaturado com sucesso.',
+            'record' => $this->payload($updated->load('employee', 'settlement')),
+        ]);
+    }
+
     public function destroy(Request $request, DriverDeduction $driverDeduction): Response
     {
         $this->ensureDatabaseReady();

@@ -13,6 +13,7 @@ class DriverDeductionEvent extends Model
     public const ACTION_SETTLED = 'SETTLED';
     public const ACTION_REOPENED = 'REOPENED';
     public const ACTION_INVOICED = 'INVOICED';
+    public const ACTION_UNINVOICED = 'UNINVOICED';
 
     protected $fillable = [
         'driver_deduction_id',
