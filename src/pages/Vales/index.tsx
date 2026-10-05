@@ -234,8 +234,6 @@ export function Vales() {
     return records.filter((record) => {
       if (record.category !== 'ADVANCE' || record.employeeId !== Number(form.employeeId)) return false;
       if (record.installmentNumber !== 1) return false;
-      if (editing?.installmentGroup && record.installmentGroup === editing.installmentGroup) return false;
-      if (!editing?.installmentGroup && editing?.id === record.id) return false;
       const valeDate = record.withdrawalDate ?? record.date;
       return valeDate >= range.start && valeDate <= range.end;
     });
