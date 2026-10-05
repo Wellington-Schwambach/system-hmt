@@ -29,6 +29,10 @@ export interface SettlementPendingVale {
   date: string;
   discountMonth: string;
   withdrawalDate: string | null;
+  advanceLocation: string | null;
+  boletoDueDate: string | null;
+  weeklyAuthorizedBy: 'HENRIQUE' | 'MARINA' | null;
+  weeklyAuthorizedAt: string | null;
   description: string;
   finePlate: string | null;
   fineLocation: string | null;

@@ -9,6 +9,7 @@ import {
   Edit3,
   Eye,
   EyeOff,
+  FileSpreadsheet,
   History,
   MessageSquareText,
   Plus,
@@ -34,6 +35,7 @@ import type {
   LogisticsStage,
 } from '../Logistic/types';
 import { validateLogisticsForm } from '../Logistic/validation';
+import { exportLogisticsDayToExcel } from './utils';
 import {
   AccentPreview,
   AppointmentAddButton,
@@ -50,6 +52,7 @@ import {
   CalendarDayFlowColumn,
   CalendarDayFlowTitle,
   CalendarDropdown,
+  CalendarFilters,
   CalendarShipperCount,
   DangerButton,
   DetailBackdrop,
@@ -63,6 +66,7 @@ import {
   DetailSectionTitle,
   DetailStatus,
   DayHistoryItem,
+  DayControls,
   DayHistoryList,
   DayTabButton,
   DayTabs,
@@ -87,6 +91,7 @@ import {
   ListRow,
   ListTable,
   ListViewport,
+  LoadSearchInput,
   LoadingState,
   LoadsSection,
   MonthTitle,
@@ -478,6 +483,27 @@ function loadIdentifier(load: LogisticsLoad): string {
   return load.cargoNumber || load.loadNumber || '—';
 }
 
+function normalizeLoadSearch(value: string | null | undefined): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+function loadMatchesSearch(load: LogisticsLoad, search: string): boolean {
+  const query = normalizeLoadSearch(search);
+  if (!query) return true;
+
+  const identifiers = [
+    load.loadNumber,
+    load.cargoNumber,
+    ...load.loadEntries.map((entry) => entry.number),
+  ];
+
+  return identifiers.some((value) => normalizeLoadSearch(value).includes(query));
+}
+
 function formatWeight(value: number | null): string {
   if (value === null) return '—';
   return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(value)} kg`;
@@ -493,6 +519,7 @@ export function LogisticsCalendar() {
   const [dayTab, setDayTab] = useState<DayTab>('LOADS');
   const collectionAlertDateRef = useRef<string | null>(null);
   const [shipperFilter, setShipperFilter] = useState('');
+  const [loadSearch, setLoadSearch] = useState('');
   const [options, setOptions] = useState<LogisticsOptions>(EMPTY_OPTIONS);
   const [loads, setLoads] = useState<LogisticsLoad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -635,13 +662,18 @@ export function LogisticsCalendar() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [appointmentEditor, appointmentSaving, detailLoad, drawerMode, saving, selectedDate, statusEditor, statusSaving, statusVisibilitySavingId]);
 
+  const searchedLoads = useMemo(
+    () => loads.filter((load) => loadMatchesSearch(load, loadSearch)),
+    [loadSearch, loads],
+  );
+
   const daySummaries = useMemo<Record<string, CalendarDaySummary>>(() => {
     const raw: Record<string, {
       scheduled: Record<string, CalendarShipperSummary>;
       loading: Record<string, CalendarShipperSummary>;
     }> = {};
 
-    loads.forEach((load) => {
+    searchedLoads.forEach((load) => {
       const scheduledDates = collectionScheduleDates(load);
       const loadingDate = dateKeyFromIso(load.loadingAt);
 
@@ -666,9 +698,20 @@ export function LogisticsCalendar() {
         },
       ]),
     );
-  }, [loads, monthRange.end, monthRange.start]);
+  }, [monthRange.end, monthRange.start, searchedLoads]);
 
   const visibleLoads = useMemo(() => {
+    if (!selectedDate) return [];
+    return searchedLoads
+      .filter((load) => loadMatchesCalendarDate(load, selectedDate))
+      .sort((a, b) => {
+        const byShipper = a.shipperName.localeCompare(b.shipperName, 'pt-BR', { sensitivity: 'base' });
+        if (byShipper !== 0) return byShipper;
+        return loadSortTime(a) - loadSortTime(b);
+      });
+  }, [searchedLoads, selectedDate]);
+
+  const dayLoadsForExport = useMemo(() => {
     if (!selectedDate) return [];
     return loads
       .filter((load) => loadMatchesCalendarDate(load, selectedDate))
@@ -1076,6 +1119,24 @@ export function LogisticsCalendar() {
     }
   }
 
+  function exportSelectedDay() {
+    if (!selectedDate) return;
+    if (dayLoadsForExport.length === 0) {
+      notifications.warning('Sem dados para exportar', 'Não há cargas ou movimentações nesta data.');
+      return;
+    }
+
+    try {
+      exportLogisticsDayToExcel(dayLoadsForExport, selectedDate);
+      notifications.success(
+        'Excel gerado',
+        `${dayLoadsForExport.length} carga${dayLoadsForExport.length === 1 ? '' : 's'} exportada${dayLoadsForExport.length === 1 ? '' : 's'} em ${formatDate(selectedDate)}.`,
+      );
+    } catch {
+      notifications.error('Não foi possível gerar o Excel', 'Tente novamente em alguns instantes.');
+    }
+  }
+
   function renderLoadRow(load: LogisticsLoad, rowKey: string) {
     const collectionCount = load.collectionAppointments.length;
     const deliveryCount = load.deliveryAppointments.length;
@@ -1173,18 +1234,26 @@ export function LogisticsCalendar() {
               <MonthTitle>{formatMonth(monthAnchor)}</MonthTitle>
             </WeekControls>
 
-            <FilterBox>
-              <SearchableSelect
-                id="calendar-shipper-filter"
-                value={shipperFilter}
-                options={shipperSelectOptions}
-                onChange={setShipperFilter}
-                placeholder="Todos os embarcadores"
-                searchPlaceholder="Buscar embarcador..."
-                emptyMessage="Nenhum embarcador encontrado."
-                ariaLabel="Filtrar calendário por embarcador"
+            <CalendarFilters>
+              <LoadSearchInput
+                value={loadSearch}
+                onChange={(event) => setLoadSearch(event.target.value)}
+                placeholder="Pesquisar por Load..."
+                aria-label="Pesquisar logística pelo número da Load"
               />
-            </FilterBox>
+              <FilterBox>
+                <SearchableSelect
+                  id="calendar-shipper-filter"
+                  value={shipperFilter}
+                  options={shipperSelectOptions}
+                  onChange={setShipperFilter}
+                  placeholder="Todos os embarcadores"
+                  searchPlaceholder="Buscar embarcador..."
+                  emptyMessage="Nenhum embarcador encontrado."
+                  ariaLabel="Filtrar calendário por embarcador"
+                />
+              </FilterBox>
+            </CalendarFilters>
           </Toolbar>
 
           <CalendarDropdown>
@@ -1273,18 +1342,34 @@ export function LogisticsCalendar() {
               <strong>Cargas de {formatDate(selectedDate)}</strong>
               <span>{loadingLoads.length} carregamento(s) · {scheduledCollectionLoads.length} agendamento(s) de coleta.</span>
             </div>
-            <FilterBox>
-              <SearchableSelect
-                id="list-shipper-filter"
-                value={shipperFilter}
-                options={shipperSelectOptions}
-                onChange={setShipperFilter}
-                placeholder="Todos os embarcadores"
-                searchPlaceholder="Buscar embarcador..."
-                emptyMessage="Nenhum embarcador encontrado."
-                ariaLabel="Filtrar listagem por embarcador"
+            <DayControls>
+              <LoadSearchInput
+                value={loadSearch}
+                onChange={(event) => setLoadSearch(event.target.value)}
+                placeholder="Pesquisar por Load..."
+                aria-label="Pesquisar cargas do dia pelo número da Load"
               />
-            </FilterBox>
+              <FilterBox>
+                <SearchableSelect
+                  id="list-shipper-filter"
+                  value={shipperFilter}
+                  options={shipperSelectOptions}
+                  onChange={setShipperFilter}
+                  placeholder="Todos os embarcadores"
+                  searchPlaceholder="Buscar embarcador..."
+                  emptyMessage="Nenhum embarcador encontrado."
+                  ariaLabel="Filtrar listagem por embarcador"
+                />
+              </FilterBox>
+              <SecondaryButton
+                type="button"
+                onClick={exportSelectedDay}
+                disabled={loading || dayLoadsForExport.length === 0}
+                title="Exportar os dados deste dia para Excel"
+              >
+                <FileSpreadsheet size={16} /> Exportar Excel
+              </SecondaryButton>
+            </DayControls>
           </SelectedDateBar>
 
           <DayTabs role="tablist" aria-label="Conteúdo do dia selecionado">
@@ -1338,7 +1423,7 @@ export function LogisticsCalendar() {
           ) : loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
             <ListViewport ref={listViewportRef}>
               {visibleLoads.length === 0 ? (
-                <EmptyState>Nenhum carregamento, agendamento de coleta ou outra movimentação encontrada para esta data.</EmptyState>
+                <EmptyState>{loadSearch.trim() ? 'Nenhuma carga encontrada para a Load pesquisada nesta data.' : 'Nenhum carregamento, agendamento de coleta ou outra movimentação encontrada para esta data.'}</EmptyState>
               ) : (
                 <ListTable ref={listTableRef}>
                   <ListHeaderRow>

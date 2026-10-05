@@ -16,6 +16,7 @@ class FuelRecord extends Model
         'vehicle_id',
         'trailer_id',
         'driver_id',
+        'company_unit',
         'plate',
         'trailer_plate_snapshot',
         'driver_name',

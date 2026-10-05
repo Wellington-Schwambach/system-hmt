@@ -125,6 +125,7 @@ function getInitialFormData(editingRecord?: TravelRecordWithMetrics | null): Tra
     origin: editingRecord.origin,
     destination: editingRecord.destination,
     shipperId: editingRecord.shipperId ? String(editingRecord.shipperId) : '',
+    companyUnit: editingRecord.companyUnit,
     operationType: editingRecord.operationType,
     freightType: editingRecord.freightType,
     cst: editingRecord.cst,
@@ -600,6 +601,22 @@ export function TravelFormModal({
                   onValueChange={(value) => handleChange('date', value)}
                   required
                 />
+              </Field>
+
+              <Field>
+                <Label htmlFor="travel-company-unit">Empresa / Unidade</Label>
+                <SelectControl>
+                  <FieldIcon aria-hidden="true"><Building2 size={18} /></FieldIcon>
+                  <Select
+                    id="travel-company-unit"
+                    value={formData.companyUnit}
+                    onChange={(event) => handleChange('companyUnit', event.target.value)}
+                    required
+                  >
+                    <option value="MATRIZ">Matriz</option>
+                    <option value="FILIAL">Filial</option>
+                  </Select>
+                </SelectControl>
               </Field>
 
               <Field>

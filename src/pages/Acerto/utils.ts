@@ -181,18 +181,18 @@ export function driversMatch(firstDriver: string, secondDriver: string): boolean
 }
 
 function driverFreightShare(
-  travel: TravelRecord,
+  netFreight: number,
   crew: CrewMember[],
   driver: string,
   driverId?: number | null,
 ): number {
   if (crew.length < 2) {
-    return travel.netFreight;
+    return netFreight;
   }
 
   // Faz o rateio em centavos para que a soma dos dois motoristas seja exatamente
-  // igual ao frete original, inclusive quando o valor possuir um centavo ímpar.
-  const totalCents = Math.round(travel.netFreight * 100);
+  // igual ao frete considerado no Acerto, inclusive quando o valor possuir um centavo ímpar.
+  const totalCents = Math.round(netFreight * 100);
   const primaryCents = Math.ceil(totalCents / 2);
   const secondaryCents = totalCents - primaryCents;
   const secondary = crew[1];
@@ -218,6 +218,16 @@ export function filterDriverTravels(
       travel.operationType === 'FLEET' && travel.date >= startDate && travel.date <= endDate,
     )
     .map((travel): SettlementTravelRecord | null => {
+      const eligibleCtes = travel.ctes.filter((cte) => cte.cteType !== 'DAILY');
+      const eligibleNetFreight = travel.ctes.length > 0
+        ? eligibleCtes.reduce((sum, cte) => sum + cte.netFreight, 0)
+        : (travel.cteType === 'DAILY' ? 0 : travel.netFreight);
+
+      // CT-e do tipo Diária não compõe o Acerto. Em uma viagem mista, apenas os
+      // CT-es Normal/Complemento permanecem para gratificação e total de viagens.
+      if (eligibleNetFreight <= 0 && travel.ctes.length > 0 && eligibleCtes.length === 0) return null;
+      if (travel.ctes.length === 0 && travel.cteType === 'DAILY') return null;
+
       const crew = resolveTravelCrew(travel, segments, driver, driverId);
       if (crew === null || crew.length === 0) return null;
 
@@ -225,7 +235,7 @@ export function filterDriverTravels(
       const primary = normalizedCrew[0] ?? null;
       const secondary = normalizedCrew[1] ?? null;
 
-      const settlementNetFreight = driverFreightShare(travel, normalizedCrew, driver, driverId);
+      const settlementNetFreight = driverFreightShare(eligibleNetFreight, normalizedCrew, driver, driverId);
 
       return {
         ...travel,
@@ -236,9 +246,14 @@ export function filterDriverTravels(
         driverOne: primary?.name ?? '',
         driverTwoId: secondary?.id ?? null,
         driverTwo: secondary?.name ?? '',
-        originalNetFreight: travel.netFreight,
+        ctes: eligibleCtes.length > 0 ? eligibleCtes : travel.ctes,
+        cteType: eligibleCtes[0]?.cteType ?? travel.cteType,
+        cteNumber: eligibleCtes.length > 0 ? eligibleCtes.map((cte) => cte.cteNumber).filter(Boolean).join(' / ') : travel.cteNumber,
+        cteSeries: eligibleCtes.length > 0 ? eligibleCtes.map((cte) => cte.cteSeries).filter(Boolean).join(' / ') : travel.cteSeries,
+        netFreight: eligibleNetFreight,
+        originalNetFreight: eligibleNetFreight,
         settlementNetFreight,
-        settlementSharePercent: travel.netFreight > 0 ? (settlementNetFreight / travel.netFreight) * 100 : 100,
+        settlementSharePercent: eligibleNetFreight > 0 ? (settlementNetFreight / eligibleNetFreight) * 100 : 100,
         settlementCrewSize: normalizedCrew.length,
       };
     })
@@ -598,7 +613,7 @@ export function calculateSettlementTotals(
   travels: SettlementTravelRecord[],
   bonusPercent: number,
   baseSalary: number,
-  dailyAllowance: number,
+  _dailyAllowance: number,
   otherEarnings: number,
   entries: FinancialEntry[],
 ): SettlementTotals {
@@ -611,9 +626,9 @@ export function calculateSettlementTotals(
     0,
   );
   const bonusValue = totalNetFreight * (bonusPercent / 100);
-  const advances = entries
-    .filter((entry) => entry.type === 'ADVANCE')
-    .reduce((sum, entry) => sum + entry.value, 0);
+  // Vales não são cobrados no Acerto. O campo permanece no snapshot apenas
+  // por compatibilidade com Acertos antigos, sempre zerado nas regras atuais.
+  const advances = 0;
   const fines = entries
     .filter((entry) => entry.type === 'FINE')
     .reduce((sum, entry) => sum + entry.value, 0);
@@ -626,8 +641,8 @@ export function calculateSettlementTotals(
   const neutralExpenses = entries
     .filter((entry) => entry.type === 'NEUTRAL_EXPENSE')
     .reduce((sum, entry) => sum + entry.value, 0);
-  const totalEarnings = baseSalary + bonusValue + dailyAllowance + otherEarnings;
-  const totalDiscounts = advances + fines + loans + otherDiscounts;
+  const totalEarnings = baseSalary + bonusValue + otherEarnings;
+  const totalDiscounts = fines + loans + otherDiscounts;
 
   return {
     totalOriginalNetFreight,
@@ -635,7 +650,7 @@ export function calculateSettlementTotals(
     bonusPercent,
     bonusValue,
     baseSalary,
-    dailyAllowance,
+    dailyAllowance: 0,
     otherEarnings,
     totalEarnings,
     advances,

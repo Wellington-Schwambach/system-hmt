@@ -59,6 +59,17 @@ export function validateValeForm(form: ValeFormData, options?: { editing?: boole
     errors.push('Informe uma data válida para o lançamento.');
   }
 
+  if (form.category === 'ADVANCE') {
+    if (!form.local.trim()) {
+      errors.push('Informe o local do vale.');
+    } else if (form.local.trim().length > 255) {
+      errors.push('O local do vale pode ter no máximo 255 caracteres.');
+    }
+    if (!hasIsoDate(form.boletoDueDate)) {
+      errors.push('Informe uma data válida para o vencimento do boleto.');
+    }
+  }
+
   if (form.description.trim().length > 255) {
     errors.push('A descrição/observação pode ter no máximo 255 caracteres.');
   }

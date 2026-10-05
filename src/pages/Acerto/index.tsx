@@ -45,7 +45,7 @@ export function Acerto() {
   const isAdministrator = user?.role?.trim().toLocaleLowerCase('pt-BR') === 'administrador';
   const [activeTab, setActiveTab] = useState<SettlementTab>('FORM');
   const [isPeriodModalOpen, setIsPeriodModalOpen] = useState(false);
-  const [entryType, setEntryType] = useState<FinancialEntryType>('ADVANCE');
+  const [entryType, setEntryType] = useState<FinancialEntryType>('FINE');
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [editingValeEntry, setEditingValeEntry] = useState<FinancialEntry | null>(null);
@@ -262,14 +262,12 @@ export function Acerto() {
             bonusPercent={settlement.bonusPercent}
             suggestedBonusPercent={settlement.suggestedBonusPercent}
             baseSalary={settlement.baseSalary}
-            dailyAllowance={settlement.dailyAllowance}
             otherEarnings={settlement.otherEarnings}
             entries={settlement.entries}
             totals={settlement.totals}
             valesLoadError={settlement.valesLoadError}
             onBonusPercentChange={settlement.setBonusPercent}
             onBaseSalaryChange={settlement.setBaseSalary}
-            onDailyAllowanceChange={settlement.setDailyAllowance}
             onOtherEarningsChange={settlement.setOtherEarnings}
             onApplySuggestedBonus={() =>
               settlement.setBonusPercent(String(settlement.suggestedBonusPercent))

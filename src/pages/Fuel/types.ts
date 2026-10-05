@@ -2,6 +2,7 @@ export type FuelType = 'DIESEL' | 'ARLA';
 export type FuelStatus = 'F' | 'P' | 'N';
 export type FuelFilter = 'ALL' | FuelStatus;
 export type FuelInvoiceTarget = 'DIESEL' | 'ARLA';
+export type FuelCompanyUnit = 'MATRIZ' | 'FILIAL';
 
 export interface FuelVehicleOption {
   id: number;
@@ -33,6 +34,7 @@ export interface FuelRecord {
   id: number;
   vehicleId: number | null;
   driverId: number | null;
+  companyUnit: FuelCompanyUnit;
   trailerId: number | null;
   trailerPlate: string | null;
   date: string;
@@ -60,6 +62,7 @@ export interface FuelRecordWithMetrics extends FuelRecord {
 }
 
 export interface FuelFormData {
+  companyUnit: FuelCompanyUnit;
   station: string;
   vehicleId: string;
   trailerId: string;

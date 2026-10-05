@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Building2,
   CalendarRange,
   CircleDollarSign,
   Droplets,
@@ -71,6 +72,7 @@ function getInitialFormData(editingRecord?: FuelRecordWithMetrics | null): FuelF
   }
 
   return {
+    companyUnit: editingRecord.companyUnit,
     station: editingRecord.station,
     vehicleId: editingRecord.vehicleId ? String(editingRecord.vehicleId) : '',
     trailerId: editingRecord.trailerId ? String(editingRecord.trailerId) : '',
@@ -296,6 +298,21 @@ export function FuelFormModal({
             </FormSectionHeader>
 
             <FieldGrid>
+              <Field>
+                <Label htmlFor="fuel-company-unit">Empresa / Unidade</Label>
+                <Control icon={<Building2 size={18} />}>
+                  <Select
+                    id="fuel-company-unit"
+                    value={formData.companyUnit}
+                    onChange={(event) => handleChange('companyUnit', event.target.value as FuelFormData['companyUnit'])}
+                    required
+                  >
+                    <option value="MATRIZ">Matriz</option>
+                    <option value="FILIAL">Filial</option>
+                  </Select>
+                </Control>
+              </Field>
+
               <Field>
                 <Label htmlFor="fuel-plate">Placa</Label>
                 <Control icon={<Truck size={18} />}>

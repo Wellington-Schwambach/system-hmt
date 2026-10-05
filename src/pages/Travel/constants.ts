@@ -43,6 +43,7 @@ export const INITIAL_TRAVEL_FORM: TravelFormData = {
   origin: '',
   destination: '',
   shipperId: '',
+  companyUnit: 'MATRIZ',
   operationType: 'FLEET',
   freightType: '',
   cst: '',

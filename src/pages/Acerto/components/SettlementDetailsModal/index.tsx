@@ -97,10 +97,6 @@ export function SettlementDetailsModal({
                 <strong>{formatCurrency(settlement.totals.baseSalary)}</strong>
               </DetailItem>
               <DetailItem>
-                <span>Diárias</span>
-                <strong>{formatCurrency(settlement.totals.dailyAllowance)}</strong>
-              </DetailItem>
-              <DetailItem>
                 <span>Outros proventos</span>
                 <strong>{formatCurrency(settlement.totals.otherEarnings)}</strong>
               </DetailItem>

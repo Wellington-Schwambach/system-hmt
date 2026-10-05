@@ -135,16 +135,8 @@ export function PrintReport({
               <strong>{formatCurrency(totals.baseSalary)}</strong>
             </SummaryRow>
             <SummaryRow>
-              <span>Diárias</span>
-              <strong>{formatCurrency(totals.dailyAllowance)}</strong>
-            </SummaryRow>
-            <SummaryRow>
               <span>Outros proventos</span>
               <strong>{formatCurrency(totals.otherEarnings)}</strong>
-            </SummaryRow>
-            <SummaryRow>
-              <span>Vales</span>
-              <strong>- {formatCurrency(totals.advances)}</strong>
             </SummaryRow>
             <SummaryRow>
               <span>Multas</span>

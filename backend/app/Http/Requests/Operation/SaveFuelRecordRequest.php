@@ -17,6 +17,7 @@ class SaveFuelRecordRequest extends FormRequest
     {
         $this->merge([
             'station' => trim((string) $this->input('station')),
+            'company_unit' => strtoupper(trim((string) $this->input('company_unit', 'MATRIZ'))),
             'billing_month' => $this->filled('billing_month')
                 ? $this->input('billing_month')
                 : substr((string) $this->input('fuel_date'), 0, 7),
@@ -50,6 +51,7 @@ class SaveFuelRecordRequest extends FormRequest
                     ->where('status', 'ACTIVE')),
             ],
             'fuel_date' => ['required', 'date_format:Y-m-d'],
+            'company_unit' => ['required', Rule::in(['MATRIZ', 'FILIAL'])],
             'billing_month' => ['required', 'date_format:Y-m'],
             'station' => ['required', 'string', 'max:120'],
             'km' => ['nullable', 'integer', 'min:0', 'max:9999999'],
@@ -69,6 +71,8 @@ class SaveFuelRecordRequest extends FormRequest
             'driver_id.exists' => 'O motorista selecionado não está mais disponível.',
             'trailer_id.exists' => 'A carreta selecionada não está mais disponível.',
             'fuel_date.required' => 'Informe a data do abastecimento.',
+            'company_unit.required' => 'Selecione Matriz ou Filial.',
+            'company_unit.in' => 'Selecione uma unidade válida: Matriz ou Filial.',
             'billing_month.required' => 'Informe o mês de faturamento.',
             'billing_month.date_format' => 'Informe um mês de faturamento válido.',
             'km.max' => 'O KM informado é muito alto. Confira o odômetro antes de salvar.',

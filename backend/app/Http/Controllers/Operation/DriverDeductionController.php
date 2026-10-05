@@ -9,6 +9,7 @@ use App\Models\DriverDeductionEvent;
 use App\Models\Employee;
 use App\Models\Vehicle;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
@@ -109,6 +110,7 @@ class DriverDeductionController extends Controller
 
         $records = DriverDeduction::query()
             ->where('employee_id', (int) $validated['driver_id'])
+            ->where('category', '<>', DriverDeduction::CATEGORY_ADVANCE)
             ->whereBetween('entry_date', [$validated['start_date'], $validated['end_date']])
             ->where(function ($query) use ($settlementId): void {
                 $query->where(function ($pending): void {
@@ -141,6 +143,16 @@ class DriverDeductionController extends Controller
             : null;
         $category = $validated['category'];
         $isLoan = $category === DriverDeduction::CATEGORY_LOAN;
+        $weeklyConflict = $category === DriverDeduction::CATEGORY_ADVANCE
+            && $withdrawalDate !== null
+            && $this->hasWeeklyAdvanceConflict((int) $validated['employee_id'], $withdrawalDate);
+
+        if ($weeklyConflict && empty($validated['weekly_authorized_by'])) {
+            throw ValidationException::withMessages([
+                'weekly_authorized_by' => ['Este motorista já possui vale nesta semana. Selecione Henrique ou Marina para autorizar a exceção.'],
+            ]);
+        }
+
         $amountCents = (int) round(((float) $validated['amount']) * 100);
 
         if (! $isLoan && $amountCents < $installments) {
@@ -162,6 +174,7 @@ class DriverDeductionController extends Controller
                 $withdrawalDate,
                 $category,
                 $isLoan,
+                $weeklyConflict,
                 $baseCents,
                 $remainder,
             ): array {
@@ -174,6 +187,10 @@ class DriverDeductionController extends Controller
                     'category' => $category,
                     'entry_date' => $discountStart->addMonthsNoOverflow($index)->format('Y-m-d'),
                     'withdrawal_date' => $withdrawalDate?->format('Y-m-d'),
+                    'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['advance_location'] : null,
+                    'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['boleto_due_date'] : null,
+                    'weekly_authorized_by' => $weeklyConflict ? $validated['weekly_authorized_by'] : null,
+                    'weekly_authorized_at' => $weeklyConflict ? now() : null,
                     'description' => $validated['description'] ?? null,
                     'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
                     'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
@@ -226,8 +243,6 @@ class DriverDeductionController extends Controller
     {
         $this->ensureDatabaseReady();
         $validated = $this->validatePayload($request, false);
-        $allowedSettlementId = isset($validated['settlement_id']) ? (int) $validated['settlement_id'] : null;
-        $this->ensureEditable($driverDeduction, $allowedSettlementId);
 
         if ($validated['category'] !== $driverDeduction->category) {
             throw ValidationException::withMessages([
@@ -236,7 +251,7 @@ class DriverDeductionController extends Controller
         }
 
         try {
-            $updated = DB::transaction(function () use ($request, $validated, $driverDeduction, $allowedSettlementId): DriverDeduction {
+            $updated = DB::transaction(function () use ($request, $validated, $driverDeduction): DriverDeduction {
                 $groupRecords = $driverDeduction->installment_group
                     ? DriverDeduction::query()
                         ->where('installment_group', $driverDeduction->installment_group)
@@ -244,15 +259,10 @@ class DriverDeductionController extends Controller
                         ->get()
                     : collect([$driverDeduction]);
 
-                foreach ($groupRecords as $record) {
-                    $this->ensureEditable($record, $allowedSettlementId);
-                }
-
                 $discountStart = CarbonImmutable::createFromFormat('Y-m', $validated['discount_start_month'])->startOfMonth();
                 $withdrawalDate = ! empty($validated['withdrawal_date']) ? $validated['withdrawal_date'] : null;
                 $category = $validated['category'];
                 $requestedAmount = (float) $validated['amount'];
-
                 if ($category === DriverDeduction::CATEGORY_LOAN) {
                     $desiredInstallments = (int) $validated['installments'];
                     $groupId = $driverDeduction->installment_group ?: (string) Str::uuid();
@@ -275,6 +285,10 @@ class DriverDeductionController extends Controller
                             'category' => DriverDeduction::CATEGORY_LOAN,
                             'entry_date' => $discountStart->addMonthsNoOverflow($number - 1)->format('Y-m-d'),
                             'withdrawal_date' => null,
+                            'advance_location' => null,
+                            'boleto_due_date' => null,
+                            'weekly_authorized_by' => null,
+                            'weekly_authorized_at' => null,
                             'description' => $validated['description'] ?? null,
                             'fine_plate' => null,
                             'fine_location' => null,
@@ -340,6 +354,8 @@ class DriverDeductionController extends Controller
                         'category' => $category,
                         'entry_date' => $discountStart->addMonthsNoOverflow(max(0, ((int) $record->installment_number) - 1))->format('Y-m-d'),
                         'withdrawal_date' => $withdrawalDate,
+                        'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['advance_location'] : null,
+                        'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['boleto_due_date'] : null,
                         'description' => $validated['description'] ?? null,
                         'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
                         'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
@@ -421,7 +437,7 @@ class DriverDeductionController extends Controller
     public function destroy(Request $request, DriverDeduction $driverDeduction): Response
     {
         $this->ensureDatabaseReady();
-        $this->ensureEditable($driverDeduction);
+        $this->ensureDeletable($driverDeduction);
 
         try {
             DB::transaction(function () use ($request, $driverDeduction): void {
@@ -496,6 +512,13 @@ class DriverDeductionController extends Controller
             'withdrawal_date' => $category === DriverDeduction::CATEGORY_LOAN
                 ? ['nullable', 'date_format:Y-m-d']
                 : ['required', 'date_format:Y-m-d'],
+            'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE
+                ? ['required', 'string', 'max:255']
+                : ['nullable', 'string', 'max:255'],
+            'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE
+                ? ['required', 'date_format:Y-m-d']
+                : ['nullable', 'date_format:Y-m-d'],
+            'weekly_authorized_by' => ['nullable', Rule::in(['HENRIQUE', 'MARINA'])],
             'fine_plate' => $category === DriverDeduction::CATEGORY_FINE
                 ? ['required', 'string', 'max:20']
                 : ['nullable', 'string', 'max:20'],
@@ -537,6 +560,11 @@ class DriverDeductionController extends Controller
             'amount.max' => 'O valor informado ultrapassa o limite permitido.',
             'withdrawal_date.required' => 'Informe a data do lançamento.',
             'withdrawal_date.date_format' => 'Informe uma data válida para o lançamento.',
+            'advance_location.required' => 'Informe o local do vale.',
+            'advance_location.max' => 'O local do vale pode ter no máximo 255 caracteres.',
+            'boleto_due_date.required' => 'Informe o vencimento do boleto do vale.',
+            'boleto_due_date.date_format' => 'Informe uma data válida para o vencimento do boleto.',
+            'weekly_authorized_by.in' => 'A exceção semanal deve ser autorizada por Henrique ou Marina.',
             'description.required' => 'Informe a descrição da multa.',
             'description.max' => 'A descrição/observação pode ter no máximo 255 caracteres.',
             'fine_plate.required' => 'Selecione a placa da multa.',
@@ -568,6 +596,9 @@ class DriverDeductionController extends Controller
                 ? 'valor à cobrar'
                 : ($category === DriverDeduction::CATEGORY_LOAN ? 'valor da parcela' : 'valor'),
             'withdrawal_date' => 'data',
+            'advance_location' => 'local do vale',
+            'boleto_due_date' => 'vencimento do boleto',
+            'weekly_authorized_by' => 'autorizado por',
             'fine_plate' => 'placa da multa',
             'fine_location' => 'local da infração',
             'fine_number' => 'Nº Auto / Nº Multa',
@@ -589,6 +620,10 @@ class DriverDeductionController extends Controller
             'category',
             'entry_date',
             'withdrawal_date',
+            'advance_location',
+            'boleto_due_date',
+            'weekly_authorized_by',
+            'weekly_authorized_at',
             'description',
             'amount',
             'installment_group',
@@ -710,24 +745,39 @@ class DriverDeductionController extends Controller
         ], 500));
     }
 
-    private function ensureEditable(DriverDeduction $deduction, ?int $allowedSettlementId = null): void
+    private function ensureDeletable(DriverDeduction $deduction): void
     {
-        $linkedToAllowedSettlement = $allowedSettlementId !== null
-            && (int) $deduction->driver_settlement_id === $allowedSettlementId;
         $pendingAndUnlinked = $deduction->driver_settlement_id === null
             && $deduction->status === DriverDeduction::STATUS_PENDING;
 
-        if (! $pendingAndUnlinked && ! $linkedToAllowedSettlement) {
+        if (! $pendingAndUnlinked || $deduction->invoiced) {
             throw ValidationException::withMessages([
-                'record' => ['Esta parcela já pertence a outro acerto e não pode ser alterada neste contexto.'],
+                'record' => ['Esta parcela não pode ser excluída porque já foi faturada ou pertence a um Acerto. A edição continua disponível.'],
             ]);
         }
+    }
 
-        if ($deduction->invoiced && ! $linkedToAllowedSettlement) {
-            throw ValidationException::withMessages([
-                'record' => ['Esta parcela já foi faturada e só pode ser ajustada a partir do acerto ao qual está vinculada.'],
-            ]);
-        }
+    private function hasWeeklyAdvanceConflict(
+        int $employeeId,
+        CarbonImmutable $withdrawalDate,
+        ?string $excludeInstallmentGroup = null,
+        ?int $excludeId = null,
+    ): bool {
+        $weekStart = $withdrawalDate->startOfWeek(CarbonInterface::MONDAY)->format('Y-m-d');
+        $weekEnd = $withdrawalDate->endOfWeek(CarbonInterface::SUNDAY)->format('Y-m-d');
+
+        return DriverDeduction::query()
+            ->where('employee_id', $employeeId)
+            ->where('category', DriverDeduction::CATEGORY_ADVANCE)
+            ->whereBetween('withdrawal_date', [$weekStart, $weekEnd])
+            ->where(function ($query): void {
+                $query->whereNull('installment_number')->orWhere('installment_number', 1);
+            })
+            ->when($excludeInstallmentGroup, fn ($query, $group) => $query->where(function ($other) use ($group): void {
+                $other->whereNull('installment_group')->orWhere('installment_group', '<>', $group);
+            }))
+            ->when(! $excludeInstallmentGroup && $excludeId, fn ($query) => $query->where('id', '<>', $excludeId))
+            ->exists();
     }
 
     private function normalizeFineNumber(string $number): string
@@ -754,6 +804,10 @@ class DriverDeductionController extends Controller
             'category' => $deduction->category,
             'entry_date' => $deduction->entry_date?->format('Y-m-d'),
             'withdrawal_date' => $deduction->withdrawal_date?->format('Y-m-d'),
+            'advance_location' => $deduction->advance_location,
+            'boleto_due_date' => $deduction->boleto_due_date?->format('Y-m-d'),
+            'weekly_authorized_by' => $deduction->weekly_authorized_by,
+            'weekly_authorized_at' => $deduction->weekly_authorized_at?->toIso8601String(),
             'description' => $deduction->description,
             'fine_plate' => $deduction->fine_plate,
             'fine_location' => $deduction->fine_location,
@@ -800,6 +854,10 @@ class DriverDeductionController extends Controller
             'date' => $deduction->entry_date?->format('Y-m-d'),
             'discountMonth' => $deduction->entry_date?->format('Y-m'),
             'withdrawalDate' => $deduction->withdrawal_date?->format('Y-m-d'),
+            'advanceLocation' => $deduction->advance_location,
+            'boletoDueDate' => $deduction->boleto_due_date?->format('Y-m-d'),
+            'weeklyAuthorizedBy' => $deduction->weekly_authorized_by,
+            'weeklyAuthorizedAt' => $deduction->weekly_authorized_at?->toIso8601String(),
             'description' => $deduction->description ?? '',
             'finePlate' => $deduction->fine_plate,
             'fineLocation' => $deduction->fine_location,
@@ -819,7 +877,8 @@ class DriverDeductionController extends Controller
             'settlementEndDate' => $deduction->settlement?->end_date?->format('Y-m-d'),
             'invoiced' => (bool) $deduction->invoiced,
             'invoicedAt' => $deduction->invoiced_at?->toIso8601String(),
-            'canEdit' => $deduction->driver_settlement_id === null
+            'canEdit' => true,
+            'canDelete' => $deduction->driver_settlement_id === null
                 && $deduction->status === DriverDeduction::STATUS_PENDING
                 && ! $deduction->invoiced,
             'createdAt' => $deduction->created_at?->toIso8601String(),

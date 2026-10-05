@@ -77,7 +77,7 @@ export const IconButton = styled.button`
 
 export const Toolbar = styled.section`
   display: grid;
-  grid-template-columns: minmax(20rem, 1fr) minmax(15rem, 20rem);
+  grid-template-columns: minmax(20rem, 1fr) minmax(28rem, 38rem);
   align-items: center;
   gap: 0.85rem;
 
@@ -191,6 +191,39 @@ export const FilterBox = styled.div`
   > div > div:first-child {
     min-height: 2.65rem;
     border-radius: 0.7rem;
+  }
+`;
+
+export const CalendarFilters = styled.div`
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.85fr) minmax(14rem, 1.15fr);
+  gap: 0.65rem;
+
+  @media (max-width: 1080px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const LoadSearchInput = styled.input`
+  width: 100%;
+  min-width: 0;
+  min-height: 2.65rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.7rem;
+  outline: none;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font: inherit;
+
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  }
+
+  &:focus {
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.18rem ${({ theme }) => theme.colors.brandGreenFocus};
   }
 `;
 
@@ -1250,13 +1283,31 @@ export const SketchObservation = styled.div`
 `;
 
 
+export const DayControls = styled.div`
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.9fr) minmax(13rem, 1.1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+
+  > button {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 760px) {
+    grid-template-columns: 1fr;
+
+    > button { width: 100%; }
+  }
+`;
+
 export const SelectedDateBar = styled.div`
   position: sticky;
   top: 0;
   z-index: 8;
   min-width: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(14rem, 20rem);
+  grid-template-columns: auto minmax(11rem, 1fr) minmax(34rem, 43rem);
   align-items: center;
   gap: 1rem;
   padding: 0.85rem 1rem;
@@ -1280,7 +1331,7 @@ export const SelectedDateBar = styled.div`
     font-size: 0.8rem;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1280px) {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
