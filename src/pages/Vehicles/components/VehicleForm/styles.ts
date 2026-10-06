@@ -375,3 +375,57 @@ export const PrimaryButton = styled.button`
     width: 100%;
   }
 `;
+
+export const BonusRulesList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.9rem;
+`;
+
+export const BonusRuleEditor = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.82rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const BonusAddButton = styled.button`
+  width: fit-content;
+  min-height: 2.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid ${({ theme }) => theme.colors.brandGreenBorder};
+  border-radius: 0.72rem;
+  color: ${({ theme }) => theme.colors.brandGreenDark};
+  background: ${({ theme }) => theme.colors.brandGreenSoft};
+  font-weight: 800;
+  cursor: pointer;
+`;
+
+export const BonusRemoveButton = styled.button`
+  min-height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid ${({ theme }) => theme.colors.dangerBorder};
+  border-radius: 0.72rem;
+  color: ${({ theme }) => theme.colors.danger};
+  background: ${({ theme }) => theme.colors.dangerSoft};
+  font-weight: 800;
+  cursor: pointer;
+`;

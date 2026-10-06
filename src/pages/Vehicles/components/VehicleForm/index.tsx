@@ -6,6 +6,7 @@ import {
   Gauge,
   Hash,
   Palette,
+  Plus,
   Save,
   Tag,
   Trash2,
@@ -33,6 +34,10 @@ import {
 import type { VehicleFormProps } from './types';
 import {
   Actions,
+  BonusAddButton,
+  BonusRemoveButton,
+  BonusRuleEditor,
+  BonusRulesList,
   DocumentCard,
   DocumentTitle,
   EditingBadge,
@@ -76,6 +81,7 @@ export function VehicleForm({
     setFormError('');
     setFormData((currentData) => ({ ...currentData, [field]: value }));
   }
+
 
   function handleFileChange(file: File | null) {
     setFormError('');
@@ -127,6 +133,14 @@ export function VehicleForm({
 
     if (Number(formData.modelYear) < Number(formData.manufactureYear)) {
       setFormError('O ano do modelo não pode ser menor que o ano de fabricação.');
+      return;
+    }
+
+    const hasIncompleteBonusRule = formData.averageBonusRules.some(
+      (rule) => rule.minimumAverage.trim() === '' || rule.percent.trim() === '',
+    );
+    if (formData.averageBonusEnabled && hasIncompleteBonusRule) {
+      setFormError('Preencha a média e a porcentagem de cada bonificação ou remova a linha incompleta.');
       return;
     }
 
@@ -382,6 +396,124 @@ export function VehicleForm({
               </InputShell>
             </Field>
           </Grid>
+        </Section>
+
+        <Section>
+          <SectionLegend>Bonificação por média</SectionLegend>
+          <Grid>
+            <Field>
+              <Label htmlFor="vehicle-average-bonus-enabled">Bonificação</Label>
+              <Select
+                id="vehicle-average-bonus-enabled"
+                value={formData.averageBonusEnabled ? 'ENABLED' : 'DISABLED'}
+                onChange={(event) => {
+                  const enabled = event.target.value === 'ENABLED';
+                  setFormError('');
+                  setFormData((currentData) => ({ ...currentData, averageBonusEnabled: enabled }));
+                }}
+              >
+                <option value="DISABLED">Desativada</option>
+                <option value="ENABLED">Ativada</option>
+              </Select>
+            </Field>
+
+            <Field>
+              <Label htmlFor="vehicle-average-bonus-valid-from">Vigência a partir de</Label>
+              <DateInput
+                id="vehicle-average-bonus-valid-from"
+                value={formData.averageBonusValidFrom}
+                onValueChange={(value) => handleChange('averageBonusValidFrom', value)}
+              />
+            </Field>
+          </Grid>
+
+          {formData.averageBonusEnabled ? (
+            <>
+              <HelperText>
+                Cadastre livremente as faixas desta placa. O sistema usa a maior média mínima
+                atingida para sugerir a porcentagem no Acerto, que continua podendo ser alterada
+                manualmente.
+              </HelperText>
+
+              <BonusRulesList>
+                {formData.averageBonusRules.map((rule, index) => (
+                  <BonusRuleEditor key={`bonus-rule-${index}`}>
+                    <Field>
+                      <Label htmlFor={`vehicle-average-bonus-average-${index}`}>Média mínima (km/L)</Label>
+                      <Input
+                        id={`vehicle-average-bonus-average-${index}`}
+                        inputMode="decimal"
+                        value={rule.minimumAverage}
+                        onChange={(event) => {
+                          const value = event.target.value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                          setFormError('');
+                          setFormData((currentData) => ({
+                            ...currentData,
+                            averageBonusRules: currentData.averageBonusRules.map((currentRule, ruleIndex) =>
+                              ruleIndex === index ? { ...currentRule, minimumAverage: value } : currentRule,
+                            ),
+                          }));
+                        }}
+                        placeholder="Ex.: 2,65"
+                      />
+                    </Field>
+
+                    <Field>
+                      <Label htmlFor={`vehicle-average-bonus-percent-${index}`}>Porcentagem (%)</Label>
+                      <Input
+                        id={`vehicle-average-bonus-percent-${index}`}
+                        inputMode="decimal"
+                        value={rule.percent}
+                        onChange={(event) => {
+                          const value = event.target.value.replace(/[^0-9,.]/g, '').replace('.', ',');
+                          setFormError('');
+                          setFormData((currentData) => ({
+                            ...currentData,
+                            averageBonusRules: currentData.averageBonusRules.map((currentRule, ruleIndex) =>
+                              ruleIndex === index ? { ...currentRule, percent: value } : currentRule,
+                            ),
+                          }));
+                        }}
+                        placeholder="Ex.: 7,5"
+                      />
+                    </Field>
+
+                    <BonusRemoveButton
+                      type="button"
+                      title="Remover bonificação"
+                      onClick={() => {
+                        setFormError('');
+                        setFormData((currentData) => ({
+                          ...currentData,
+                          averageBonusRules: currentData.averageBonusRules.filter((_, ruleIndex) => ruleIndex !== index),
+                        }));
+                      }}
+                    >
+                      <Trash2 size={16} />
+                      Remover
+                    </BonusRemoveButton>
+                  </BonusRuleEditor>
+                ))}
+              </BonusRulesList>
+
+              <BonusAddButton
+                type="button"
+                onClick={() => {
+                  setFormError('');
+                  setFormData((currentData) => ({
+                    ...currentData,
+                    averageBonusRules: [
+                      ...currentData.averageBonusRules,
+                      { minimumAverage: '', percent: '' },
+                    ],
+                  }));
+                }}
+              >
+                <Plus size={16} />
+                Adicionar bonificação
+              </BonusAddButton>
+            </>
+          ) : null}
         </Section>
 
         <Section>

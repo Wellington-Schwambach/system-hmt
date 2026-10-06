@@ -169,6 +169,7 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
             Route::get('/', [DriverDeductionController::class, 'index']);
             Route::post('/', [DriverDeductionController::class, 'store']);
             Route::put('/{driverDeduction}', [DriverDeductionController::class, 'update']);
+            Route::patch('/{driverDeduction}/boleto-due-date', [DriverDeductionController::class, 'updateBoletoDueDate']);
             Route::patch('/{driverDeduction}/invoice', [DriverDeductionController::class, 'invoice']);
             Route::patch('/{driverDeduction}/uninvoice', [DriverDeductionController::class, 'uninvoice'])->middleware('admin');
             Route::delete('/{driverDeduction}', [DriverDeductionController::class, 'destroy']);

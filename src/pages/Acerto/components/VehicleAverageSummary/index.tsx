@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Fuel, Gauge, Truck } from 'lucide-react';
 
-import { formatDecimal } from '../../utils';
+import { formatCurrency, formatDecimal } from '../../utils';
 import { FuelSelectionModal } from '../FuelSelectionModal';
 import type { VehicleAverageSummaryProps } from './types';
 import {
@@ -68,6 +68,15 @@ export function VehicleAverageSummary({
                     <span>
                       {summary.tripsCount} viagem(ns) · {selectedOnPlate}/{plateFuelings.length}{' '}
                       abastecida(s) selecionada(s)
+                    </span>
+                    <span>
+                      {!summary.bonusCalculationVersion
+                        ? 'Bonificação: regra antiga preservada neste acerto'
+                        : summary.bonusEnabled
+                          ? summary.bonusPercent && summary.bonusPercent > 0
+                            ? `Bonificação: ${formatDecimal(summary.bonusPercent)}% sobre ${formatCurrency(summary.bonusBaseFreight ?? 0)} = ${formatCurrency(summary.bonusValue ?? 0)}${summary.bonusDisengagement ? ' · desengate' : summary.bonusProfileName ? ` · ${summary.bonusProfileName}` : ''}${(summary.bonusExtraPercent ?? 0) > 0 ? ` · +${formatDecimal(summary.bonusExtraPercent ?? 0)} p.p.` : ''}`
+                            : 'Bonificação: sem percentual aplicável para esta média'
+                          : 'Bonificação por média não ativa para esta placa'}
                     </span>
                   </Info>
 

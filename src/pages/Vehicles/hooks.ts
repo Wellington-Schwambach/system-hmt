@@ -24,10 +24,10 @@ export function useVehicleRecords() {
   useEffect(() => {
     let active = true;
 
-    vehicleService
-      .list()
+    vehicleService.list()
       .then((records) => {
-        if (active) setAllRecords(records);
+        if (!active) return;
+        setAllRecords(records);
       })
       .catch((error: unknown) => {
         if (!active) return;

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Eye, Pencil, Printer, Search, Trash2 } from 'lucide-react';
 
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency, formatDate, formatDecimal } from '../../utils';
 import type { SettlementListProps } from './types';
 import {
   ActionButton,
@@ -118,7 +118,7 @@ export function SettlementList({
                     </TD>
                     <TD>{settlement.travels.length}</TD>
                     <TD $numeric>{formatCurrency(settlement.totals.totalOriginalNetFreight ?? settlement.totals.totalNetFreight)}</TD>
-                    <TD $numeric>{settlement.totals.bonusPercent}%</TD>
+                    <TD $numeric>{formatDecimal(settlement.totals.bonusPercent)}%</TD>
                     <TD $numeric $highlight>
                       {formatCurrency(settlement.totals.totalReceivable)}
                     </TD>
@@ -182,7 +182,7 @@ export function SettlementList({
                   </div>
                   <div>
                     <MobileLabel>Gratificação</MobileLabel>
-                    <MobileValue>{settlement.totals.bonusPercent}%</MobileValue>
+                    <MobileValue>{formatDecimal(settlement.totals.bonusPercent)}%</MobileValue>
                   </div>
                   <div>
                     <MobileLabel>A receber</MobileLabel>

@@ -29,6 +29,7 @@ export const VEHICLE_STATUS_OPTIONS: ReadonlyArray<{
   { value: 'INACTIVE', label: 'Inativo' },
 ];
 
+
 export const INITIAL_VEHICLE_FORM: VehicleFormData = {
   fleetNumber: '',
   plate: '',
@@ -50,6 +51,9 @@ export const INITIAL_VEHICLE_FORM: VehicleFormData = {
   licensingExpiryDate: '',
   tachographExpiryDate: '',
   notes: '',
+  averageBonusEnabled: false,
+  averageBonusValidFrom: '',
+  averageBonusRules: [],
   crlvFile: null,
   crlvValidUntil: '',
   removeCrlv: false,

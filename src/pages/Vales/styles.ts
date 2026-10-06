@@ -273,6 +273,43 @@ export const Table = styled.table`
   }
 `;
 
+
+export const InlineDateWrap = styled.div`
+  display: grid;
+  gap: 3px;
+  min-width: 148px;
+`;
+
+export const InlineDateInput = styled.input`
+  box-sizing: border-box;
+  width: 148px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font: inherit;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.brandGreen};
+    box-shadow: 0 0 0 0.16rem ${({ theme }) => theme.colors.brandGreenFocus};
+  }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.7;
+  }
+`;
+
+export const InlineDateStatus = styled.small`
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  font-size: 10px;
+  font-weight: 700;
+`;
+
 export const GroupHeaderRow = styled.tr`
   > td {
     padding: 12px 14px;

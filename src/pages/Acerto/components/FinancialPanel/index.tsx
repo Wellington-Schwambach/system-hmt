@@ -1,13 +1,12 @@
 import { Calculator, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 
 import type { FinancialEntryType } from '../../types';
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency, formatDate, formatDecimal } from '../../utils';
 import type { FinancialPanelProps } from './types';
 import {
   AddButton,
   BalanceTotals,
   EditButton,
-  ApplyButton,
   BonusHint,
   Content,
   EmptyEntries,
@@ -53,7 +52,6 @@ export function FinancialPanel({
   onBonusPercentChange,
   onBaseSalaryChange,
   onOtherEarningsChange,
-  onApplySuggestedBonus,
   onAddEntry,
   onEditEntry,
   onRemoveEntry,
@@ -81,23 +79,22 @@ export function FinancialPanel({
           </SummaryRow>
 
           <Field $full>
-            <Label htmlFor="settlement-bonus-percent">Percentual de gratificação (%)</Label>
+            <Label htmlFor="settlement-bonus-percent">Percentual da gratificação (%)</Label>
             <Input
               id="settlement-bonus-percent"
-              type="number"
-              min="0"
-              max="100"
-              step="0.5"
+              type="text"
+              inputMode="decimal"
               value={bonusPercent}
               onChange={(event) => onBonusPercentChange(event.target.value)}
+              placeholder="0,00"
             />
           </Field>
 
           <BonusHint>
-            <span>Sugestão pelas médias: {suggestedBonusPercent}%</span>
-            <ApplyButton type="button" onClick={onApplySuggestedBonus}>
-              Aplicar
-            </ApplyButton>
+            <span>
+              Sugestão automática pelas médias das placas: {formatDecimal(suggestedBonusPercent)}%.
+              O percentual acima pode ser alterado manualmente no acerto.
+            </span>
           </BonusHint>
 
           <SummaryRow $strong>

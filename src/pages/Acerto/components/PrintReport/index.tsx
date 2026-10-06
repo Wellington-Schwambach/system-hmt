@@ -84,6 +84,13 @@ export function PrintReport({
                     : `${formatDecimal(summary.averageKmPerLiter)} km/L`}
                 </span>
                 <span>Viagens: {summary.tripsCount}</span>
+                {summary.bonusCalculationVersion ? (
+                  <span>
+                    Bonificação: {formatDecimal(summary.bonusPercent ?? 0)}% · {formatCurrency(summary.bonusValue ?? 0)}
+                    {summary.bonusDisengagement ? ' · desengate' : summary.bonusProfileName ? ` · ${summary.bonusProfileName}` : ''}
+                    {(summary.bonusExtraPercent ?? 0) > 0 ? ` · +${formatDecimal(summary.bonusExtraPercent ?? 0)} p.p.` : ''}
+                  </span>
+                ) : null}
               </VehicleCard>
             ))}
           </VehicleGrid>
@@ -123,8 +130,8 @@ export function PrintReport({
               <strong>{formatCurrency(totals.totalOriginalNetFreight ?? totals.totalNetFreight)}</strong>
             </SummaryRow>
             <SummaryRow>
-              <span>Percentual aplicado</span>
-              <strong>{totals.bonusPercent}%</strong>
+              <span>Percentual efetivo</span>
+              <strong>{formatDecimal(totals.bonusPercent)}%</strong>
             </SummaryRow>
             <SummaryRow>
               <span>Gratificação</span>
