@@ -15,12 +15,21 @@ class StoreVehicleRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        $averageBonusRules = $this->input('average_bonus_rules');
+        if (is_string($averageBonusRules)) {
+            $decodedRules = json_decode($averageBonusRules, true);
+            $averageBonusRules = is_array($decodedRules) ? $decodedRules : [];
+        }
+
         $this->merge([
             'fleet_number' => $this->nullableUppercase('fleet_number'),
             'plate' => strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $this->input('plate'))),
             'chassis' => $this->nullableUppercase('chassis'),
             'renavam' => $this->nullableDigits('renavam'),
             'remove_crlv' => $this->boolean('remove_crlv'),
+            'average_bonus_enabled' => $this->boolean('average_bonus_enabled'),
+            'average_bonus_disengagement' => $this->boolean('average_bonus_disengagement'),
+            'average_bonus_rules' => is_array($averageBonusRules) ? $averageBonusRules : [],
         ]);
     }
 
@@ -62,6 +71,15 @@ class StoreVehicleRequest extends FormRequest
             'licensing_expiry_date' => ['nullable', 'date_format:Y-m-d'],
             'tachograph_expiry_date' => ['nullable', 'date_format:Y-m-d'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'average_bonus_enabled' => ['required', 'boolean'],
+            'average_bonus_valid_from' => ['nullable', 'date_format:Y-m-d'],
+            // Campos antigos mantidos como opcionais apenas para compatibilidade com versões anteriores.
+            'average_bonus_profile_id' => ['nullable', 'integer'],
+            'average_bonus_disengagement' => ['nullable', 'boolean'],
+            'average_bonus_extra_percent' => ['nullable', 'numeric', 'min:0', 'max:20'],
+            'average_bonus_rules' => ['nullable', 'array'],
+            'average_bonus_rules.*.minimum_average' => ['required_with:average_bonus_rules.*.percent', 'numeric', 'min:0', 'max:20'],
+            'average_bonus_rules.*.percent' => ['required_with:average_bonus_rules.*.minimum_average', 'numeric', 'min:0', 'max:20'],
             'crlv' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'crlv_valid_until' => ['nullable', 'date_format:Y-m-d'],
             'remove_crlv' => ['sometimes', 'boolean'],
@@ -113,6 +131,7 @@ class StoreVehicleRequest extends FormRequest
                         'Anexe o CRLV antes de informar a vigência.'
                     );
                 }
+
             },
         ];
     }

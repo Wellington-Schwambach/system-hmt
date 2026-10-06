@@ -65,7 +65,7 @@ export function validateValeForm(form: ValeFormData, options?: { editing?: boole
     } else if (form.local.trim().length > 255) {
       errors.push('O local do vale pode ter no máximo 255 caracteres.');
     }
-    if (!hasIsoDate(form.boletoDueDate)) {
+    if (form.boletoDueDate && !hasIsoDate(form.boletoDueDate)) {
       errors.push('Informe uma data válida para o vencimento do boleto.');
     }
   }

@@ -8,14 +8,6 @@ export const INITIAL_FINANCIAL_ENTRY_FORM: FinancialEntryFormData = {
   value: '',
 };
 
-export const BONUS_RULES = [
-  { minimumAverage: 3.8, percent: 10 },
-  { minimumAverage: 3.5, percent: 9 },
-  { minimumAverage: 3.2, percent: 8 },
-  { minimumAverage: 2.9, percent: 7 },
-  { minimumAverage: 0, percent: 6 },
-] as const;
-
 export const ENTRY_LABELS: Record<FinancialEntryType, string> = {
   ADVANCE: 'Vale',
   FINE: 'Multa',

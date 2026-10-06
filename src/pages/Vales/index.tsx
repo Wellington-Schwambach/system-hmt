@@ -33,6 +33,9 @@ import {
   InvoicedLabel,
   InvoicedWrap,
   UninvoiceButton,
+  InlineDateInput,
+  InlineDateWrap,
+  InlineDateStatus,
   Modal,
   ModalActions,
   ModalHeader,
@@ -113,7 +116,7 @@ const INITIAL_FORM: ValeFormData = {
   date: todayValue(),
   discountStartMonth: currentMonthValue(),
   local: '',
-  boletoDueDate: todayValue(),
+  boletoDueDate: '',
   weeklyAuthorizedBy: '',
   description: '',
   amount: '500,00',
@@ -194,6 +197,8 @@ export function Vales() {
   const [form, setForm] = useState<ValeFormData>(INITIAL_FORM);
   const [saving, setSaving] = useState(false);
   const [invoicingId, setInvoicingId] = useState<number | null>(null);
+  const [dueDateDrafts, setDueDateDrafts] = useState<Record<number, string>>({});
+  const [savingDueDateId, setSavingDueDateId] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -288,7 +293,7 @@ export function Vales() {
       discountStartMonth: currentMonthValue(),
       employeeId: driverFilter !== 'ALL' ? driverFilter : employees[0] ? String(employees[0].id) : '',
       local: '',
-      boletoDueDate: todayValue(),
+      boletoDueDate: '',
       weeklyAuthorizedBy: '',
       amount: activeCategory === 'ADVANCE' ? '500,00' : '',
       fineInfractionCode: '',
@@ -309,7 +314,7 @@ export function Vales() {
       date: record.withdrawalDate ?? todayValue(),
       discountStartMonth: firstInstallmentMonth(record),
       local: record.advanceLocation ?? '',
-      boletoDueDate: record.boletoDueDate ?? record.withdrawalDate ?? todayValue(),
+      boletoDueDate: record.boletoDueDate ?? '',
       weeklyAuthorizedBy: '',
       description: record.description,
       installments: String(record.installmentsTotal),
@@ -384,6 +389,27 @@ export function Vales() {
       notifications.error(feedback.title, feedback.message, feedback.details);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleBoletoDueDateBlur(record: ValeRecord) {
+    if (record.category !== 'ADVANCE' || savingDueDateId === record.id) return;
+
+    const currentValue = record.boletoDueDate ?? '';
+    const nextValue = dueDateDrafts[record.id] ?? currentValue;
+    if (nextValue === currentValue) return;
+
+    setSavingDueDateId(record.id);
+    try {
+      const updated = await valeService.updateBoletoDueDate(record.id, nextValue || null);
+      setRecords((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setDueDateDrafts((current) => ({ ...current, [record.id]: updated.boletoDueDate ?? '' }));
+    } catch (error) {
+      setDueDateDrafts((current) => ({ ...current, [record.id]: currentValue }));
+      const feedback = getApiErrorFeedback(error, 'Não foi possível atualizar o vencimento do boleto.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setSavingDueDateId(null);
     }
   }
 
@@ -577,7 +603,24 @@ export function Vales() {
                           {activeCategory === 'FINE' && <td><strong>{record.fineOriginalAmount != null ? formatCurrency(record.fineOriginalAmount) : '-'}</strong></td>}
                           <td><strong>{record.installmentNumber}/{record.installmentsTotal}</strong></td>
                           <td><strong>{formatCurrency(record.amount)}</strong></td>
-                          {activeCategory === 'ADVANCE' && <td><strong>{formatDate(record.boletoDueDate)}</strong></td>}
+                          {activeCategory === 'ADVANCE' && (
+                            <td>
+                              <InlineDateWrap>
+                                <InlineDateInput
+                                  type="date"
+                                  value={dueDateDrafts[record.id] ?? record.boletoDueDate ?? ''}
+                                  onChange={(event) => setDueDateDrafts((current) => ({ ...current, [record.id]: event.target.value }))}
+                                  onBlur={() => void handleBoletoDueDateBlur(record)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') event.currentTarget.blur();
+                                  }}
+                                  disabled={savingDueDateId === record.id}
+                                  aria-label={`Vencimento do boleto de ${record.employeeName}`}
+                                />
+                                {savingDueDateId === record.id && <InlineDateStatus>Salvando...</InlineDateStatus>}
+                              </InlineDateWrap>
+                            </td>
+                          )}
                           {activeCategory === 'ADVANCE' && (
                             <td>
                               {record.invoiced ? (
@@ -659,7 +702,7 @@ export function Vales() {
                       fineOriginalAmount: category === 'FINE' ? current.fineOriginalAmount : '',
                       fineObservation: category === 'FINE' ? current.fineObservation : '',
                       local: category === 'ADVANCE' ? current.local : '',
-                      boletoDueDate: category === 'ADVANCE' ? (current.boletoDueDate || todayValue()) : '',
+                      boletoDueDate: category === 'ADVANCE' ? current.boletoDueDate : '',
                       weeklyAuthorizedBy: category === 'ADVANCE' ? current.weeklyAuthorizedBy : '',
                       amount: category === 'ADVANCE' && !current.amount ? '500,00' : current.amount,
                       description: current.description,
@@ -769,24 +812,15 @@ export function Vales() {
               )}
 
               {form.category === 'ADVANCE' && (
-                <FormGrid>
-                  <Field>Local
-                    <Input
-                      value={form.local}
-                      onChange={(event) => setForm((current) => ({ ...current, local: event.target.value }))}
-                      placeholder="Ex.: Posto 45"
-                      maxLength={255}
-                      required
-                    />
-                  </Field>
-                  <Field>Vencimento do boleto
-                    <DateInput
-                      value={form.boletoDueDate}
-                      onValueChange={(value) => setForm((current) => ({ ...current, boletoDueDate: value }))}
-                      required
-                    />
-                  </Field>
-                </FormGrid>
+                <Field>Local
+                  <Input
+                    value={form.local}
+                    onChange={(event) => setForm((current) => ({ ...current, local: event.target.value }))}
+                    placeholder="Ex.: Posto 45"
+                    maxLength={255}
+                    required
+                  />
+                </Field>
               )}
 
               <FormGrid>

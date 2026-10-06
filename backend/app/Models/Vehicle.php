@@ -32,6 +32,12 @@ class Vehicle extends Model
         'licensing_expiry_date',
         'tachograph_expiry_date',
         'notes',
+        'average_bonus_enabled',
+        'average_bonus_valid_from',
+        'average_bonus_profile_id',
+        'average_bonus_disengagement',
+        'average_bonus_extra_percent',
+        'average_bonus_rules',
         'crlv_path',
         'crlv_original_name',
         'crlv_mime_type',
@@ -54,10 +60,21 @@ class Vehicle extends Model
             'angellira_expiry_date' => 'date:Y-m-d',
             'licensing_expiry_date' => 'date:Y-m-d',
             'tachograph_expiry_date' => 'date:Y-m-d',
+            'average_bonus_enabled' => 'boolean',
+            'average_bonus_valid_from' => 'date:Y-m-d',
+            'average_bonus_profile_id' => 'integer',
+            'average_bonus_disengagement' => 'boolean',
+            'average_bonus_extra_percent' => 'decimal:2',
+            'average_bonus_rules' => 'array',
             'crlv_valid_until' => 'date:Y-m-d',
         ];
     }
 
+
+    public function averageBonusProfile(): BelongsTo
+    {
+        return $this->belongsTo(VehicleAverageBonusProfile::class, 'average_bonus_profile_id');
+    }
 
     public function fuelRecords(): HasMany
     {

@@ -116,6 +116,9 @@ export function ValeEntryEditModal({ isOpen, entry, onClose, onSubmit }: ValeEnt
           <Field>Motorista
             <Select value={form.employeeId} onChange={(event) => setForm((current) => ({ ...current, employeeId: event.target.value }))} required>
               <option value="">Selecione...</option>
+              {form.employeeId && !employees.some((employee) => String(employee.id) === form.employeeId) && (
+                <option value={form.employeeId}>{record.employeeName}</option>
+              )}
               {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
             </Select>
           </Field>

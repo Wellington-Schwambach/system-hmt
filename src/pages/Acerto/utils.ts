@@ -5,7 +5,7 @@ import { normalizeFuelRecords } from '../Fuel/utils';
 import { INITIAL_TRAVEL_RECORDS, TRAVEL_STORAGE_KEY } from '../Travel/constants';
 import type { PersistedTravelRecord, TravelRecord } from '../Travel/types';
 import { getDriverOptions } from '../../utils/employeeDrivers';
-import { BONUS_RULES } from './constants';
+import type { VehicleRecord } from '../Vehicles/types';
 import type {
   FinancialEntry,
   LoadedSettlementData,
@@ -142,7 +142,7 @@ export function loadSettlementData(): LoadedSettlementData {
   // Motoristas de terceiros presentes em viagens/abastecimentos não entram no seletor.
   const drivers = getDriverOptions();
 
-  return { travels, fuelRecords, crewEvents: [], drivers, driverOptions: [] };
+  return { travels, fuelRecords, crewEvents: [], drivers, driverOptions: [], vehicles: [] };
 }
 
 export function getMonthDateRange(month: string): { startDate: string; endDate: string } {
@@ -251,6 +251,7 @@ export function filterDriverTravels(
         cteNumber: eligibleCtes.length > 0 ? eligibleCtes.map((cte) => cte.cteNumber).filter(Boolean).join(' / ') : travel.cteNumber,
         cteSeries: eligibleCtes.length > 0 ? eligibleCtes.map((cte) => cte.cteSeries).filter(Boolean).join(' / ') : travel.cteSeries,
         netFreight: eligibleNetFreight,
+        averageGroupKey: buildAverageGroupKey(travel.plate, normalizedCrew),
         originalNetFreight: eligibleNetFreight,
         settlementNetFreight,
         settlementSharePercent: eligibleNetFreight > 0 ? (settlementNetFreight / eligibleNetFreight) * 100 : 100,
@@ -519,18 +520,32 @@ export function getDriverFuelRecords(
 }
 
 function travelCrewMembers(travel: TravelRecord): CrewMember[] {
+  // Acertos antigos podem ter sido gravados antes de driverOne/driverTwo existirem.
+  // Nunca chamamos trim() diretamente em campos vindos de snapshots históricos.
+  const legacyDriver = typeof travel.driver === 'string' ? travel.driver.trim() : '';
+  const driverOne = typeof travel.driverOne === 'string' ? travel.driverOne.trim() : '';
+  const driverTwo = typeof travel.driverTwo === 'string' ? travel.driverTwo.trim() : '';
+  const driverOneId = Number.isFinite(Number(travel.driverOneId)) ? Number(travel.driverOneId) : null;
+  const driverTwoId = Number.isFinite(Number(travel.driverTwoId)) ? Number(travel.driverTwoId) : null;
   const members: CrewMember[] = [];
 
-  if (travel.driverOneId !== null || travel.driverOne.trim() !== '') {
-    members.push({ id: travel.driverOneId, name: travel.driverOne || travel.driver });
+  if (driverOneId !== null || driverOne !== '') {
+    members.push({ id: driverOneId, name: driverOne || legacyDriver });
   }
 
-  if (travel.driverTwoId !== null || travel.driverTwo.trim() !== '') {
-    members.push({ id: travel.driverTwoId, name: travel.driverTwo });
+  if (driverTwoId !== null || driverTwo !== '') {
+    members.push({ id: driverTwoId, name: driverTwo });
   }
 
-  if (members.length === 0 && travel.driver.trim() !== '') {
-    members.push({ id: null, name: travel.driver });
+  if (members.length === 0 && legacyDriver !== '') {
+    // Nos snapshots antigos o campo `driver` podia conter os dois nomes unidos por '/'.
+    const legacyMembers = legacyDriver
+      .split('/')
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .slice(0, 2);
+
+    legacyMembers.forEach((name) => members.push({ id: null, name }));
   }
 
   return uniqueCrewMembers(members);
@@ -589,24 +604,63 @@ export function getVehicleAverageSummaries(
     .sort((first, second) => first.label.localeCompare(second.label, 'pt-BR'));
 }
 
-export function getSuggestedBonusPercent(vehicleSummaries: VehicleAverageSummaryData[]): number {
-  const validSummaries = vehicleSummaries.filter(
-    (summary): summary is VehicleAverageSummaryData & { averageKmPerLiter: number } =>
-      summary.averageKmPerLiter !== null,
+export function applyVehicleBonusRules(
+  summaries: VehicleAverageSummaryData[],
+  travels: SettlementTravelRecord[],
+  vehicles: VehicleRecord[],
+  endDate: string,
+): VehicleAverageSummaryData[] {
+  const vehiclesByPlate = new Map(
+    vehicles.map((vehicle) => [vehicle.plate.trim().toLocaleUpperCase('pt-BR'), vehicle]),
   );
+  const freightByGroup = new Map<string, number>();
 
-  if (validSummaries.length === 0) {
-    return 6;
-  }
+  travels.forEach((travel) => {
+    const groupKey = travel.averageGroupKey
+      ?? buildAverageGroupKey(travel.plate, travelCrewMembers(travel));
+    freightByGroup.set(
+      groupKey,
+      (freightByGroup.get(groupKey) ?? 0) + (travel.settlementNetFreight ?? travel.netFreight),
+    );
+  });
 
-  const totalTrips = validSummaries.reduce((sum, summary) => sum + summary.tripsCount, 0);
-  const weightedAverage =
-    validSummaries.reduce(
-      (sum, summary) => sum + summary.averageKmPerLiter * summary.tripsCount,
-      0,
-    ) / Math.max(totalTrips, 1);
+  return summaries.map((summary) => {
+    const vehicle = vehiclesByPlate.get(summary.plate.trim().toLocaleUpperCase('pt-BR'));
+    const baseFreight = freightByGroup.get(summary.groupKey) ?? 0;
+    const average = summary.averageKmPerLiter;
+    const isWithinValidity = !vehicle?.averageBonusValidFrom
+      || !endDate
+      || vehicle.averageBonusValidFrom <= endDate;
+    const enabled = Boolean(vehicle?.averageBonusEnabled && isWithinValidity);
+    const rules = vehicle?.averageBonusRules ?? [];
 
-  return BONUS_RULES.find((rule) => weightedAverage >= rule.minimumAverage)?.percent ?? 6;
+    const matchedRule = enabled && average !== null
+      ? [...rules]
+          .sort((first, second) => second.minimumAverage - first.minimumAverage)
+          .find((rule) => average >= rule.minimumAverage)
+      : undefined;
+
+    const basePercent = matchedRule?.percent ?? 0;
+    const percent = enabled && average !== null
+      ? Math.round(basePercent * 100) / 100
+      : 0;
+    const bonusValue = Math.round(baseFreight * (percent / 100) * 100) / 100;
+
+    return {
+      ...summary,
+      bonusCalculationVersion: 3,
+      bonusEnabled: enabled,
+      bonusPercent: percent,
+      bonusBasePercent: basePercent,
+      bonusExtraPercent: 0,
+      bonusDisengagement: false,
+      bonusProfileCode: null,
+      bonusProfileName: null,
+      bonusRuleMinimumAverage: matchedRule?.minimumAverage ?? null,
+      bonusBaseFreight: Math.round(baseFreight * 100) / 100,
+      bonusValue,
+    };
+  });
 }
 
 export function calculateSettlementTotals(
@@ -616,6 +670,7 @@ export function calculateSettlementTotals(
   _dailyAllowance: number,
   otherEarnings: number,
   entries: FinancialEntry[],
+  bonusValueOverride?: number,
 ): SettlementTotals {
   const totalOriginalNetFreight = travels.reduce(
     (sum, travel) => sum + (travel.originalNetFreight ?? travel.netFreight),
@@ -625,7 +680,7 @@ export function calculateSettlementTotals(
     (sum, travel) => sum + (travel.settlementNetFreight ?? travel.netFreight),
     0,
   );
-  const bonusValue = totalNetFreight * (bonusPercent / 100);
+  const bonusValue = bonusValueOverride ?? totalNetFreight * (bonusPercent / 100);
   // Vales não são cobrados no Acerto. O campo permanece no snapshot apenas
   // por compatibilidade com Acertos antigos, sempre zerado nas regras atuais.
   const advances = 0;

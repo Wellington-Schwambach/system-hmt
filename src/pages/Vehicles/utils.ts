@@ -45,6 +45,12 @@ export function vehicleRecordToFormData(record: VehicleRecord): VehicleFormData 
     licensingExpiryDate: record.licensingExpiryDate,
     tachographExpiryDate: record.tachographExpiryDate,
     notes: record.notes,
+    averageBonusEnabled: record.averageBonusEnabled,
+    averageBonusValidFrom: record.averageBonusValidFrom,
+    averageBonusRules: record.averageBonusRules.map((rule) => ({
+      minimumAverage: String(rule.minimumAverage).replace('.', ','),
+      percent: String(rule.percent).replace('.', ','),
+    })),
     crlvFile: null,
     crlvValidUntil: record.crlv?.validUntil ?? '',
     removeCrlv: false,

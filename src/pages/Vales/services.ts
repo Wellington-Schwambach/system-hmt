@@ -18,7 +18,6 @@ function payload(form: ValeFormData) {
         : form.date,
     discount_start_month: form.discountStartMonth,
     advance_location: form.category === 'ADVANCE' ? form.local.trim() : null,
-    boleto_due_date: form.category === 'ADVANCE' ? (form.boletoDueDate || null) : null,
     weekly_authorized_by: form.category === 'ADVANCE' ? (form.weeklyAuthorizedBy || null) : null,
     description: form.description.trim() || null,
     amount: parseValeMoney(form.amount),
@@ -80,6 +79,13 @@ export const valeService = {
 
   async update(id: number, form: ValeFormData): Promise<ValeRecord> {
     const response = await api.put<{ record: ValeRecord }>(`/api/vales/${id}`, payload(form));
+    return response.data.record;
+  },
+
+  async updateBoletoDueDate(id: number, boletoDueDate: string | null): Promise<ValeRecord> {
+    const response = await api.patch<{ record: ValeRecord }>(`/api/vales/${id}/boleto-due-date`, {
+      boleto_due_date: boletoDueDate,
+    });
     return response.data.record;
   },
 

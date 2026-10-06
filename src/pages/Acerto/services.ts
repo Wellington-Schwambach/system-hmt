@@ -72,7 +72,12 @@ function buildVehicleRows(settlement: DriverSettlementSnapshot): string {
               ? 'Sem dados'
               : `${escapeHtml(formatDecimal(summary.averageKmPerLiter))} km/L`
           }</td>
-          <td>${escapeHtml(getAverageSourceLabel(summary.source))}</td>
+          <td>
+            ${escapeHtml(getAverageSourceLabel(summary.source))}
+            ${summary.bonusCalculationVersion
+              ? `<div class="rateio">Bonificação: ${escapeHtml(formatDecimal(summary.bonusPercent ?? 0))}% · ${escapeHtml(formatCurrency(summary.bonusValue ?? 0))}${summary.bonusDisengagement ? ' · desengate' : summary.bonusProfileName ? ` · ${escapeHtml(summary.bonusProfileName)}` : ''}${(summary.bonusExtraPercent ?? 0) > 0 ? ` · +${escapeHtml(formatDecimal(summary.bonusExtraPercent ?? 0))} p.p.` : ''}</div>`
+              : ''}
+          </td>
         </tr>`,
     )
     .join('');
@@ -669,9 +674,13 @@ export const settlementService = {
     });
     return response.data.records;
   },
-  async drivers(): Promise<Array<{ id: number; name: string }>> {
-    const response = await api.get<{ drivers: Array<{ id: number; name: string }> }>('/api/settlements/drivers');
-    return response.data.drivers.map((driver) => ({ id: Number(driver.id), name: driver.name }));
+  async drivers(): Promise<Array<{ id: number; name: string; admissionDate: string | null }>> {
+    const response = await api.get<{ drivers: Array<{ id: number; name: string; admission_date: string | null }> }>('/api/settlements/drivers');
+    return response.data.drivers.map((driver) => ({
+      id: Number(driver.id),
+      name: driver.name,
+      admissionDate: driver.admission_date ?? null,
+    }));
   },
 
   async list(): Promise<DriverSettlementSnapshot[]> {

@@ -8,6 +8,24 @@ export type VehicleStatus = 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE';
 
 export type VehiclePlateEndFilter = 'ALL' | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
 
+export interface VehicleAverageBonusRule {
+  minimumAverage: number;
+  percent: number;
+}
+
+export interface VehicleAverageBonusProfile {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  rules: VehicleAverageBonusRule[];
+}
+
+export interface VehicleAverageBonusRuleForm {
+  minimumAverage: string;
+  percent: string;
+}
+
 export interface VehicleCrlv {
   name: string;
   mimeType: string | null;
@@ -37,6 +55,13 @@ export interface VehicleRecord {
   licensingExpiryDate: string;
   tachographExpiryDate: string;
   notes: string;
+  averageBonusEnabled: boolean;
+  averageBonusValidFrom: string;
+  averageBonusProfileId: number | null;
+  averageBonusProfile: VehicleAverageBonusProfile | null;
+  averageBonusDisengagement: boolean;
+  averageBonusExtraPercent: number;
+  averageBonusRules: VehicleAverageBonusRule[];
   crlv: VehicleCrlv | null;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +88,9 @@ export interface VehicleFormData {
   licensingExpiryDate: string;
   tachographExpiryDate: string;
   notes: string;
+  averageBonusEnabled: boolean;
+  averageBonusValidFrom: string;
+  averageBonusRules: VehicleAverageBonusRuleForm[];
   crlvFile: File | null;
   crlvValidUntil: string;
   removeCrlv: boolean;

@@ -188,7 +188,7 @@ class DriverDeductionController extends Controller
                     'entry_date' => $discountStart->addMonthsNoOverflow($index)->format('Y-m-d'),
                     'withdrawal_date' => $withdrawalDate?->format('Y-m-d'),
                     'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['advance_location'] : null,
-                    'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['boleto_due_date'] : null,
+                    'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? ($validated['boleto_due_date'] ?? null) : null,
                     'weekly_authorized_by' => $weeklyConflict ? $validated['weekly_authorized_by'] : null,
                     'weekly_authorized_at' => $weeklyConflict ? now() : null,
                     'description' => $validated['description'] ?? null,
@@ -242,7 +242,7 @@ class DriverDeductionController extends Controller
     public function update(Request $request, DriverDeduction $driverDeduction): JsonResponse
     {
         $this->ensureDatabaseReady();
-        $validated = $this->validatePayload($request, false);
+        $validated = $this->validatePayload($request, false, $driverDeduction);
 
         if ($validated['category'] !== $driverDeduction->category) {
             throw ValidationException::withMessages([
@@ -250,8 +250,10 @@ class DriverDeductionController extends Controller
             ]);
         }
 
+        $settlementId = isset($validated['settlement_id']) ? (int) $validated['settlement_id'] : null;
+
         try {
-            $updated = DB::transaction(function () use ($request, $validated, $driverDeduction): DriverDeduction {
+            $updated = DB::transaction(function () use ($request, $validated, $driverDeduction, $settlementId): DriverDeduction {
                 $groupRecords = $driverDeduction->installment_group
                     ? DriverDeduction::query()
                         ->where('installment_group', $driverDeduction->installment_group)
@@ -269,9 +271,15 @@ class DriverDeductionController extends Controller
                     $existingByNumber = $groupRecords->keyBy(fn (DriverDeduction $record): int => (int) $record->installment_number);
 
                     foreach ($groupRecords as $record) {
-                        if ((int) $record->installment_number > $desiredInstallments && $record->driver_settlement_id !== null) {
+                        $linkedSettlementId = $record->driver_settlement_id !== null
+                            ? (int) $record->driver_settlement_id
+                            : null;
+                        $belongsToAnotherSettlement = $linkedSettlementId !== null
+                            && ($settlementId === null || $linkedSettlementId !== $settlementId);
+
+                        if ((int) $record->installment_number > $desiredInstallments && $belongsToAnotherSettlement) {
                             throw ValidationException::withMessages([
-                                'installments' => ['Não é possível reduzir as parcelas porque uma das parcelas removidas já pertence a um Acerto.'],
+                                'installments' => ['Não é possível reduzir as parcelas porque uma das parcelas removidas pertence a outro Acerto.'],
                             ]);
                         }
                     }
@@ -355,7 +363,7 @@ class DriverDeductionController extends Controller
                         'entry_date' => $discountStart->addMonthsNoOverflow(max(0, ((int) $record->installment_number) - 1))->format('Y-m-d'),
                         'withdrawal_date' => $withdrawalDate,
                         'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['advance_location'] : null,
-                        'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? $validated['boleto_due_date'] : null,
+                        'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE ? $record->boleto_due_date : null,
                         'description' => $validated['description'] ?? null,
                         'fine_plate' => $category === DriverDeduction::CATEGORY_FINE ? strtoupper((string) $validated['fine_plate']) : null,
                         'fine_location' => $category === DriverDeduction::CATEGORY_FINE ? $validated['fine_location'] : null,
@@ -388,6 +396,55 @@ class DriverDeductionController extends Controller
         return response()->json([
             'message' => 'Lançamento atualizado com sucesso.',
             'record' => $this->payload($updated),
+        ]);
+    }
+
+    public function updateBoletoDueDate(Request $request, DriverDeduction $driverDeduction): JsonResponse
+    {
+        $this->ensureDatabaseReady();
+
+        if ($driverDeduction->category !== DriverDeduction::CATEGORY_ADVANCE) {
+            throw ValidationException::withMessages([
+                'record' => 'O vencimento do boleto só pode ser informado em vales.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'boleto_due_date' => ['nullable', 'date_format:Y-m-d'],
+        ], [
+            'boleto_due_date.date_format' => 'Informe uma data válida para o vencimento do boleto.',
+        ]);
+
+        try {
+            $updated = DB::transaction(function () use ($request, $driverDeduction, $validated): DriverDeduction {
+                $before = $this->auditSnapshot($driverDeduction);
+                $driverDeduction->forceFill([
+                    'boleto_due_date' => $validated['boleto_due_date'] ?? null,
+                    'updated_by' => $request->user()?->id,
+                ])->save();
+                $driverDeduction->refresh();
+
+                $this->recordEvent(
+                    $driverDeduction,
+                    DriverDeductionEvent::ACTION_UPDATED,
+                    $before,
+                    $this->auditSnapshot($driverDeduction),
+                    $request,
+                );
+
+                return $driverDeduction;
+            });
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (QueryException $exception) {
+            $this->throwDatabaseFailure($exception, 'atualizar o vencimento do boleto');
+        } catch (Throwable $exception) {
+            $this->throwUnexpectedFailure($exception, 'atualizar o vencimento do boleto');
+        }
+
+        return response()->json([
+            'message' => 'Vencimento do boleto atualizado com sucesso.',
+            'record' => $this->payload($updated->load('employee', 'settlement')),
         ]);
     }
 
@@ -525,9 +582,16 @@ class DriverDeductionController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function validatePayload(Request $request, bool $creating): array
-    {
+    private function validatePayload(
+        Request $request,
+        bool $creating,
+        ?DriverDeduction $editingDeduction = null,
+    ): array {
         $category = (string) $request->input('category');
+        $requestedEmployeeId = (int) $request->input('employee_id');
+        $keepsCurrentEmployee = ! $creating
+            && $editingDeduction !== null
+            && $requestedEmployeeId === (int) $editingDeduction->employee_id;
 
         if ($category === DriverDeduction::CATEGORY_FINE) {
             $request->merge([
@@ -539,9 +603,11 @@ class DriverDeductionController extends Controller
             'employee_id' => [
                 'required',
                 'integer',
-                Rule::exists('employees', 'id')->where(fn ($query) => $query
-                    ->where('status', 'ACTIVE')
-                    ->whereRaw('LOWER(job_title) LIKE ?', ['%motorista%'])),
+                $keepsCurrentEmployee
+                    ? Rule::exists('employees', 'id')
+                    : Rule::exists('employees', 'id')->where(fn ($query) => $query
+                        ->where('status', 'ACTIVE')
+                        ->whereRaw('LOWER(job_title) LIKE ?', ['%motorista%'])),
             ],
             'category' => ['required', Rule::in([
                 DriverDeduction::CATEGORY_ADVANCE,
@@ -560,9 +626,7 @@ class DriverDeductionController extends Controller
             'advance_location' => $category === DriverDeduction::CATEGORY_ADVANCE
                 ? ['required', 'string', 'max:255']
                 : ['nullable', 'string', 'max:255'],
-            'boleto_due_date' => $category === DriverDeduction::CATEGORY_ADVANCE
-                ? ['required', 'date_format:Y-m-d']
-                : ['nullable', 'date_format:Y-m-d'],
+            'boleto_due_date' => ['nullable', 'date_format:Y-m-d'],
             'weekly_authorized_by' => ['nullable', Rule::in(['HENRIQUE', 'MARINA'])],
             'fine_plate' => $category === DriverDeduction::CATEGORY_FINE
                 ? ['required', 'string', 'max:20']
@@ -607,7 +671,6 @@ class DriverDeductionController extends Controller
             'withdrawal_date.date_format' => 'Informe uma data válida para o lançamento.',
             'advance_location.required' => 'Informe o local do vale.',
             'advance_location.max' => 'O local do vale pode ter no máximo 255 caracteres.',
-            'boleto_due_date.required' => 'Informe o vencimento do boleto do vale.',
             'boleto_due_date.date_format' => 'Informe uma data válida para o vencimento do boleto.',
             'weekly_authorized_by.in' => 'A exceção semanal deve ser autorizada por Henrique ou Marina.',
             'description.required' => 'Informe a descrição da multa.',

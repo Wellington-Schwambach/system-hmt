@@ -58,6 +58,7 @@ class VehicleController extends Controller
         ]);
     }
 
+
     public function store(StoreVehicleRequest $request): JsonResponse
     {
         $storedPath = null;
@@ -207,6 +208,26 @@ class VehicleController extends Controller
             'tare_kg' => (int) ($validated['tare_kg'] ?? 0),
             'current_km' => $currentKm,
             'notes' => $validated['notes'] ?: null,
+            'average_bonus_enabled' => (bool) ($validated['average_bonus_enabled'] ?? false),
+            'average_bonus_valid_from' => (bool) ($validated['average_bonus_enabled'] ?? false)
+                ? (($validated['average_bonus_valid_from'] ?? null) ?: null)
+                : null,
+            // A bonificação volta a ser definida livremente por placa, sem tipo/tabela fixa.
+            'average_bonus_profile_id' => null,
+            'average_bonus_disengagement' => false,
+            'average_bonus_extra_percent' => 0,
+            'average_bonus_rules' => (bool) ($validated['average_bonus_enabled'] ?? false)
+                ? collect($validated['average_bonus_rules'] ?? [])
+                    ->map(fn (array $rule): array => [
+                        'minimum_average' => round((float) ($rule['minimum_average'] ?? 0), 3),
+                        'percent' => round((float) ($rule['percent'] ?? 0), 2),
+                    ])
+                    ->filter(fn (array $rule): bool => $rule['minimum_average'] >= 0 && $rule['percent'] >= 0)
+                    ->unique('minimum_average')
+                    ->sortBy('minimum_average')
+                    ->values()
+                    ->all()
+                : null,
             'opentech_expiry_date' => $validated['opentech_expiry_date'] ?: null,
             'angellira_expiry_date' => $validated['angellira_expiry_date'] ?: null,
             'licensing_expiry_date' => $validated['licensing_expiry_date'] ?: null,
@@ -280,6 +301,20 @@ class VehicleController extends Controller
             'licensing_expiry_date' => $vehicle->licensing_expiry_date?->format('Y-m-d'),
             'tachograph_expiry_date' => $vehicle->tachograph_expiry_date?->format('Y-m-d'),
             'notes' => $vehicle->notes,
+            'average_bonus_enabled' => (bool) $vehicle->average_bonus_enabled,
+            'average_bonus_valid_from' => $vehicle->average_bonus_valid_from?->format('Y-m-d'),
+            'average_bonus_profile_id' => $vehicle->average_bonus_profile_id,
+            'average_bonus_disengagement' => (bool) $vehicle->average_bonus_disengagement,
+            'average_bonus_extra_percent' => (float) $vehicle->average_bonus_extra_percent,
+            'average_bonus_profile' => null,
+            'average_bonus_rules' => collect($vehicle->average_bonus_rules ?? [])
+                ->map(fn (array $rule): array => [
+                    'minimum_average' => (float) ($rule['minimum_average'] ?? 0),
+                    'percent' => (float) ($rule['percent'] ?? 0),
+                ])
+                ->sortBy('minimum_average')
+                ->values()
+                ->all(),
             'crlv' => $vehicle->crlv_path === null ? null : [
                 'name' => $vehicle->crlv_original_name,
                 'mime_type' => $vehicle->crlv_mime_type,
@@ -291,4 +326,5 @@ class VehicleController extends Controller
             'updated_at' => $vehicle->updated_at?->toIso8601String(),
         ];
     }
+
 }

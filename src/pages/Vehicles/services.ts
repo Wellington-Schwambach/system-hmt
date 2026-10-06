@@ -1,7 +1,29 @@
 import axios from 'axios';
 
 import { api } from '../../services/api';
-import type { VehicleFormData, VehicleRecord } from './types';
+import type { VehicleAverageBonusProfile, VehicleFormData, VehicleRecord } from './types';
+
+
+interface ApiVehicleAverageBonusProfile {
+  id: number;
+  code: string;
+  name: string;
+  active: boolean;
+  rules: Array<{ minimum_average: number | string; percent: number | string }>;
+}
+
+function mapBonusProfile(profile: ApiVehicleAverageBonusProfile): VehicleAverageBonusProfile {
+  return {
+    id: profile.id,
+    code: profile.code,
+    name: profile.name,
+    active: Boolean(profile.active),
+    rules: (profile.rules ?? []).map((rule) => ({
+      minimumAverage: Number(rule.minimum_average),
+      percent: Number(rule.percent),
+    })),
+  };
+}
 
 interface ApiVehicle {
   id: number;
@@ -25,6 +47,13 @@ interface ApiVehicle {
   licensing_expiry_date: string | null;
   tachograph_expiry_date: string | null;
   notes: string | null;
+  average_bonus_enabled: boolean;
+  average_bonus_valid_from: string | null;
+  average_bonus_profile_id: number | null;
+  average_bonus_disengagement: boolean;
+  average_bonus_extra_percent: number | string;
+  average_bonus_profile: ApiVehicleAverageBonusProfile | null;
+  average_bonus_rules: Array<{ minimum_average: number; percent: number }> | null;
   crlv: null | {
     name: string;
     mime_type: string | null;
@@ -63,6 +92,18 @@ function mapVehicle(vehicle: ApiVehicle): VehicleRecord {
     licensingExpiryDate: vehicle.licensing_expiry_date ?? '',
     tachographExpiryDate: vehicle.tachograph_expiry_date ?? '',
     notes: vehicle.notes ?? '',
+    averageBonusEnabled: Boolean(vehicle.average_bonus_enabled),
+    averageBonusValidFrom: vehicle.average_bonus_valid_from ?? '',
+    averageBonusProfileId: vehicle.average_bonus_profile_id ?? null,
+    averageBonusProfile: vehicle.average_bonus_profile ? mapBonusProfile(vehicle.average_bonus_profile) : null,
+    averageBonusDisengagement: Boolean(vehicle.average_bonus_disengagement),
+    averageBonusExtraPercent: Number(vehicle.average_bonus_extra_percent ?? 0),
+    averageBonusRules: Array.isArray(vehicle.average_bonus_rules)
+      ? vehicle.average_bonus_rules.map((rule) => ({
+          minimumAverage: Number(rule.minimum_average),
+          percent: Number(rule.percent),
+        })).filter((rule) => Number.isFinite(rule.minimumAverage) && Number.isFinite(rule.percent))
+      : [],
     crlv: vehicle.crlv
       ? {
           name: vehicle.crlv.name,
@@ -102,6 +143,18 @@ function buildPayload(data: VehicleFormData): FormData {
   append(payload, 'licensing_expiry_date', data.licensingExpiryDate);
   append(payload, 'tachograph_expiry_date', data.tachographExpiryDate);
   append(payload, 'notes', data.notes);
+  payload.append('average_bonus_enabled', data.averageBonusEnabled ? '1' : '0');
+  append(payload, 'average_bonus_valid_from', data.averageBonusValidFrom);
+  const averageBonusRules = data.averageBonusEnabled
+    ? data.averageBonusRules
+        .map((rule) => ({
+          minimum_average: Number(rule.minimumAverage.replace(',', '.')),
+          percent: Number(rule.percent.replace(',', '.')),
+        }))
+        .filter((rule) => Number.isFinite(rule.minimum_average) && Number.isFinite(rule.percent))
+        .sort((first, second) => first.minimum_average - second.minimum_average)
+    : [];
+  payload.append('average_bonus_rules', JSON.stringify(averageBonusRules));
   append(payload, 'crlv_valid_until', data.crlvValidUntil);
   payload.append('remove_crlv', data.removeCrlv ? '1' : '0');
 

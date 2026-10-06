@@ -1,5 +1,6 @@
 import type { FuelRecord } from '../Fuel/types';
 import type { TravelRecord } from '../Travel/types';
+import type { VehicleRecord } from '../Vehicles/types';
 
 export type SettlementPeriodMode = 'MONTH' | 'CUSTOM';
 export type FinancialEntryType = 'ADVANCE' | 'FINE' | 'LOAN' | 'OTHER_DISCOUNT' | 'NEUTRAL_EXPENSE';
@@ -8,6 +9,7 @@ export type SettlementTab = 'FORM' | 'LIST' | 'HISTORY';
 export interface SettlementDriverOption {
   id: number;
   name: string;
+  admissionDate: string | null;
 }
 
 export interface FinancialEntry {
@@ -57,6 +59,7 @@ export interface FinancialEntryFormData {
 export type SettlementCrewMode = 'SOLO' | 'PAIR';
 
 export interface SettlementTravelRecord extends TravelRecord {
+  averageGroupKey?: string;
   originalNetFreight: number;
   settlementNetFreight: number;
   settlementSharePercent: number;
@@ -94,7 +97,19 @@ export interface VehicleAverageSummaryData {
   fuelingsCount: number;
   availableFuelingsCount: number;
   source: 'SELECTED' | 'UNAVAILABLE';
+  bonusCalculationVersion?: 1 | 2 | 3;
+  bonusEnabled?: boolean;
+  bonusPercent?: number;
+  bonusBasePercent?: number;
+  bonusExtraPercent?: number;
+  bonusDisengagement?: boolean;
+  bonusProfileCode?: string | null;
+  bonusProfileName?: string | null;
+  bonusRuleMinimumAverage?: number | null;
+  bonusBaseFreight?: number;
+  bonusValue?: number;
 }
+
 
 export interface SettlementTotals {
   totalOriginalNetFreight: number;
@@ -120,6 +135,7 @@ export interface DriverSettlementSnapshot {
   id: string;
   driverId: number | null;
   driver: string;
+  driverAdmissionDate?: string | null;
   startDate: string;
   endDate: string;
   savedAt: string;
@@ -136,7 +152,9 @@ export interface LoadedSettlementData {
   crewEvents: SettlementCrewEvent[];
   drivers: string[];
   driverOptions: SettlementDriverOption[];
+  vehicles: VehicleRecord[];
 }
+
 
 export interface SettlementHistoryEvent {
   id: number;

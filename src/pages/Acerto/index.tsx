@@ -74,7 +74,12 @@ export function Acerto() {
       const finalizedSettlement = await settlement.finalizeSettlement();
 
       if (!finalizedSettlement) {
-        notifications.warning('Acerto incompleto', 'Selecione um motorista da empresa e mantenha ao menos uma viagem no período.');
+        notifications.warning(
+          'Acerto incompleto',
+          settlement.editingSettlementId
+            ? 'Não foi possível identificar o motorista deste acerto. Atualize a tela e tente novamente.'
+            : 'Selecione um motorista da empresa e mantenha ao menos uma viagem no período.',
+        );
         return;
       }
 
@@ -110,7 +115,7 @@ export function Acerto() {
   async function handleClearValues() {
     const shouldClear = await notifications.confirm({
       title: 'Limpar valores?',
-      message: 'Gratificação, proventos, descontos e despesas informativas desta tela serão zerados.',
+      message: 'Proventos manuais, descontos e despesas informativas desta tela serão zerados. A gratificação por média será recalculada automaticamente.',
       type: 'warning',
       confirmLabel: 'Limpar valores',
     });
@@ -191,7 +196,7 @@ export function Acerto() {
                 type="button"
                 $primary
                 onClick={handleFinalizeSettlement}
-                disabled={!settlement.canSave || settlement.saving}
+                disabled={settlement.saving || (!settlement.editingSettlementId && !settlement.canSave)}
               >
                 <Save size={16} aria-hidden="true" />
                 {settlement.saving
@@ -269,9 +274,6 @@ export function Acerto() {
             onBonusPercentChange={settlement.setBonusPercent}
             onBaseSalaryChange={settlement.setBaseSalary}
             onOtherEarningsChange={settlement.setOtherEarnings}
-            onApplySuggestedBonus={() =>
-              settlement.setBonusPercent(String(settlement.suggestedBonusPercent))
-            }
             onAddEntry={handleOpenEntryModal}
             onEditEntry={handleEditEntry}
             onRemoveEntry={settlement.removeEntry}
