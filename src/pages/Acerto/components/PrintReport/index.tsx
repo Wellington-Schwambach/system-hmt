@@ -146,6 +146,10 @@ export function PrintReport({
               <strong>{formatCurrency(totals.otherEarnings)}</strong>
             </SummaryRow>
             <SummaryRow>
+              <span>Vales</span>
+              <strong>- {formatCurrency(totals.advances ?? 0)}</strong>
+            </SummaryRow>
+            <SummaryRow>
               <span>Multas</span>
               <strong>- {formatCurrency(totals.fines)}</strong>
             </SummaryRow>

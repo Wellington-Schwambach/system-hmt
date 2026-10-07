@@ -250,7 +250,7 @@ class DriverSettlementController extends Controller
     )
     {
         $ids = collect($snapshot['entries'] ?? [])
-            ->filter(fn ($entry): bool => is_array($entry) && ($entry['type'] ?? null) !== DriverDeduction::CATEGORY_ADVANCE)
+            ->filter(fn ($entry): bool => is_array($entry))
             ->pluck('valeId')
             ->filter(fn ($id): bool => is_numeric($id))
             ->map(fn ($id): int => (int) $id)
@@ -264,7 +264,6 @@ class DriverSettlementController extends Controller
         $deductions = DriverDeduction::query()
             ->whereIn('id', $ids)
             ->where('employee_id', $driver->id)
-            ->where('category', '<>', DriverDeduction::CATEGORY_ADVANCE)
             ->where(function ($query) use ($settlement): void {
                 $query->where(function ($pending): void {
                     $pending->where('status', DriverDeduction::STATUS_PENDING)
@@ -378,7 +377,7 @@ class DriverSettlementController extends Controller
     private function sanitizeSnapshotForBusinessRules(array $snapshot, bool $preserveBonusSnapshot): array
     {
         $entries = collect($snapshot['entries'] ?? [])
-            ->filter(fn ($entry): bool => is_array($entry) && ($entry['type'] ?? null) !== DriverDeduction::CATEGORY_ADVANCE)
+            ->filter(fn ($entry): bool => is_array($entry))
             ->values();
 
         $travels = collect($snapshot['travels'] ?? [])
@@ -434,12 +433,13 @@ class DriverSettlementController extends Controller
         $snapshot['vehicleSummaries'] = $vehicleSummaries;
         $baseSalary = (float) ($totals['baseSalary'] ?? 0);
         $otherEarnings = (float) ($totals['otherEarnings'] ?? 0);
+        $advances = round((float) $entries->where('type', DriverDeduction::CATEGORY_ADVANCE)->sum('value'), 2);
         $fines = round((float) $entries->where('type', DriverDeduction::CATEGORY_FINE)->sum('value'), 2);
         $loans = round((float) $entries->where('type', DriverDeduction::CATEGORY_LOAN)->sum('value'), 2);
         $otherDiscounts = round((float) $entries->where('type', DriverDeduction::CATEGORY_OTHER)->sum('value'), 2);
         $neutralExpenses = round((float) $entries->where('type', 'NEUTRAL_EXPENSE')->sum('value'), 2);
         $totalEarnings = round($baseSalary + $bonusValue + $otherEarnings, 2);
-        $totalDiscounts = round($fines + $loans + $otherDiscounts, 2);
+        $totalDiscounts = round($advances + $fines + $loans + $otherDiscounts, 2);
 
         $snapshot['totals'] = [
             ...$totals,
@@ -451,7 +451,7 @@ class DriverSettlementController extends Controller
             'dailyAllowance' => 0.0,
             'otherEarnings' => $otherEarnings,
             'totalEarnings' => $totalEarnings,
-            'advances' => 0.0,
+            'advances' => $advances,
             'fines' => $fines,
             'loans' => $loans,
             'otherDiscounts' => $otherDiscounts,

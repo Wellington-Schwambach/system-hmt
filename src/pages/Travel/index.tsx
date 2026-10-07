@@ -70,6 +70,7 @@ export function Travel() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    companyUnitFilter,
     originStateFilter,
     destinationStateFilter,
     freightTypeFilter,
@@ -89,6 +90,7 @@ export function Travel() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setCompanyUnitFilter,
     setOriginStateFilter,
     setDestinationStateFilter,
     setFreightTypeFilter,
@@ -277,12 +279,14 @@ export function Travel() {
         plateFilter={plateFilter}
         plateOptions={plateOptions}
         cteTypeFilter={cteTypeFilter}
+        companyUnitFilter={companyUnitFilter}
         dateFrom={dateFrom}
         dateTo={dateTo}
         searchTerm={searchTerm}
         onShipperFilterChange={(value) => resetPage(setShipperFilter, value)}
         onPlateFilterChange={(value) => resetPage(setPlateFilter, value)}
         onCteTypeFilterChange={(value) => resetPage(setCteTypeFilter, value)}
+        onCompanyUnitFilterChange={(value) => resetPage(setCompanyUnitFilter, value)}
         onDateFromChange={(value) => resetPage(setDateFrom, value)}
         onDateToChange={(value) => resetPage(setDateTo, value)}
         onSearchChange={(value) => resetPage(setSearchTerm, value)}

@@ -722,6 +722,20 @@ export function LogisticsCalendar() {
       });
   }, [loads, selectedDate]);
 
+  const shipperSequenceByLoadId = useMemo(() => {
+    const counters = new Map<string, number>();
+    const sequences = new Map<number, number>();
+
+    dayLoadsForExport.forEach((load) => {
+      const shipperKey = String(load.shipperId || load.shipperName || 'SEM_EMBARCADOR');
+      const next = (counters.get(shipperKey) ?? 0) + 1;
+      counters.set(shipperKey, next);
+      sequences.set(load.id, next);
+    });
+
+    return sequences;
+  }, [dayLoadsForExport]);
+
   const loadingLoads = useMemo(() => {
     if (!selectedDate) return [];
     return visibleLoads.filter((load) => dateKeyFromIso(load.loadingAt) === selectedDate);
@@ -1138,6 +1152,7 @@ export function LogisticsCalendar() {
   }
 
   function renderLoadRow(load: LogisticsLoad, rowKey: string) {
+    const shipperSequence = shipperSequenceByLoadId.get(load.id) ?? 1;
     const collectionCount = load.collectionAppointments.length;
     const deliveryCount = load.deliveryAppointments.length;
     const collectionScheduled = collectionCount > 0;
@@ -1160,7 +1175,7 @@ export function LogisticsCalendar() {
       >
         <ListCell $strong>
           <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
-            {load.shipperName || '—'}
+            {shipperSequence} {load.shipperName || '—'}
           </ListShipperBadge>
         </ListCell>
         <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>

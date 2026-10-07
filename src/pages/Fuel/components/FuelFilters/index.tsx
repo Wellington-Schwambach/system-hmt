@@ -1,10 +1,11 @@
 import { Search } from 'lucide-react';
 
 import { CheckboxMultiSelect } from '../../../../components/CheckboxMultiSelect';
-import type { FuelFilter } from '../../types';
+import type { FuelCompanyUnit, FuelFilter } from '../../types';
 import { formatBillingMonth } from '../../utils';
 import type { FuelFiltersProps } from './types';
 import {
+  CompactSelectWrapper,
   DateInput,
   DateRange,
   DateSeparator,
@@ -32,12 +33,14 @@ export function FuelFilters({
   plateOptions,
   billingMonthFilter,
   billingMonthOptions,
+  companyUnitFilter,
   dateFrom,
   dateTo,
   searchTerm,
   onFilterChange,
   onPlateFilterChange,
   onBillingMonthFilterChange,
+  onCompanyUnitFilterChange,
   onDateFromChange,
   onDateToChange,
   onSearchChange,
@@ -73,6 +76,21 @@ export function FuelFilters({
         </Select>
       </SelectWrapper>
 
+
+      <CompactSelectWrapper>
+        <FilterLabel htmlFor="fuel-company-unit-filter">Unidade</FilterLabel>
+        <Select
+          id="fuel-company-unit-filter"
+          value={companyUnitFilter}
+          onChange={(event) => onCompanyUnitFilterChange(event.target.value as 'ALL' | FuelCompanyUnit)}
+          aria-label="Filtrar abastecimentos por matriz ou filial"
+        >
+          <option value="ALL">Matriz + Filial</option>
+          <option value="MATRIZ">Matriz</option>
+          <option value="FILIAL">Filial</option>
+        </Select>
+      </CompactSelectWrapper>
+
       <SelectWrapper>
         <FilterLabel>Período</FilterLabel>
         <DateRange>
@@ -94,18 +112,21 @@ export function FuelFilters({
         </DateRange>
       </SelectWrapper>
 
-      <FilterGroup aria-label="Filtrar abastecimentos por faturamento">
-        {FILTERS.map((item) => (
-          <FilterButton
-            key={item.value}
-            type="button"
-            $active={filter === item.value}
-            onClick={() => onFilterChange(item.value)}
-          >
-            {item.label}
-          </FilterButton>
-        ))}
-      </FilterGroup>
+      <SelectWrapper>
+        <FilterLabel>Faturamento</FilterLabel>
+        <FilterGroup aria-label="Filtrar abastecimentos por faturamento">
+          {FILTERS.map((item) => (
+            <FilterButton
+              key={item.value}
+              type="button"
+              $active={filter === item.value}
+              onClick={() => onFilterChange(item.value)}
+            >
+              {item.label}
+            </FilterButton>
+          ))}
+        </FilterGroup>
+      </SelectWrapper>
 
       <SearchBox>
         <SearchIcon aria-hidden="true">

@@ -5,6 +5,7 @@ import { FUEL_STORAGE_KEY } from './constants';
 import type {
   FuelDriverOption,
   FuelFilter,
+  FuelCompanyUnit,
   FuelFormData,
   FuelInvoiceTarget,
   FuelRecord,
@@ -76,6 +77,7 @@ export function useFuelRecords() {
   const [filter, setFilter] = useState<FuelFilter>('ALL');
   const [plateFilter, setPlateFilter] = useState<string[]>([]);
   const [billingMonthFilter, setBillingMonthFilter] = useState('ALL');
+  const [companyUnitFilter, setCompanyUnitFilter] = useState<'ALL' | FuelCompanyUnit>('ALL');
   const [dateFrom, setDateFrom] = useState(CURRENT_MONTH_RANGE.from);
   const [dateTo, setDateTo] = useState(CURRENT_MONTH_RANGE.to);
   const [searchTerm, setSearchTerm] = useState('');
@@ -163,6 +165,7 @@ export function useFuelRecords() {
       const matchesFilter = filter === 'ALL' || record.status === filter;
       const matchesPlate = plateFilter.length === 0 || plateFilter.includes(record.plate);
       const matchesBillingMonth = billingMonthFilter === 'ALL' || record.billingMonth === billingMonthFilter;
+      const matchesCompanyUnit = companyUnitFilter === 'ALL' || record.companyUnit === companyUnitFilter;
       const matchesPeriod = (!dateFrom || record.date >= dateFrom) && (!dateTo || record.date <= dateTo);
       const matchesSearch =
         normalizedSearch.length === 0 ||
@@ -171,9 +174,9 @@ export function useFuelRecords() {
         record.plate.toLocaleLowerCase('pt-BR').includes(normalizedSearch) ||
         (record.km !== null && record.km > 0 && String(record.km).includes(normalizedSearch));
 
-      return matchesFilter && matchesPlate && matchesBillingMonth && matchesPeriod && matchesSearch;
+      return matchesFilter && matchesPlate && matchesBillingMonth && matchesCompanyUnit && matchesPeriod && matchesSearch;
     });
-  }, [billingMonthFilter, dateFrom, dateTo, enrichedRecords, filter, plateFilter, searchTerm]);
+  }, [billingMonthFilter, companyUnitFilter, dateFrom, dateTo, enrichedRecords, filter, plateFilter, searchTerm]);
 
   const summary = useMemo(() => getFuelSummary(filteredRecords), [filteredRecords]);
 
@@ -223,6 +226,7 @@ export function useFuelRecords() {
     plateOptions,
     billingMonthFilter,
     billingMonthOptions,
+    companyUnitFilter,
     dateFrom,
     dateTo,
     vehicleOptions,
@@ -237,6 +241,7 @@ export function useFuelRecords() {
     setFilter,
     setPlateFilter,
     setBillingMonthFilter,
+    setCompanyUnitFilter,
     setDateFrom,
     setDateTo,
     setSearchTerm,

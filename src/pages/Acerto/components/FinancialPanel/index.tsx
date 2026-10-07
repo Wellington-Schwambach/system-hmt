@@ -34,11 +34,13 @@ import {
   TotalReceivable,
 } from './styles';
 
-const ENTRY_GROUPS: Array<{ type: FinancialEntryType; title: string; button: string }> = [
+const ENTRY_GROUPS: Array<{ type: FinancialEntryType; title: string; button?: string }> = [
+  { type: 'ADVANCE', title: 'Vales' },
   { type: 'FINE', title: 'Multas', button: 'Adicionar multa' },
   { type: 'LOAN', title: 'Empréstimos', button: 'Adicionar empréstimo' },
   { type: 'OTHER_DISCOUNT', title: 'Outros descontos', button: 'Adicionar' },
-  { type: 'NEUTRAL_EXPENSE', title: 'Despesas', button: 'Adicionar despesa' },
+  // Bloco de despesas mantido no código para possível uso futuro.
+  // { type: 'NEUTRAL_EXPENSE', title: 'Despesas', button: 'Adicionar despesa' },
 ];
 
 export function FinancialPanel({
@@ -150,6 +152,10 @@ export function FinancialPanel({
             <strong>{formatCurrency(totals.otherEarnings)}</strong>
           </SummaryRow>
           <SummaryRow $muted>
+            <span>Vales</span>
+            <strong>- {formatCurrency(totals.advances ?? 0)}</strong>
+          </SummaryRow>
+          <SummaryRow $muted>
             <span>Multas</span>
             <strong>- {formatCurrency(totals.fines)}</strong>
           </SummaryRow>
@@ -183,10 +189,12 @@ export function FinancialPanel({
                 <EntryGroup key={group.type}>
                   <EntryGroupHeader>
                     <EntryGroupTitle>{group.title}</EntryGroupTitle>
-                    <AddButton type="button" onClick={() => onAddEntry(group.type)}>
-                      <Plus size={13} aria-hidden="true" />
-                      {group.button}
-                    </AddButton>
+                    {group.button && (
+                      <AddButton type="button" onClick={() => onAddEntry(group.type)}>
+                        <Plus size={13} aria-hidden="true" />
+                        {group.button}
+                      </AddButton>
+                    )}
                   </EntryGroupHeader>
 
                   {groupEntries.length === 0 ? (
@@ -234,10 +242,12 @@ export function FinancialPanel({
             <span>Total de descontos</span>
             <strong>{formatCurrency(totals.totalDiscounts)}</strong>
           </SummaryRow>
+          {/* Bloco de despesas mantido comentado para possível uso futuro.
           <SummaryRow>
             <span>Despesas informativas (não alteram o acerto)</span>
             <strong>{formatCurrency(totals.neutralExpenses ?? 0)}</strong>
           </SummaryRow>
+          */}
         </Section>
 
         <TotalReceivable>

@@ -12,6 +12,7 @@ import type {
   TravelRecord,
   TravelCteTypeFilter,
   TravelFreightType,
+  TravelCompanyUnit,
 } from './types';
 import { enrichTravelRecords, getTravelSummary } from './utils';
 
@@ -62,6 +63,7 @@ export function useTravelRecords() {
   const [shipperFilter, setShipperFilter] = useState<string[]>([]);
   const [plateFilter, setPlateFilter] = useState<string[]>([]);
   const [cteTypeFilter, setCteTypeFilter] = useState<TravelCteTypeFilter>('ALL');
+  const [companyUnitFilter, setCompanyUnitFilter] = useState<'ALL' | TravelCompanyUnit>('ALL');
   const [originStateFilter, setOriginStateFilter] = useState('ALL');
   const [destinationStateFilter, setDestinationStateFilter] = useState('ALL');
   const [freightTypeFilter, setFreightTypeFilter] = useState<TravelFreightType[]>([]);
@@ -160,6 +162,7 @@ export function useTravelRecords() {
       const matchesCteType =
         cteTypeFilter === 'ALL' ||
         record.ctes.some((cte) => cte.cteType === cteTypeFilter);
+      const matchesCompanyUnit = companyUnitFilter === 'ALL' || record.companyUnit === companyUnitFilter;
       const matchesOriginState =
         originStateFilter === 'ALL' || extractState(record.origin) === originStateFilter;
       const matchesDestinationState =
@@ -188,6 +191,7 @@ export function useTravelRecords() {
         matchesShipper &&
         matchesPlate &&
         matchesCteType &&
+        matchesCompanyUnit &&
         matchesOriginState &&
         matchesDestinationState &&
         matchesFreightType &&
@@ -197,6 +201,7 @@ export function useTravelRecords() {
       );
     });
   }, [
+    companyUnitFilter,
     cstFilter,
     cteTypeFilter,
     dateFrom,
@@ -317,6 +322,7 @@ export function useTravelRecords() {
     shipperFilter,
     plateFilter,
     cteTypeFilter,
+    companyUnitFilter,
     originStateFilter,
     destinationStateFilter,
     freightTypeFilter,
@@ -336,6 +342,7 @@ export function useTravelRecords() {
     setShipperFilter,
     setPlateFilter,
     setCteTypeFilter,
+    setCompanyUnitFilter,
     setOriginStateFilter,
     setDestinationStateFilter,
     setFreightTypeFilter,

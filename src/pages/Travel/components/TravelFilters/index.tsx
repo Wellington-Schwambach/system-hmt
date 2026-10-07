@@ -3,9 +3,10 @@ import { Search } from 'lucide-react';
 import { CheckboxMultiSelect } from '../../../../components/CheckboxMultiSelect';
 
 import { CTE_TYPE_OPTIONS } from '../../constants';
-import type { TravelCteTypeFilter } from '../../types';
+import type { TravelCompanyUnit, TravelCteTypeFilter } from '../../types';
 import type { TravelFiltersProps } from './types';
 import {
+  CompactSelectWrapper,
   DateInput,
   DateRange,
   DateSeparator,
@@ -24,12 +25,14 @@ export function TravelFilters({
   plateFilter,
   plateOptions,
   cteTypeFilter,
+  companyUnitFilter,
   dateFrom,
   dateTo,
   searchTerm,
   onShipperFilterChange,
   onPlateFilterChange,
   onCteTypeFilterChange,
+  onCompanyUnitFilterChange,
   onDateFromChange,
   onDateToChange,
   onSearchChange,
@@ -82,6 +85,21 @@ export function TravelFilters({
           ))}
         </Select>
       </SelectWrapper>
+
+
+      <CompactSelectWrapper>
+        <FilterLabel htmlFor="travel-company-unit-filter">Unidade</FilterLabel>
+        <Select
+          id="travel-company-unit-filter"
+          value={companyUnitFilter}
+          onChange={(event) => onCompanyUnitFilterChange(event.target.value as 'ALL' | TravelCompanyUnit)}
+          aria-label="Filtrar viagens por matriz ou filial"
+        >
+          <option value="ALL">Matriz + Filial</option>
+          <option value="MATRIZ">Matriz</option>
+          <option value="FILIAL">Filial</option>
+        </Select>
+      </CompactSelectWrapper>
 
       <SelectWrapper>
         <FilterLabel>Período</FilterLabel>

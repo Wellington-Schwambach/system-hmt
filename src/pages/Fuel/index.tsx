@@ -36,6 +36,7 @@ export function Fuel() {
     plateOptions,
     billingMonthFilter,
     billingMonthOptions,
+    companyUnitFilter,
     dateFrom,
     dateTo,
     vehicleOptions,
@@ -50,6 +51,7 @@ export function Fuel() {
     setFilter,
     setPlateFilter,
     setBillingMonthFilter,
+    setCompanyUnitFilter,
     setDateFrom,
     setDateTo,
     setSearchTerm,
@@ -258,12 +260,14 @@ export function Fuel() {
         plateOptions={plateOptions}
         billingMonthFilter={billingMonthFilter}
         billingMonthOptions={billingMonthOptions}
+        companyUnitFilter={companyUnitFilter}
         dateFrom={dateFrom}
         dateTo={dateTo}
         searchTerm={searchTerm}
         onFilterChange={(value) => resetPage(setFilter, value)}
         onPlateFilterChange={(value) => resetPage(setPlateFilter, value)}
         onBillingMonthFilterChange={(value) => resetPage(setBillingMonthFilter, value)}
+        onCompanyUnitFilterChange={(value) => resetPage(setCompanyUnitFilter, value)}
         onDateFromChange={(value) => resetPage(setDateFrom, value)}
         onDateToChange={(value) => resetPage(setDateTo, value)}
         onSearchChange={(value) => resetPage(setSearchTerm, value)}

@@ -110,7 +110,6 @@ class DriverDeductionController extends Controller
 
         $records = DriverDeduction::query()
             ->where('employee_id', (int) $validated['driver_id'])
-            ->where('category', '<>', DriverDeduction::CATEGORY_ADVANCE)
             ->whereBetween('entry_date', [$validated['start_date'], $validated['end_date']])
             ->where(function ($query) use ($settlementId): void {
                 $query->where(function ($pending): void {

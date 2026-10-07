@@ -4,24 +4,49 @@ import { breakpoints } from '../../../../styles/breakpoints';
 
 export const FiltersBar = styled.section`
   display: grid;
-  grid-template-columns:
-    minmax(8.5rem, 0.14fr)
-    minmax(10.5rem, 0.18fr)
-    minmax(10rem, 0.17fr)
-    minmax(17rem, 0.26fr)
-    minmax(16rem, 0.25fr);
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   align-items: end;
-  gap: 1rem;
+  gap: 0.8rem;
+  width: 100%;
   padding: 0.85rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   border-radius: 1.25rem;
   background: ${({ theme }) => theme.colors.surfaceElevated};
   box-shadow: ${({ theme }) => theme.shadow.dashboard};
 
-  @media (max-width: ${breakpoints.desktop}) {
+  > :nth-child(1) {
+    grid-column: span 2;
+  }
+
+  > :nth-child(2) {
+    grid-column: span 2;
+  }
+
+  > :nth-child(3) {
+    grid-column: span 2;
+  }
+
+  > :nth-child(4) {
+    grid-column: span 1;
+  }
+
+  > :nth-child(5) {
+    grid-column: span 3;
+  }
+
+  > :nth-child(6) {
+    grid-column: span 2;
+  }
+
+  @media (max-width: 82rem) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 
-    > label:last-child {
+    > :nth-child(n) {
+      grid-column: span 1;
+    }
+
+    > :nth-child(5),
+    > :nth-child(6) {
       grid-column: 1 / -1;
     }
   }
@@ -29,7 +54,7 @@ export const FiltersBar = styled.section`
   @media (max-width: ${breakpoints.tablet}) {
     grid-template-columns: 1fr;
 
-    > label:last-child {
+    > :nth-child(n) {
       grid-column: auto;
     }
   }
@@ -37,7 +62,17 @@ export const FiltersBar = styled.section`
 
 export const SelectWrapper = styled.div`
   display: grid;
+  min-width: 0;
   gap: 0.35rem;
+`;
+
+export const CompactSelectWrapper = styled(SelectWrapper)`
+  width: 100%;
+  max-width: 8.5rem;
+
+  @media (max-width: 82rem) {
+    max-width: none;
+  }
 `;
 
 export const FilterLabel = styled.label`
@@ -50,14 +85,15 @@ export const FilterLabel = styled.label`
 
 export const Select = styled.select`
   width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
-  padding: 0.65rem 2.4rem 0.65rem 0.9rem;
+  padding: 0.65rem 2.15rem 0.65rem 0.8rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
   border-radius: 0.85rem;
   color: ${({ theme }) => theme.colors.dashboardText};
   background: ${({ theme }) => theme.colors.dashboardSurface};
   font: inherit;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   outline: none;
   cursor: pointer;
 
@@ -69,7 +105,9 @@ export const Select = styled.select`
 
 export const SearchBox = styled.label`
   position: relative;
+  display: block;
   width: 100%;
+  min-width: 0;
 `;
 
 export const SearchIcon = styled.span`
@@ -85,6 +123,7 @@ export const SearchIcon = styled.span`
 
 export const SearchInput = styled.input`
   width: 100%;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0.65rem 0.9rem 0.65rem 2.7rem;
   border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
@@ -104,7 +143,7 @@ export const DateRange = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
 `;
 
 export const DateInput = styled.input`
