@@ -101,6 +101,10 @@ export function SettlementDetailsModal({
                 <strong>{formatCurrency(settlement.totals.otherEarnings)}</strong>
               </DetailItem>
               <DetailItem>
+                <span>Vales</span>
+                <strong>- {formatCurrency(settlement.totals.advances ?? 0)}</strong>
+              </DetailItem>
+              <DetailItem>
                 <span>Total positivo</span>
                 <strong>{formatCurrency(settlement.totals.totalPositive ?? settlement.totals.totalEarnings)}</strong>
               </DetailItem>

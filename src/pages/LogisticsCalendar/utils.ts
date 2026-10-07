@@ -188,6 +188,7 @@ export function exportLogisticsDayToExcel(records: LogisticsLoad[], selectedDate
   const headers = [
     'Data',
     'Movimentação no dia',
+    'Ordem embarcador',
     'Embarcador',
     'Referência',
     'Remessa',
@@ -233,9 +234,16 @@ export function exportLogisticsDayToExcel(records: LogisticsLoad[], selectedDate
     'Finalizada por',
   ];
 
-  const rows: Array<Array<string | number>> = records.map((load) => [
+  const shipperCounters = new Map<string, number>();
+  const rows: Array<Array<string | number>> = records.map((load) => {
+    const shipperKey = String(load.shipperId || load.shipperName || 'SEM_EMBARCADOR');
+    const shipperOrder = (shipperCounters.get(shipperKey) ?? 0) + 1;
+    shipperCounters.set(shipperKey, shipperOrder);
+
+    return [
     formatDate(selectedDate),
     movementOnDay(load, selectedDate),
+    shipperOrder,
     load.shipperName || '',
     load.referenceCode || '',
     load.shipmentNumber || '',
@@ -279,7 +287,8 @@ export function exportLogisticsDayToExcel(records: LogisticsLoad[], selectedDate
     statusText(load),
     formatDateTime(load.completedAt),
     load.completedByName || '',
-  ]);
+  ];
+  });
 
   const allRows = [headers, ...rows];
   const sheetRows = allRows.map((row, rowIndex) => {

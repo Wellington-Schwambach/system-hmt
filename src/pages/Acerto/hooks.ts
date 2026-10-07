@@ -167,7 +167,7 @@ export function useDriverSettlement() {
         if (!active) return;
         setEntries((currentEntries) => [
           ...currentEntries.filter((entry) => entry.source !== 'VALE'),
-          ...pendingVales.filter((vale) => vale.category !== 'ADVANCE').map((vale) => {
+          ...pendingVales.map((vale) => {
             const baseDescription = vale.category === 'FINE'
               ? [vale.fineNumber ? `Nº Auto ${vale.fineNumber}` : '', vale.description].filter(Boolean).join(' - ')
               : (vale.description || ENTRY_LABELS[vale.category]);
@@ -334,7 +334,7 @@ export function useDriverSettlement() {
       travels,
       selectedFuelRecordIds: [...selectedFuelRecordIds],
       vehicleSummaries,
-      entries: entries.filter((entry) => entry.type !== 'ADVANCE').map((entry) => ({ ...entry })),
+      entries: entries.map((entry) => ({ ...entry })),
       totals: { ...totals },
     }),
     [
@@ -521,7 +521,7 @@ export function useDriverSettlement() {
     setDailyAllowance('0');
     setOtherEarnings(formatEditableDecimal(safeNumber(totals.otherEarnings)));
     setEntries(Array.isArray(settlement.entries)
-      ? settlement.entries.filter((entry) => entry && entry.type !== 'ADVANCE').map((entry) => ({ ...entry }))
+      ? settlement.entries.filter(Boolean).map((entry) => ({ ...entry }))
       : []);
     setSelectedFuelRecordIdsOverride(
       Array.isArray(settlement.selectedFuelRecordIds)

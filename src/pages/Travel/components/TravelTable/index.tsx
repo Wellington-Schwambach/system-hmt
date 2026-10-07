@@ -42,7 +42,6 @@ export function TravelTable({
           <THead>
             <tr>
               <TH>Data</TH>
-              <TH>Unidade</TH>
               <TH>Placa</TH>
               <TH>Origem</TH>
               <TH>Destino</TH>
@@ -60,7 +59,6 @@ export function TravelTable({
             {records.map((record) => (
               <TR key={record.id}>
                 <TD>{formatDate(record.date)}</TD>
-                <TD>{record.companyUnit === 'FILIAL' ? 'Filial' : 'Matriz'}</TD>
                 <TD>{record.plate}</TD>
                 <TD title={record.origin}>{record.origin}</TD>
                 <TD title={record.destination}>{record.destination}</TD>

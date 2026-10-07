@@ -39,7 +39,6 @@ export function FuelMobileList({ records, deletingId, invoicingKey, onEdit, onIn
           </CardHeader>
 
           <DataGrid>
-            <DataItem><DataLabel>Unidade</DataLabel><DataValue>{record.companyUnit === 'FILIAL' ? 'Filial' : 'Matriz'}</DataValue></DataItem>
             <DataItem><DataLabel>KM</DataLabel><DataValue>{record.km !== null && record.km > 0 ? formatInteger(record.km) : '—'}</DataValue></DataItem>
             <DataItem><DataLabel>Motorista</DataLabel><DataValue>{record.driver}</DataValue></DataItem>
             <DataItem><DataLabel>Litros Diesel</DataLabel><DataValue>{formatDecimal(record.dieselLiters)} L</DataValue></DataItem>

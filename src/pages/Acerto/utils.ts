@@ -681,9 +681,9 @@ export function calculateSettlementTotals(
     0,
   );
   const bonusValue = bonusValueOverride ?? totalNetFreight * (bonusPercent / 100);
-  // Vales não são cobrados no Acerto. O campo permanece no snapshot apenas
-  // por compatibilidade com Acertos antigos, sempre zerado nas regras atuais.
-  const advances = 0;
+  const advances = entries
+    .filter((entry) => entry.type === 'ADVANCE')
+    .reduce((sum, entry) => sum + entry.value, 0);
   const fines = entries
     .filter((entry) => entry.type === 'FINE')
     .reduce((sum, entry) => sum + entry.value, 0);
@@ -697,7 +697,7 @@ export function calculateSettlementTotals(
     .filter((entry) => entry.type === 'NEUTRAL_EXPENSE')
     .reduce((sum, entry) => sum + entry.value, 0);
   const totalEarnings = baseSalary + bonusValue + otherEarnings;
-  const totalDiscounts = fines + loans + otherDiscounts;
+  const totalDiscounts = advances + fines + loans + otherDiscounts;
 
   return {
     totalOriginalNetFreight,
