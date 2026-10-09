@@ -57,6 +57,8 @@ interface ApiLoad {
   trailer_plate: string | null;
   third_party_tractor_plate: string | null;
   third_party_trailer_plate: string | null;
+  third_party_driver_name: string | null;
+  third_party_driver_two_name: string | null;
   collection_city_id: number | null;
   collection_terminal: string | null;
   collection_location_type_id: number | null;
@@ -152,6 +154,8 @@ function mapLoad(item: ApiLoad): LogisticsLoad {
     trailerPlate: item.trailer_plate,
     thirdPartyTractorPlate: item.third_party_tractor_plate,
     thirdPartyTrailerPlate: item.third_party_trailer_plate,
+    thirdPartyDriverName: item.third_party_driver_name,
+    thirdPartyDriverTwoName: item.third_party_driver_two_name,
     collectionCityId: item.collection_city_id,
     collectionTerminal: item.collection_terminal,
     collectionLocationTypeId: item.collection_location_type_id,
@@ -271,6 +275,8 @@ function formPayload(data: LogisticsFormData) {
     trailer_id: data.plateMode === 'FLEET' && data.trailerId ? Number(data.trailerId) : null,
     third_party_tractor_plate: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyTractorPlate)?.toUpperCase() ?? null : null,
     third_party_trailer_plate: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyTrailerPlate)?.toUpperCase() ?? null : null,
+    third_party_driver_name: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyDriverName)?.toLocaleUpperCase('pt-BR') ?? null : null,
+    third_party_driver_two_name: data.plateMode === 'THIRD_PARTY' ? nullableText(data.thirdPartyDriverTwoName)?.toLocaleUpperCase('pt-BR') ?? null : null,
     collection_city_id: data.collectionCityId ? Number(data.collectionCityId) : null,
     collection_terminal: nullableText(data.collectionTerminal),
     collection_location_type_id: data.collectionLocationTypeId ? Number(data.collectionLocationTypeId) : null,

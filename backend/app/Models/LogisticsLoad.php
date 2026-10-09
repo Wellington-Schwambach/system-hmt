@@ -42,6 +42,8 @@ class LogisticsLoad extends Model
         'trailer_id',
         'third_party_tractor_plate',
         'third_party_trailer_plate',
+        'third_party_driver_name',
+        'third_party_driver_two_name',
         'collection_city_id',
         'loading_city_id',
         'delivery_city_id',
