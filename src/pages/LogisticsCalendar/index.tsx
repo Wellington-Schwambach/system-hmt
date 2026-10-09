@@ -292,6 +292,10 @@ function plateSummary(load: LogisticsLoad): string {
   return [load.tractorPlate, load.trailerPlate].filter(Boolean).join(' / ') || '—';
 }
 
+function fleetTypeLabel(load: LogisticsLoad): string {
+  return load.plateMode === 'THIRD_PARTY' ? 'Terceiro' : 'Frota própria';
+}
+
 function toLocalInput(value: string | null): string {
   if (!value) return '';
   const date = new Date(value);
@@ -328,6 +332,8 @@ function emptyForm(): LogisticsFormData {
     trailerId: '',
     thirdPartyTractorPlate: '',
     thirdPartyTrailerPlate: '',
+    thirdPartyDriverName: '',
+    thirdPartyDriverTwoName: '',
     collectionCityId: '',
     collectionTerminal: '',
     collectionLocationTypeId: '',
@@ -383,6 +389,8 @@ function formFromLoad(load: LogisticsLoad): LogisticsFormData {
     trailerId: load.trailerId ? String(load.trailerId) : '',
     thirdPartyTractorPlate: load.thirdPartyTractorPlate ?? '',
     thirdPartyTrailerPlate: load.thirdPartyTrailerPlate ?? '',
+    thirdPartyDriverName: load.thirdPartyDriverName ?? (load.plateMode === 'THIRD_PARTY' ? (load.driverName ?? '') : ''),
+    thirdPartyDriverTwoName: load.thirdPartyDriverTwoName ?? (load.plateMode === 'THIRD_PARTY' ? (load.driverTwoName ?? '') : ''),
     collectionCityId: load.collectionCityId ? String(load.collectionCityId) : '',
     collectionTerminal: load.collectionTerminal ?? '',
     collectionLocationTypeId: load.collectionLocationTypeId ? String(load.collectionLocationTypeId) : '',
@@ -1178,6 +1186,14 @@ export function LogisticsCalendar() {
             {shipperSequence} {load.shipperName || '—'}
           </ListShipperBadge>
         </ListCell>
+        <ListCell>{driverSummary(load)}</ListCell>
+        <ListCell>
+          <div>
+            <strong>{load.tractorPlate || '—'}</strong> / {load.trailerPlate || '—'}
+            <br />
+            <span>{fleetTypeLabel(load)}</span>
+          </div>
+        </ListCell>
         <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
         <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
         <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
@@ -1311,8 +1327,8 @@ export function LogisticsCalendar() {
                           aria-label={`${WEEK_DAYS[index]}, ${formatDate(key)}, ${scheduledTotal} agendamento(s), ${loadingTotal} carregamento(s)`}
                         >
                           <div className="day-heading">
-                            <span>{WEEK_DAYS[index]}</span>
-                            <strong>{date.getDate()}</strong>
+                            <strong className="calendar-date">{date.getDate()}</strong>
+                            <span className="weekday">{WEEK_DAYS[index]}</span>
                           </div>
                           {index !== 0 ? (
                           <CalendarDayFlow style={{ gridTemplateColumns: scheduledTotal > 0 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)' }}>
@@ -1443,6 +1459,8 @@ export function LogisticsCalendar() {
                 <ListTable ref={listTableRef}>
                   <ListHeaderRow>
                     <span>Embarcador</span>
+                    <span>Motorista</span>
+                    <span>Cavalo / Carreta - Tipo da frota</span>
                     <span>Origem</span>
                     <span>Observação</span>
                     <span>Destino</span>
@@ -1746,7 +1764,7 @@ export function LogisticsCalendar() {
                 <DetailGrid>
                   <DetailItem><span>Placas</span><strong>{plateSummary(detailLoad)}</strong></DetailItem>
                   <DetailItem><span>Motoristas</span><strong>{driverSummary(detailLoad)}</strong></DetailItem>
-                  <DetailItem><span>Tipo das placas</span><strong>{detailLoad.plateMode === 'THIRD_PARTY' ? 'Terceiro' : 'Frota própria'}</strong></DetailItem>
+                  <DetailItem><span>Tipo da frota</span><strong>{fleetTypeLabel(detailLoad)}</strong></DetailItem>
                 </DetailGrid>
               </DetailSection>
 

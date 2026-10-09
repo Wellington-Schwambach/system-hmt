@@ -25,6 +25,11 @@ class SaveLogisticsLoadRequest extends FormRequest
             return $normalized === '' ? null : $normalized;
         };
 
+        $normalizeThirdPartyDriver = static function ($value): ?string {
+            $normalized = preg_replace('/\s+/', ' ', trim((string) $value));
+            return $normalized === '' ? null : mb_strtoupper($normalized, 'UTF-8');
+        };
+
         $containerNumber = strtoupper(trim((string) $this->input('container_number', '')));
         $driverId = $this->input('driver_id');
         $driverTwoId = $this->input('driver_two_id');
@@ -35,7 +40,8 @@ class SaveLogisticsLoadRequest extends FormRequest
         $this->merge([
             'container_number' => $containerNumber === '' ? null : $containerNumber,
             'plate_mode' => $plateMode,
-            'driver_two_id' => $driverTwoId,
+            'driver_id' => $plateMode === 'FLEET' ? $driverId : null,
+            'driver_two_id' => $plateMode === 'FLEET' ? $driverTwoId : null,
             'tractor_id' => $plateMode === 'FLEET' ? $this->input('tractor_id') : null,
             'trailer_id' => $plateMode === 'FLEET' ? $this->input('trailer_id') : null,
             'third_party_tractor_plate' => $plateMode === 'THIRD_PARTY'
@@ -43,6 +49,12 @@ class SaveLogisticsLoadRequest extends FormRequest
                 : null,
             'third_party_trailer_plate' => $plateMode === 'THIRD_PARTY'
                 ? $normalizeThirdPartyPlate($this->input('third_party_trailer_plate'))
+                : null,
+            'third_party_driver_name' => $plateMode === 'THIRD_PARTY'
+                ? $normalizeThirdPartyDriver($this->input('third_party_driver_name'))
+                : null,
+            'third_party_driver_two_name' => $plateMode === 'THIRD_PARTY'
+                ? $normalizeThirdPartyDriver($this->input('third_party_driver_two_name'))
                 : null,
         ]);
     }
@@ -113,6 +125,18 @@ class SaveLogisticsLoadRequest extends FormRequest
                 'string',
                 'max:40',
             ],
+            'third_party_driver_name' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') !== 'THIRD_PARTY'),
+                'nullable',
+                'string',
+                'max:160',
+            ],
+            'third_party_driver_two_name' => [
+                Rule::excludeIf(fn (): bool => $this->input('plate_mode') !== 'THIRD_PARTY'),
+                'nullable',
+                'string',
+                'max:160',
+            ],
             'collection_terminal' => ['nullable', 'string', 'max:180'],
             'collection_scheduled_at' => ['nullable', 'date_format:Y-m-d'],
             'collection_at' => ['nullable', 'date'],
@@ -149,6 +173,8 @@ class SaveLogisticsLoadRequest extends FormRequest
             'plate_mode.in' => 'Selecione uma opção válida para as placas.',
             'third_party_tractor_plate.max' => 'A descrição da placa principal do terceiro deve possuir no máximo 40 caracteres.',
             'third_party_trailer_plate.max' => 'A descrição da placa da carreta do terceiro deve possuir no máximo 40 caracteres.',
+            'third_party_driver_name.max' => 'O nome do motorista terceiro deve possuir no máximo 160 caracteres.',
+            'third_party_driver_two_name.max' => 'O nome do segundo motorista terceiro deve possuir no máximo 160 caracteres.',
             'shipper_id.required' => 'Selecione o embarcador da carga.',
             'shipper_id.exists' => 'O embarcador selecionado não está ativo.',
             'collection_scheduled_at.date_format' => 'A data de agendamento da coleta é inválida.',

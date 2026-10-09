@@ -118,6 +118,8 @@ export interface LogisticsLoad {
   trailerPlate: string | null;
   thirdPartyTractorPlate: string | null;
   thirdPartyTrailerPlate: string | null;
+  thirdPartyDriverName: string | null;
+  thirdPartyDriverTwoName: string | null;
   collectionCityId: number | null;
   collectionTerminal: string | null;
   collectionLocationTypeId: number | null;
@@ -195,6 +197,8 @@ export interface LogisticsFormData {
   trailerId: string;
   thirdPartyTractorPlate: string;
   thirdPartyTrailerPlate: string;
+  thirdPartyDriverName: string;
+  thirdPartyDriverTwoName: string;
   collectionCityId: string;
   collectionTerminal: string;
   collectionLocationTypeId: string;

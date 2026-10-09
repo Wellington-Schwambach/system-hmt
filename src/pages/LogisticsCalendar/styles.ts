@@ -276,7 +276,7 @@ export const WeekDatesScroller = styled.div`
 export const MonthWeekdayGrid = styled.div`
   width: max(100%, 72rem);
   display: grid;
-  grid-template-columns: 3.8rem 2.8rem repeat(6, minmax(10.2rem, 1fr));
+  grid-template-columns: 3.8rem 5.25rem repeat(6, minmax(10.2rem, 1fr));
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   background: ${({ theme }) => theme.colors.dashboardSurface};
 
@@ -296,15 +296,9 @@ export const MonthWeekdayGrid = styled.div`
 
   > span:last-child { border-right: 0; }
 
-  /* Domingo funciona apenas como uma referência visual compacta. */
-  > span:first-of-type {
-    font-size: 0.72rem;
-    letter-spacing: 0.02em;
-  }
-
   @media (max-width: 1280px) {
     width: max(100%, 67rem);
-    grid-template-columns: 3.5rem 2.65rem repeat(6, minmax(9.6rem, 1fr));
+    grid-template-columns: 3.5rem 5rem repeat(6, minmax(9.6rem, 1fr));
   }
 `;
 
@@ -322,14 +316,14 @@ export const CalendarWeekNumberHeader = styled.div`
 export const MonthWeekRow = styled.div`
   width: max(100%, 72rem);
   display: grid;
-  grid-template-columns: 3.8rem 2.8rem repeat(6, minmax(10.2rem, 1fr));
+  grid-template-columns: 3.8rem 5.25rem repeat(6, minmax(10.2rem, 1fr));
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
 
   &:last-child { border-bottom: 0; }
 
   @media (max-width: 1280px) {
     width: max(100%, 67rem);
-    grid-template-columns: 3.5rem 2.65rem repeat(6, minmax(9.6rem, 1fr));
+    grid-template-columns: 3.5rem 5rem repeat(6, minmax(9.6rem, 1fr));
   }
 `;
 
@@ -385,7 +379,7 @@ export const CalendarDayButton = styled.button<{ $selected: boolean; $today: boo
   flex-direction: column;
   align-items: stretch;
   gap: 0.72rem;
-  padding: ${({ $sunday }) => ($sunday ? '0.62rem 0.18rem' : '0.82rem 0.78rem')};
+  padding: ${({ $sunday }) => ($sunday ? '0.62rem 0.35rem' : '0.82rem 0.78rem')};
   border: 0;
   border-right: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   color: ${({ theme }) => theme.colors.dashboardText};
@@ -397,21 +391,26 @@ export const CalendarDayButton = styled.button<{ $selected: boolean; $today: boo
   &:last-child { border-right: 0; }
 
   .day-heading {
+    width: 100%;
     min-width: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    justify-content: space-between;
     gap: 0.5rem;
   }
 
-  .day-heading > span {
+  .day-heading > .weekday {
+    min-width: 0;
+    justify-self: end;
+    text-align: right;
     color: ${({ theme }) => theme.colors.dashboardTextMuted};
     font-size: 0.86rem;
     font-weight: 800;
     text-transform: uppercase;
   }
 
-  .day-heading > strong {
+  .day-heading > .calendar-date {
+    justify-self: start;
     width: 2.5rem;
     height: 2.5rem;
     display: grid;
@@ -426,24 +425,21 @@ export const CalendarDayButton = styled.button<{ $selected: boolean; $today: boo
   }
 
   ${({ $sunday }) => $sunday ? `
-    justify-content: center;
-    align-items: center;
+    gap: 0.35rem;
     .day-heading {
-      flex-direction: column;
-      justify-content: center;
-      gap: 0.38rem;
-      text-align: center;
+      gap: 0.25rem;
     }
-    .day-heading > span {
-      font-size: 0.72rem;
-      letter-spacing: 0.02em;
+    .day-heading > .weekday {
+      font-size: 0.68rem;
+      letter-spacing: 0.01em;
     }
-    .day-heading > strong {
-      width: 2.25rem;
-      height: 2.25rem;
-      font-size: 1.35rem;
+    .day-heading > .calendar-date {
+      width: 2.05rem;
+      height: 2.05rem;
+      font-size: 1.15rem;
     }
   ` : ''}
+
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.colors.brandGreen};
@@ -1525,6 +1521,8 @@ export const FixedHorizontalScrollbarTrack = styled.input.attrs({ type: 'range' 
 
 const listColumns = `
   minmax(9rem, 1fr)
+  minmax(9.5rem, 0.95fr)
+  minmax(13rem, 1.18fr)
   minmax(7.6rem, 0.82fr)
   minmax(10rem, 1.08fr)
   minmax(7.6rem, 0.82fr)
@@ -1540,7 +1538,7 @@ const listColumns = `
 
 export const ListTable = styled.div`
   width: 100%;
-  min-width: 109.7rem;
+  min-width: 133rem;
   background: ${({ theme }) => theme.colors.dashboardSurface};
 
   @media (max-width: 1680px) {
@@ -1751,16 +1749,18 @@ export const ListCell = styled.div<{ $strong?: boolean; $muted?: boolean }>`
     }
 
     &:nth-child(1)::before { content: 'Embarcador'; }
-    &:nth-child(2)::before { content: 'Origem'; }
-    &:nth-child(3)::before { content: 'Observação origem'; }
-    &:nth-child(4)::before { content: 'Destino'; }
-    &:nth-child(5)::before { content: 'Observação destino'; }
-    &:nth-child(6)::before { content: 'Hora carregamento'; }
-    &:nth-child(7)::before { content: 'Armador'; }
-    &:nth-child(8)::before { content: 'Coleta'; }
-    &:nth-child(9)::before { content: 'Baixa'; }
-    &:nth-child(10)::before { content: 'Tipo container'; }
-    &:nth-child(11)::before { content: 'Status viagem'; }
+    &:nth-child(2)::before { content: 'Motorista'; }
+    &:nth-child(3)::before { content: 'Cavalo / Carreta - Tipo da frota'; }
+    &:nth-child(4)::before { content: 'Origem'; }
+    &:nth-child(5)::before { content: 'Observação origem'; }
+    &:nth-child(6)::before { content: 'Destino'; }
+    &:nth-child(7)::before { content: 'Observação destino'; }
+    &:nth-child(8)::before { content: 'Hora carregamento'; }
+    &:nth-child(9)::before { content: 'Armador'; }
+    &:nth-child(10)::before { content: 'Coleta'; }
+    &:nth-child(11)::before { content: 'Baixa'; }
+    &:nth-child(12)::before { content: 'Tipo container'; }
+    &:nth-child(13)::before { content: 'Status viagem'; }
 
     &:first-child {
       padding-left: 0.9rem;

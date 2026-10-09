@@ -862,6 +862,8 @@ class LogisticsController extends Controller
             'plate_mode',
             'third_party_tractor_plate',
             'third_party_trailer_plate',
+            'third_party_driver_name',
+            'third_party_driver_two_name',
         ];
 
         foreach ($fields as $field) {
@@ -874,7 +876,7 @@ class LogisticsController extends Controller
             $payload['shipper_id'] = (int) $payload['shipper_id'];
         }
 
-        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'grade_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'destination_notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate'] as $field) {
+        foreach (['shipment_number', 'load_number', 'shipowner', 'booking_number', 'collection_booking_number', 'grade_number', 'collection_terminal', 'loading_location', 'delivery_location', 'plan', 'load_mode', 'load_status', 'cargo_number', 'container_number', 'shipowner_seal', 'vessel', 'country', 'temperature', 'sif_seal', 'notes', 'destination_notes', 'plate_mode', 'third_party_tractor_plate', 'third_party_trailer_plate', 'third_party_driver_name', 'third_party_driver_two_name'] as $field) {
             if (array_key_exists($field, $payload)) {
                 $value = trim((string) ($payload[$field] ?? ''));
                 $payload[$field] = $value === '' ? null : $value;
@@ -935,9 +937,13 @@ class LogisticsController extends Controller
         if ($payload['plate_mode'] === 'THIRD_PARTY') {
             $payload['tractor_id'] = null;
             $payload['trailer_id'] = null;
+            $payload['driver_id'] = null;
+            $payload['driver_two_id'] = null;
         } else {
             $payload['third_party_tractor_plate'] = null;
             $payload['third_party_trailer_plate'] = null;
+            $payload['third_party_driver_name'] = null;
+            $payload['third_party_driver_two_name'] = null;
         }
 
         foreach (['collection_scheduled_at', 'collection_at', 'grade_at', 'loading_at', 'delivery_at', 'deadline'] as $field) {
@@ -1018,9 +1024,9 @@ class LogisticsController extends Controller
             'shipper_name' => (string) ($load->shipper?->name ?? '-'),
             'shipper_color' => (string) ($load->shipper?->display_color ?: '#3FA66C'),
             'driver_id' => $load->driver_id ? (int) $load->driver_id : null,
-            'driver_name' => $load->driver?->full_name,
+            'driver_name' => $load->plate_mode === 'THIRD_PARTY' ? ($load->third_party_driver_name ?: $load->driver?->full_name) : $load->driver?->full_name,
             'driver_two_id' => $load->driver_two_id ? (int) $load->driver_two_id : null,
-            'driver_two_name' => $load->driverTwo?->full_name,
+            'driver_two_name' => $load->plate_mode === 'THIRD_PARTY' ? ($load->third_party_driver_two_name ?: $load->driverTwo?->full_name) : $load->driverTwo?->full_name,
             'plate_mode' => $load->plate_mode === 'THIRD_PARTY' ? 'THIRD_PARTY' : 'FLEET',
             'tractor_id' => $load->tractor_id ? (int) $load->tractor_id : null,
             'tractor_plate' => $load->plate_mode === 'THIRD_PARTY' ? $load->third_party_tractor_plate : $load->tractor?->plate,
@@ -1028,6 +1034,8 @@ class LogisticsController extends Controller
             'trailer_plate' => $load->plate_mode === 'THIRD_PARTY' ? $load->third_party_trailer_plate : $load->trailer?->plate,
             'third_party_tractor_plate' => $load->third_party_tractor_plate,
             'third_party_trailer_plate' => $load->third_party_trailer_plate,
+            'third_party_driver_name' => $load->third_party_driver_name,
+            'third_party_driver_two_name' => $load->third_party_driver_two_name,
             'collection_city_id' => $load->collection_city_id ? (int) $load->collection_city_id : null,
             'collection_terminal' => $load->collectionCityRelation ? $load->collectionCityRelation->name.' / '.$load->collectionCityRelation->state?->abbreviation : ($load->collection_terminal ?: $load->collection_city),
             'collection_location_type_id' => $load->collection_location_type_id ? (int) $load->collection_location_type_id : null,
