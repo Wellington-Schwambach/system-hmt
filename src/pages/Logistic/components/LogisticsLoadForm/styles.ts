@@ -241,3 +241,202 @@ export const LoadRemoveButton = styled.button`
 
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 `;
+
+export const FormPreferenceBar = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.7rem;
+`;
+
+export const FormPreferenceButton = styled.button`
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 0.48rem 0.72rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.68rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.brandGreenBorder};
+    color: ${({ theme }) => theme.colors.brandGreen};
+    background: ${({ theme }) => theme.colors.brandGreenSoft};
+  }
+`;
+
+export const OrderBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 6200;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 18, 13, 0.62);
+`;
+
+export const OrderModal = styled.div`
+  width: min(100%, 56rem);
+  max-height: min(88vh, 58rem);
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 1rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.3);
+`;
+
+export const OrderModalHeader = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+
+  > div:first-child {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+`;
+
+export const OrderTitle = styled.h3`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 1rem;
+`;
+
+export const OrderSection = styled.section`
+  margin-top: 0.9rem;
+  padding: 0.85rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.85rem;
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const OrderSectionHeader = styled.div`
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+`;
+
+export const OrderSectionDragHandle = styled.span`
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.55rem;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  cursor: grab;
+  user-select: none;
+
+  &:active { cursor: grabbing; }
+`;
+
+export const OrderSectionTitle = styled.h4`
+  margin: 0;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  font-size: 0.78rem;
+  text-transform: uppercase;
+`;
+
+export const OrderSectionActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+`;
+
+export const OrderList = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+
+  @media (max-width: 700px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+export const OrderItem = styled.div`
+  min-width: 0;
+  min-height: 2.75rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.55rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.7rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: grab;
+  user-select: none;
+
+  &:active { cursor: grabbing; }
+`;
+
+export const OrderHandle = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.colors.dashboardTextMuted};
+`;
+
+export const OrderItemActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+`;
+
+export const OrderButton = styled.button`
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.55rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: ${({ theme }) => theme.colors.brandGreenBorder};
+    color: ${({ theme }) => theme.colors.brandGreen};
+  }
+
+  &:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+  }
+`;
+
+export const OrderActions = styled.div`
+  position: sticky;
+  bottom: -1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin: 1rem -1rem -1rem;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+
+  @media (max-width: ${breakpoints.mobile}) {
+    flex-direction: column;
+    > button { width: 100%; }
+  }
+`;

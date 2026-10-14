@@ -1519,26 +1519,9 @@ export const FixedHorizontalScrollbarTrack = styled.input.attrs({ type: 'range' 
   }
 `;
 
-const listColumns = `
-  minmax(9rem, 1fr)
-  minmax(9.5rem, 0.95fr)
-  minmax(13rem, 1.18fr)
-  minmax(7.6rem, 0.82fr)
-  minmax(10rem, 1.08fr)
-  minmax(7.6rem, 0.82fr)
-  minmax(10rem, 1.08fr)
-  minmax(7.4rem, 0.76fr)
-  minmax(7.6rem, 0.84fr)
-  minmax(9.5rem, 1.02fr)
-  minmax(9.5rem, 1.02fr)
-  minmax(8.4rem, 0.86fr)
-  minmax(8.6rem, 0.9fr)
-  minmax(14.5rem, 1.25fr)
-`;
-
-export const ListTable = styled.div`
+export const ListTable = styled.div<{ $minWidth: string }>`
   width: 100%;
-  min-width: 133rem;
+  min-width: ${({ $minWidth }) => $minWidth};
   background: ${({ theme }) => theme.colors.dashboardSurface};
 
   @media (max-width: 1680px) {
@@ -1551,9 +1534,9 @@ export const ListTable = styled.div`
   }
 `;
 
-export const ListHeaderRow = styled.div`
+export const ListHeaderRow = styled.div<{ $template: string }>`
   display: grid;
-  grid-template-columns: ${listColumns};
+  grid-template-columns: ${({ $template }) => $template};
   align-items: stretch;
   position: sticky;
   top: 0;
@@ -1652,10 +1635,10 @@ export const ListGroupEmpty = styled.div`
   }
 `;
 
-export const ListRow = styled.div<{ $accent: string }>`
+export const ListRow = styled.div<{ $accent: string; $template: string }>`
   position: relative;
   display: grid;
-  grid-template-columns: ${listColumns};
+  grid-template-columns: ${({ $template }) => $template};
   align-items: stretch;
   border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
   background: ${({ theme }) => theme.colors.dashboardSurface};
@@ -1671,12 +1654,6 @@ export const ListRow = styled.div<{ $accent: string }>`
     width: 0.24rem;
     background: ${({ $accent }) => $accent};
     pointer-events: none;
-  }
-
-  > div:first-child {
-    border-left: 0.24rem solid ${({ $accent }) => $accent};
-    background: ${({ $accent, theme }) =>
-      `color-mix(in srgb, ${$accent} 13%, ${theme.colors.surfaceElevated} 87%)`};
   }
 
   &:hover {
@@ -1702,11 +1679,6 @@ export const ListRow = styled.div<{ $accent: string }>`
 
     &::before { display: none; }
 
-    > div:first-child {
-      border-left: 0;
-      background: ${({ $accent, theme }) =>
-        `color-mix(in srgb, ${$accent} 13%, ${theme.colors.surfaceElevated} 87%)`};
-    }
   }
 
   @media (max-width: 680px) {
@@ -1748,29 +1720,8 @@ export const ListCell = styled.div<{ $strong?: boolean; $muted?: boolean }>`
       text-transform: uppercase;
     }
 
-    &:nth-child(1)::before { content: 'Embarcador'; }
-    &:nth-child(2)::before { content: 'Motorista'; }
-    &:nth-child(3)::before { content: 'Cavalo / Carreta - Tipo da frota'; }
-    &:nth-child(4)::before { content: 'Origem'; }
-    &:nth-child(5)::before { content: 'Observação origem'; }
-    &:nth-child(6)::before { content: 'Destino'; }
-    &:nth-child(7)::before { content: 'Observação destino'; }
-    &:nth-child(8)::before { content: 'Hora carregamento'; }
-    &:nth-child(9)::before { content: 'Armador'; }
-    &:nth-child(10)::before { content: 'Coleta'; }
-    &:nth-child(11)::before { content: 'Baixa'; }
-    &:nth-child(12)::before { content: 'Tipo container'; }
-    &:nth-child(13)::before { content: 'Status viagem'; }
+    &::before { content: attr(data-label); }
 
-    &:first-child {
-      padding-left: 0.9rem;
-      font-size: 1rem;
-    }
-
-    &:first-child::before {
-      color: currentColor;
-      opacity: 0.82;
-    }
   }
 
   @media (max-width: 680px) {
@@ -1891,6 +1842,134 @@ export const ListActionButton = styled.button`
   @media (max-width: 680px) {
     width: 100%;
     font-size: 0.76rem;
+  }
+`;
+
+
+export const ColumnConfigBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.62rem 1rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  background: ${({ theme }) => theme.colors.dashboardSurface};
+`;
+
+export const ColumnConfigButton = styled.button`
+  min-height: 2.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 0.48rem 0.76rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 0.68rem;
+  color: ${({ theme }) => theme.colors.dashboardText};
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:hover { border-color: ${({ theme }) => theme.colors.brandGreen}; }
+`;
+
+export const ColumnConfigBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(7, 19, 12, 0.46);
+`;
+
+export const ColumnConfigModal = styled.section`
+  width: min(38rem, 100%);
+  max-height: min(46rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorderStrong};
+  border-radius: 1rem;
+  background: ${({ theme }) => theme.colors.surfaceElevated};
+  box-shadow: 0 1.2rem 3.5rem rgba(0, 0, 0, 0.28);
+`;
+
+export const ColumnConfigHeader = styled.header`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem 0.85rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  h2 {
+    margin: 0;
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 1.05rem;
+  }
+
+  p {
+    margin: 0.28rem 0 0;
+    color: ${({ theme }) => theme.colors.dashboardTextMuted};
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+`;
+
+export const ColumnConfigList = styled.div`
+  min-height: 0;
+  display: grid;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding: 0.85rem 1rem;
+`;
+
+export const ColumnConfigItem = styled.div<{ $dragging?: boolean }>`
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+  border-radius: 0.72rem;
+  background: ${({ $dragging, theme }) => ($dragging ? theme.colors.brandGreenSoft : theme.colors.dashboardSurface)};
+  opacity: ${({ $dragging }) => ($dragging ? 0.62 : 1)};
+  cursor: grab;
+
+  &:active { cursor: grabbing; }
+
+  > svg { color: ${({ theme }) => theme.colors.dashboardTextMuted}; }
+
+  label {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: ${({ theme }) => theme.colors.dashboardText};
+    font-size: 0.86rem;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  input { width: 1rem; height: 1rem; accent-color: ${({ theme }) => theme.colors.brandGreen}; }
+`;
+
+export const ColumnConfigFooter = styled.footer`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem 1rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.dashboardBorder};
+
+  > div { display: flex; gap: 0.55rem; }
+
+  @media (max-width: 560px) {
+    align-items: stretch;
+    flex-direction: column;
+    > div, button { width: 100%; }
   }
 `;
 

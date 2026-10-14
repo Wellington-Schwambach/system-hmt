@@ -10,11 +10,13 @@ import {
   Eye,
   EyeOff,
   FileSpreadsheet,
+  GripVertical,
   History,
   MessageSquareText,
   Plus,
   RefreshCw,
   Save,
+  Settings2,
   Trash2,
   X,
 } from 'lucide-react';
@@ -31,6 +33,8 @@ import type {
   LogisticsAppointment,
   LogisticsFormData,
   LogisticsLoad,
+  LogisticsColumnKey,
+  LogisticsColumnPreferenceItem,
   LogisticsOptions,
   LogisticsStage,
 } from '../Logistic/types';
@@ -54,6 +58,14 @@ import {
   CalendarDropdown,
   CalendarFilters,
   CalendarShipperCount,
+  ColumnConfigBackdrop,
+  ColumnConfigBar,
+  ColumnConfigButton,
+  ColumnConfigFooter,
+  ColumnConfigHeader,
+  ColumnConfigItem,
+  ColumnConfigList,
+  ColumnConfigModal,
   DangerButton,
   DetailBackdrop,
   DetailBody,
@@ -144,6 +156,64 @@ const WEEK_DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 type DrawerMode = 'create' | 'edit' | 'duplicate' | null;
 type AppointmentKind = 'COLLECTION' | 'DELIVERY';
 type DayTab = 'LOADS' | 'HISTORY';
+
+interface LogisticsColumnDefinition {
+  key: LogisticsColumnKey;
+  label: string;
+  headerLabel: string;
+  minRem: number;
+  fr: number;
+  defaultVisible: boolean;
+}
+
+const LOGISTICS_COLUMNS: LogisticsColumnDefinition[] = [
+  { key: 'shipper', label: 'Embarcador', headerLabel: 'Embarcador', minRem: 9, fr: 1, defaultVisible: true },
+  { key: 'origin', label: 'Origem', headerLabel: 'Origem', minRem: 8.2, fr: 0.86, defaultVisible: true },
+  { key: 'origin_notes', label: 'Observação (Origem)', headerLabel: 'Observação', minRem: 10, fr: 1.08, defaultVisible: true },
+  { key: 'destination', label: 'Destino', headerLabel: 'Destino', minRem: 8.2, fr: 0.86, defaultVisible: true },
+  { key: 'destination_notes', label: 'Observação (Destino)', headerLabel: 'Observação', minRem: 10, fr: 1.08, defaultVisible: true },
+  { key: 'loading_time', label: 'Hora Carregamento', headerLabel: 'Hora Carregamento', minRem: 8.2, fr: 0.78, defaultVisible: true },
+  { key: 'shipowner', label: 'Armador', headerLabel: 'Armador', minRem: 8, fr: 0.84, defaultVisible: true },
+  { key: 'collection', label: 'Coleta', headerLabel: 'Coleta', minRem: 9.5, fr: 1.02, defaultVisible: true },
+  { key: 'delivery', label: 'Baixa', headerLabel: 'Baixa', minRem: 9.5, fr: 1.02, defaultVisible: true },
+  { key: 'driver', label: 'Motorista', headerLabel: 'Motorista', minRem: 9.5, fr: 0.95, defaultVisible: true },
+  { key: 'fleet', label: 'Cavalo / Carreta - Tipo da Frota', headerLabel: 'Cavalo / Carreta - Tipo da Frota', minRem: 13, fr: 1.18, defaultVisible: true },
+  { key: 'container_type', label: 'Tipo Container', headerLabel: 'Tipo Container', minRem: 8.4, fr: 0.86, defaultVisible: true },
+  { key: 'travel_status', label: 'Status Viagem', headerLabel: 'Status Viagem', minRem: 8.6, fr: 0.9, defaultVisible: true },
+  { key: 'actions', label: 'Ações', headerLabel: 'Ações', minRem: 14.5, fr: 1.25, defaultVisible: true },
+  { key: 'cargo_number', label: 'Número da Carga', headerLabel: 'Número da Carga', minRem: 9, fr: 0.9, defaultVisible: false },
+  { key: 'load_identifier', label: 'Carga / Load', headerLabel: 'Carga / Load', minRem: 10, fr: 1, defaultVisible: false },
+  { key: 'shipment_number', label: 'Remessa', headerLabel: 'Remessa', minRem: 8.5, fr: 0.85, defaultVisible: false },
+  { key: 'booking_number', label: 'Booking', headerLabel: 'Booking', minRem: 9, fr: 0.9, defaultVisible: false },
+  { key: 'container_number', label: 'Container', headerLabel: 'Container', minRem: 9, fr: 0.9, defaultVisible: false },
+  { key: 'plan', label: 'Plano', headerLabel: 'Plano', minRem: 8, fr: 0.8, defaultVisible: false },
+  { key: 'cargo_type', label: 'Tipo da Carga', headerLabel: 'Tipo da Carga', minRem: 9, fr: 0.9, defaultVisible: false },
+  { key: 'created_at', label: 'Data de Criação', headerLabel: 'Data de Criação', minRem: 10, fr: 0.95, defaultVisible: false },
+  { key: 'vessel', label: 'Navio', headerLabel: 'Navio', minRem: 9, fr: 0.9, defaultVisible: false },
+];
+
+const COLUMN_DEFINITION_BY_KEY = new Map(LOGISTICS_COLUMNS.map((column) => [column.key, column] as const));
+const DEFAULT_COLUMN_PREFERENCES: LogisticsColumnPreferenceItem[] = LOGISTICS_COLUMNS.map((column) => ({
+  key: column.key,
+  visible: column.defaultVisible,
+}));
+
+function normalizeColumnPreferences(columns: LogisticsColumnPreferenceItem[]): LogisticsColumnPreferenceItem[] {
+  const seen = new Set<LogisticsColumnKey>();
+  const normalized: LogisticsColumnPreferenceItem[] = [];
+
+  columns.forEach((item) => {
+    if (!COLUMN_DEFINITION_BY_KEY.has(item.key) || seen.has(item.key)) return;
+    seen.add(item.key);
+    normalized.push({ key: item.key, visible: Boolean(item.visible) });
+  });
+
+  DEFAULT_COLUMN_PREFERENCES.forEach((item) => {
+    if (!seen.has(item.key)) normalized.push({ ...item });
+  });
+
+  return normalized;
+}
 
 interface AppointmentEditorState {
   kind: AppointmentKind;
@@ -528,6 +598,11 @@ export function LogisticsCalendar() {
   const collectionAlertDateRef = useRef<string | null>(null);
   const [shipperFilter, setShipperFilter] = useState('');
   const [loadSearch, setLoadSearch] = useState('');
+  const [columnPreferences, setColumnPreferences] = useState<LogisticsColumnPreferenceItem[]>(DEFAULT_COLUMN_PREFERENCES);
+  const [columnDraft, setColumnDraft] = useState<LogisticsColumnPreferenceItem[]>(DEFAULT_COLUMN_PREFERENCES);
+  const [columnConfigOpen, setColumnConfigOpen] = useState(false);
+  const [columnConfigSaving, setColumnConfigSaving] = useState(false);
+  const [draggedColumnKey, setDraggedColumnKey] = useState<LogisticsColumnKey | null>(null);
   const [options, setOptions] = useState<LogisticsOptions>(EMPTY_OPTIONS);
   const [loads, setLoads] = useState<LogisticsLoad[]>([]);
   const [loading, setLoading] = useState(true);
@@ -560,6 +635,19 @@ export function LogisticsCalendar() {
   const monthRange = useMemo(() => monthBounds(monthAnchor), [monthAnchor]);
   const currentWeekInfo = useMemo(() => isoWeekInfo(today), [today]);
 
+  const activeColumns = useMemo(() => columnPreferences
+    .filter((item) => item.visible)
+    .map((item) => COLUMN_DEFINITION_BY_KEY.get(item.key))
+    .filter((item): item is LogisticsColumnDefinition => Boolean(item)), [columnPreferences]);
+  const listGridTemplate = useMemo(
+    () => activeColumns.map((column) => `minmax(${column.minRem}rem, ${column.fr}fr)`).join(' '),
+    [activeColumns],
+  );
+  const listMinWidth = useMemo(
+    () => `${Math.max(28, activeColumns.reduce((total, column) => total + column.minRem, 0))}rem`,
+    [activeColumns],
+  );
+
   const loadCalendar = useCallback(async () => {
     setLoading(true);
     try {
@@ -584,6 +672,19 @@ export function LogisticsCalendar() {
         notifications.error(feedback.title, feedback.message, feedback.details);
       });
   }, [notifications]);
+
+  useEffect(() => {
+    void logisticsService.columnPreferences()
+      .then(({ columns }) => {
+        const normalized = normalizeColumnPreferences(columns);
+        setColumnPreferences(normalized);
+        setColumnDraft(normalized);
+      })
+      .catch((error) => {
+        const feedback = getApiErrorFeedback(error, 'Não foi possível carregar sua configuração de colunas.');
+        notifications.error(feedback.title, feedback.message, feedback.details);
+      });
+  }, [notifications, user?.id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadCalendar(), 0);
@@ -616,7 +717,7 @@ export function LogisticsCalendar() {
   }, [loadCalendar]);
 
   useEffect(() => {
-    if (!drawerMode && !detailLoad && !appointmentEditor && !statusEditor) return;
+    if (!drawerMode && !detailLoad && !appointmentEditor && !statusEditor && !columnConfigOpen) return;
     const bodyOverflow = document.body.style.overflow;
     const htmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -625,11 +726,20 @@ export function LogisticsCalendar() {
       document.body.style.overflow = bodyOverflow;
       document.documentElement.style.overflow = htmlOverflow;
     };
-  }, [appointmentEditor, detailLoad, drawerMode, statusEditor]);
+  }, [appointmentEditor, columnConfigOpen, detailLoad, drawerMode, statusEditor]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
+
+      if (columnConfigOpen) {
+        if (!columnConfigSaving) {
+          setColumnConfigOpen(false);
+          setColumnDraft(columnPreferences);
+          setDraggedColumnKey(null);
+        }
+        return;
+      }
 
       if (statusEditor) {
         if (!statusSaving && statusVisibilitySavingId === null) {
@@ -668,7 +778,7 @@ export function LogisticsCalendar() {
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [appointmentEditor, appointmentSaving, detailLoad, drawerMode, saving, selectedDate, statusEditor, statusSaving, statusVisibilitySavingId]);
+  }, [appointmentEditor, appointmentSaving, columnConfigOpen, columnConfigSaving, columnPreferences, detailLoad, drawerMode, saving, selectedDate, statusEditor, statusSaving, statusVisibilitySavingId]);
 
   const searchedLoads = useMemo(
     () => loads.filter((load) => loadMatchesSearch(load, loadSearch)),
@@ -845,7 +955,7 @@ export function LogisticsCalendar() {
       window.removeEventListener('scroll', updateFixedScrollbar);
       window.removeEventListener('resize', updateFixedScrollbar);
     };
-  }, [dayTab, selectedDate, visibleLoads.length]);
+  }, [dayTab, listGridTemplate, selectedDate, visibleLoads.length]);
 
   const handleFixedHorizontalScroll = useCallback((nextScrollLeft: number) => {
     const viewport = listViewportRef.current;
@@ -1141,6 +1251,55 @@ export function LogisticsCalendar() {
     }
   }
 
+  function openColumnConfig() {
+    setColumnDraft(columnPreferences.map((item) => ({ ...item })));
+    setDraggedColumnKey(null);
+    setColumnConfigOpen(true);
+  }
+
+  function toggleColumnVisibility(key: LogisticsColumnKey) {
+    setColumnDraft((current) => current.map((item) => item.key === key ? { ...item, visible: !item.visible } : item));
+  }
+
+  function moveDraggedColumn(targetKey: LogisticsColumnKey) {
+    if (!draggedColumnKey || draggedColumnKey === targetKey) return;
+    setColumnDraft((current) => {
+      const sourceIndex = current.findIndex((item) => item.key === draggedColumnKey);
+      const targetIndex = current.findIndex((item) => item.key === targetKey);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  }
+
+  function restoreDefaultColumns() {
+    setColumnDraft(DEFAULT_COLUMN_PREFERENCES.map((item) => ({ ...item })));
+  }
+
+  async function saveColumnConfig() {
+    if (!columnDraft.some((item) => item.visible)) {
+      notifications.warning('Selecione ao menos uma coluna', 'A listagem precisa manter pelo menos uma coluna visível.');
+      return;
+    }
+
+    setColumnConfigSaving(true);
+    try {
+      const saved = await logisticsService.saveColumnPreferences(columnDraft);
+      const normalized = normalizeColumnPreferences(saved.columns);
+      setColumnPreferences(normalized);
+      setColumnDraft(normalized);
+      setColumnConfigOpen(false);
+      notifications.success('Colunas salvas', 'Sua visualização da Logística foi salva somente para o seu usuário.');
+    } catch (error) {
+      const feedback = getApiErrorFeedback(error, 'Não foi possível salvar a configuração das colunas.');
+      notifications.error(feedback.title, feedback.message, feedback.details);
+    } finally {
+      setColumnConfigSaving(false);
+    }
+  }
+
   function exportSelectedDay() {
     if (!selectedDate) return;
     if (dayLoadsForExport.length === 0) {
@@ -1166,10 +1325,125 @@ export function LogisticsCalendar() {
     const collectionScheduled = collectionCount > 0;
     const deliveryScheduled = deliveryCount > 0;
 
+    const renderColumn = (column: LogisticsColumnDefinition) => {
+      const common = { key: column.key, 'data-label': column.label };
+
+      switch (column.key) {
+        case 'shipper':
+          return (
+            <ListCell {...common} $strong>
+              <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
+                {shipperSequence} {load.shipperName || '—'}
+              </ListShipperBadge>
+            </ListCell>
+          );
+        case 'origin':
+          return <ListCell {...common}>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>;
+        case 'origin_notes':
+          return <ListCell {...common} $muted={!load.notes}>{load.notes || '—'}</ListCell>;
+        case 'destination':
+          return <ListCell {...common}>{load.deliveryCityLabel || load.deliveryLocation || '—'}</ListCell>;
+        case 'destination_notes':
+          return <ListCell {...common} $muted={!load.destinationNotes}>{load.destinationNotes || '—'}</ListCell>;
+        case 'loading_time':
+          return <ListCell {...common}>{formatTime(load.loadingAt)}</ListCell>;
+        case 'shipowner':
+          return <ListCell {...common}>{load.shipownerName || load.shipowner || '—'}</ListCell>;
+        case 'collection':
+          return (
+            <ListCell {...common} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+              <ScheduleStatusButton
+                type="button"
+                $scheduled={collectionScheduled}
+                onClick={() => openAppointmentEditor(load, 'COLLECTION')}
+                title="Abrir horários da coleta"
+              >
+                <CalendarDays size={16} />
+                <span>{collectionScheduled ? `Horários coleta · ${collectionCount}` : 'Horários coleta'}</span>
+              </ScheduleStatusButton>
+            </ListCell>
+          );
+        case 'delivery':
+          return (
+            <ListCell {...common} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+              <ScheduleStatusButton
+                type="button"
+                $scheduled={deliveryScheduled}
+                onClick={() => openAppointmentEditor(load, 'DELIVERY')}
+                title="Abrir agendamentos da baixa"
+              >
+                <CalendarDays size={16} />
+                <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
+              </ScheduleStatusButton>
+            </ListCell>
+          );
+        case 'driver':
+          return <ListCell {...common}>{driverSummary(load)}</ListCell>;
+        case 'fleet':
+          return (
+            <ListCell {...common}>
+              <div>
+                <strong>{load.tractorPlate || '—'}</strong> / {load.trailerPlate || '—'}
+                <br />
+                <span>{fleetTypeLabel(load)}</span>
+              </div>
+            </ListCell>
+          );
+        case 'container_type':
+          return <ListCell {...common}>{load.containerTypeName || '—'}</ListCell>;
+        case 'travel_status':
+          return (
+            <ListCell {...common} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+              <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
+                <MessageSquareText size={16} />
+                <span>Status viagem</span>
+                {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
+              </StatusTravelButton>
+            </ListCell>
+          );
+        case 'actions':
+          return (
+            <ListActions key={column.key} data-label={column.label} onClick={(event) => event.stopPropagation()}>
+              <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
+              <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
+              <ListActionButton
+                type="button"
+                onClick={() => void deleteLoad(load)}
+                title="Excluir carga"
+                disabled={deletingId === load.id}
+              >
+                <Trash2 size={15} /> {deletingId === load.id ? 'Excluindo' : 'Excluir'}
+              </ListActionButton>
+            </ListActions>
+          );
+        case 'cargo_number':
+          return <ListCell {...common}>{load.cargoNumber || '—'}</ListCell>;
+        case 'load_identifier':
+          return <ListCell {...common}>{loadIdentifier(load)}</ListCell>;
+        case 'shipment_number':
+          return <ListCell {...common}>{load.shipmentNumber || '—'}</ListCell>;
+        case 'booking_number':
+          return <ListCell {...common}>{load.bookingNumber || '—'}</ListCell>;
+        case 'container_number':
+          return <ListCell {...common}>{load.containerNumber || '—'}</ListCell>;
+        case 'plan':
+          return <ListCell {...common}>{load.plan || '—'}</ListCell>;
+        case 'cargo_type':
+          return <ListCell {...common}>{load.cargoTypeName || '—'}</ListCell>;
+        case 'created_at':
+          return <ListCell {...common}>{formatDateTime(load.createdAt)}</ListCell>;
+        case 'vessel':
+          return <ListCell {...common}>{load.vessel || '—'}</ListCell>;
+        default:
+          return null;
+      }
+    };
+
     return (
       <ListRow
         key={rowKey}
         $accent={load.shipperColor || '#7d8b82'}
+        $template={listGridTemplate}
         tabIndex={0}
         role="button"
         aria-label={`Abrir detalhes da carga ${loadIdentifier(load)}`}
@@ -1181,67 +1455,7 @@ export function LogisticsCalendar() {
           }
         }}
       >
-        <ListCell $strong>
-          <ListShipperBadge $accent={load.shipperColor || '#7d8b82'}>
-            {shipperSequence} {load.shipperName || '—'}
-          </ListShipperBadge>
-        </ListCell>
-        <ListCell>{driverSummary(load)}</ListCell>
-        <ListCell>
-          <div>
-            <strong>{load.tractorPlate || '—'}</strong> / {load.trailerPlate || '—'}
-            <br />
-            <span>{fleetTypeLabel(load)}</span>
-          </div>
-        </ListCell>
-        <ListCell>{load.loadingCityLabel || load.loadingLocation || '—'}</ListCell>
-        <ListCell $muted={!load.notes}>{load.notes || '—'}</ListCell>
-        <ListCell>{load.deliveryCityLabel || '—'}</ListCell>
-        <ListCell $muted={!load.destinationNotes}>{load.destinationNotes || '—'}</ListCell>
-        <ListCell>{formatTime(load.loadingAt)}</ListCell>
-        <ListCell>{load.shipownerName || load.shipowner || '—'}</ListCell>
-        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-          <ScheduleStatusButton
-            type="button"
-            $scheduled={collectionScheduled}
-            onClick={() => openAppointmentEditor(load, 'COLLECTION')}
-            title="Abrir horários da coleta"
-          >
-            <CalendarDays size={16} />
-            <span>{collectionScheduled ? `Horários coleta · ${collectionCount}` : 'Horários coleta'}</span>
-          </ScheduleStatusButton>
-        </ListCell>
-        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-          <ScheduleStatusButton
-            type="button"
-            $scheduled={deliveryScheduled}
-            onClick={() => openAppointmentEditor(load, 'DELIVERY')}
-            title="Abrir agendamentos da baixa"
-          >
-            <CalendarDays size={16} />
-            <span>{deliveryScheduled ? `Baixa agendada · ${deliveryCount}` : 'Agendar baixa'}</span>
-          </ScheduleStatusButton>
-        </ListCell>
-        <ListCell>{load.containerTypeName || '—'}</ListCell>
-        <ListCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
-          <StatusTravelButton type="button" onClick={() => openStatusEditor(load)} title="Abrir status da viagem">
-            <MessageSquareText size={16} />
-            <span>Status viagem</span>
-            {load.statusNotes.length > 0 ? <strong>{load.statusNotes.length}</strong> : null}
-          </StatusTravelButton>
-        </ListCell>
-        <ListActions onClick={(event) => event.stopPropagation()}>
-          <ListActionButton type="button" onClick={() => openEdit(load)} title="Editar carga"><Edit3 size={15} /> Editar</ListActionButton>
-          <ListActionButton type="button" onClick={() => openDuplicate(load)} title="Duplicar carga"><Copy size={15} /> Duplicar</ListActionButton>
-          <ListActionButton
-            type="button"
-            onClick={() => void deleteLoad(load)}
-            title="Excluir carga"
-            disabled={deletingId === load.id}
-          >
-            <Trash2 size={15} /> {deletingId === load.id ? 'Excluindo' : 'Excluir'}
-          </ListActionButton>
-        </ListActions>
+        {activeColumns.map(renderColumn)}
       </ListRow>
     );
   }
@@ -1452,26 +1666,19 @@ export function LogisticsCalendar() {
               </DayHistoryList>
             )
           ) : loading ? <LoadingState><RefreshCw size={22} /> Carregando cargas...</LoadingState> : (
-            <ListViewport ref={listViewportRef}>
+            <>
+              <ColumnConfigBar>
+                <ColumnConfigButton type="button" onClick={openColumnConfig} title="Escolher e ordenar colunas da listagem">
+                  <Settings2 size={16} /> Configurar colunas
+                </ColumnConfigButton>
+              </ColumnConfigBar>
+              <ListViewport ref={listViewportRef}>
               {visibleLoads.length === 0 ? (
                 <EmptyState>{loadSearch.trim() ? 'Nenhuma carga encontrada para a Load pesquisada nesta data.' : 'Nenhum carregamento, agendamento de coleta ou outra movimentação encontrada para esta data.'}</EmptyState>
               ) : (
-                <ListTable ref={listTableRef}>
-                  <ListHeaderRow>
-                    <span>Embarcador</span>
-                    <span>Motorista</span>
-                    <span>Cavalo / Carreta - Tipo da frota</span>
-                    <span>Origem</span>
-                    <span>Observação</span>
-                    <span>Destino</span>
-                    <span>Observação</span>
-                    <span>Hora carregamento</span>
-                    <span>Armador</span>
-                    <span>Coleta</span>
-                    <span>Baixa</span>
-                    <span>Tipo container</span>
-                    <span>Status viagem</span>
-                    <span>Ações</span>
+                <ListTable ref={listTableRef} $minWidth={listMinWidth}>
+                  <ListHeaderRow $template={listGridTemplate}>
+                    {activeColumns.map((column) => <span key={column.key}>{column.headerLabel}</span>)}
                   </ListHeaderRow>
 
                   <ListGroupHeader $tone="loading">
@@ -1510,7 +1717,8 @@ export function LogisticsCalendar() {
                   ) : null}
                 </ListTable>
               )}
-            </ListViewport>
+              </ListViewport>
+            </>
           )}
 
           {dayTab === 'LOADS' && fixedScrollbar.visible && typeof document !== 'undefined'
@@ -1535,6 +1743,100 @@ export function LogisticsCalendar() {
             : null}
         </LoadsSection>
       )}
+
+      {columnConfigOpen ? (
+        <ColumnConfigBackdrop
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !columnConfigSaving) {
+              setColumnConfigOpen(false);
+              setColumnDraft(columnPreferences);
+              setDraggedColumnKey(null);
+            }
+          }}
+        >
+          <ColumnConfigModal role="dialog" aria-modal="true" aria-labelledby="column-config-title">
+            <ColumnConfigHeader>
+              <div>
+                <h2 id="column-config-title">Configurar colunas</h2>
+                <p>Ative ou desative informações e arraste as linhas para definir a ordem da sua listagem.</p>
+              </div>
+              <IconButton
+                type="button"
+                onClick={() => {
+                  setColumnConfigOpen(false);
+                  setColumnDraft(columnPreferences);
+                  setDraggedColumnKey(null);
+                }}
+                disabled={columnConfigSaving}
+                aria-label="Fechar configuração de colunas"
+              >
+                <X size={17} />
+              </IconButton>
+            </ColumnConfigHeader>
+
+            <ColumnConfigList>
+              {columnDraft.map((item) => {
+                const definition = COLUMN_DEFINITION_BY_KEY.get(item.key);
+                if (!definition) return null;
+                return (
+                  <ColumnConfigItem
+                    key={item.key}
+                    draggable={!columnConfigSaving}
+                    $dragging={draggedColumnKey === item.key}
+                    onDragStart={(event) => {
+                      setDraggedColumnKey(item.key);
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', item.key);
+                    }}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveDraggedColumn(item.key);
+                    }}
+                    onDragEnd={() => setDraggedColumnKey(null)}
+                  >
+                    <GripVertical size={17} aria-hidden="true" />
+                    <input
+                      id={`logistics-column-${item.key}`}
+                      type="checkbox"
+                      checked={item.visible}
+                      onChange={() => toggleColumnVisibility(item.key)}
+                      disabled={columnConfigSaving}
+                    />
+                    <label htmlFor={`logistics-column-${item.key}`}>{definition.label}</label>
+                  </ColumnConfigItem>
+                );
+              })}
+            </ColumnConfigList>
+
+            <ColumnConfigFooter>
+              <SecondaryButton type="button" onClick={restoreDefaultColumns} disabled={columnConfigSaving}>
+                <RefreshCw size={15} /> Restaurar padrão
+              </SecondaryButton>
+              <div>
+                <SecondaryButton
+                  type="button"
+                  onClick={() => {
+                    setColumnConfigOpen(false);
+                    setColumnDraft(columnPreferences);
+                    setDraggedColumnKey(null);
+                  }}
+                  disabled={columnConfigSaving}
+                >
+                  Cancelar
+                </SecondaryButton>
+                <PrimaryButton type="button" onClick={() => void saveColumnConfig()} disabled={columnConfigSaving}>
+                  <Save size={15} /> {columnConfigSaving ? 'Salvando...' : 'Salvar configuração'}
+                </PrimaryButton>
+              </div>
+            </ColumnConfigFooter>
+          </ColumnConfigModal>
+        </ColumnConfigBackdrop>
+      ) : null}
 
       {appointmentEditor ? (
         <>
