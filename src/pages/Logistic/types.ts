@@ -1,4 +1,84 @@
 export type LogisticsStage = 'PROGRAMMING' | 'COLLECTION' | 'LOADING' | 'DELIVERY';
+
+export type LogisticsColumnKey =
+  | 'shipper'
+  | 'origin'
+  | 'origin_notes'
+  | 'destination'
+  | 'destination_notes'
+  | 'loading_time'
+  | 'shipowner'
+  | 'collection'
+  | 'delivery'
+  | 'driver'
+  | 'fleet'
+  | 'container_type'
+  | 'travel_status'
+  | 'actions'
+  | 'cargo_number'
+  | 'load_identifier'
+  | 'shipment_number'
+  | 'booking_number'
+  | 'container_number'
+  | 'plan'
+  | 'cargo_type'
+  | 'created_at'
+  | 'vessel';
+
+export interface LogisticsColumnPreferenceItem {
+  key: LogisticsColumnKey;
+  visible: boolean;
+}
+
+
+export type LogisticsFormSectionKey =
+  | 'classification'
+  | 'loading'
+  | 'collection_schedule'
+  | 'collection'
+  | 'delivery'
+  | 'container'
+  | 'fleet';
+
+export type LogisticsFormFieldKey =
+  | 'shipper'
+  | 'cargo_type'
+  | 'container_type'
+  | 'shipowner'
+  | 'collection_booking_number'
+  | 'plan'
+  | 'load_mode'
+  | 'load_identifier'
+  | 'loading_location'
+  | 'loading_at'
+  | 'origin_notes'
+  | 'collection_scheduled_at'
+  | 'collection_terminal'
+  | 'collection_at'
+  | 'collection_location_type'
+  | 'delivery_city'
+  | 'delivery_location'
+  | 'delivery_at'
+  | 'booking_number'
+  | 'delivery_location_type'
+  | 'destination_notes'
+  | 'container_number'
+  | 'container_tare_kg'
+  | 'container_payload_kg'
+  | 'shipowner_seal'
+  | 'vessel'
+  | 'deadline'
+  | 'country'
+  | 'temperature'
+  | 'sif_seal'
+  | 'plate_mode'
+  | 'tractor'
+  | 'trailer'
+  | 'driver'
+  | 'driver_two';
+
+export type LogisticsFormOrder = Record<LogisticsFormSectionKey, LogisticsFormFieldKey[]>;
+
 export type LogisticsStatusFilter = 'PROCESSING' | 'FINALIZED' | 'ALL';
 
 export interface LogisticsShipperOption {

@@ -3,8 +3,11 @@ import type {
   LogisticsAppointment,
   LogisticsFilters,
   LogisticsFormData,
+  LogisticsFormOrder,
+  LogisticsFormSectionKey,
   LogisticsLoad,
   LogisticsLoadEvent,
+  LogisticsColumnPreferenceItem,
   LogisticsOptions,
   LogisticsStage,
 } from './types';
@@ -310,6 +313,32 @@ function formPayload(data: LogisticsFormData) {
 }
 
 export const logisticsService = {
+  async columnPreferences(): Promise<{ columns: LogisticsColumnPreferenceItem[]; customized: boolean }> {
+    const response = await api.get<{ columns: LogisticsColumnPreferenceItem[]; customized: boolean }>('/api/logistics/column-preferences');
+    return response.data;
+  },
+
+  async formPreferences(): Promise<{ order: LogisticsFormOrder; sections: LogisticsFormSectionKey[]; customized: boolean }> {
+    const response = await api.get<{ order: LogisticsFormOrder; sections: LogisticsFormSectionKey[]; customized: boolean }>('/api/logistics/form-preferences');
+    return response.data;
+  },
+
+  async saveFormPreferences(order: LogisticsFormOrder, sections: LogisticsFormSectionKey[]): Promise<{ order: LogisticsFormOrder; sections: LogisticsFormSectionKey[]; customized: boolean }> {
+    const response = await api.put<{ message: string; order: LogisticsFormOrder; sections: LogisticsFormSectionKey[]; customized: boolean }>(
+      '/api/logistics/form-preferences',
+      { order, sections },
+    );
+    return { order: response.data.order, sections: response.data.sections, customized: response.data.customized };
+  },
+
+  async saveColumnPreferences(columns: LogisticsColumnPreferenceItem[]): Promise<{ columns: LogisticsColumnPreferenceItem[]; customized: boolean }> {
+    const response = await api.put<{ message: string; columns: LogisticsColumnPreferenceItem[]; customized: boolean }>(
+      '/api/logistics/column-preferences',
+      { columns },
+    );
+    return { columns: response.data.columns, customized: response.data.customized };
+  },
+
   async options(): Promise<LogisticsOptions> {
     const response = await api.get<ApiOptions>('/api/logistics/options');
     return {

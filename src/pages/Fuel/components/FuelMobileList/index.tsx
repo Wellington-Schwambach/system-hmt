@@ -40,10 +40,13 @@ export function FuelMobileList({ records, deletingId, invoicingKey, onEdit, onIn
 
           <DataGrid>
             <DataItem><DataLabel>KM</DataLabel><DataValue>{record.km !== null && record.km > 0 ? formatInteger(record.km) : '—'}</DataValue></DataItem>
+            <DataItem><DataLabel>KM Rodado</DataLabel><DataValue>{record.distanceKm !== null && record.distanceKm >= 0 ? `${formatInteger(record.distanceKm)} km` : '—'}</DataValue></DataItem>
             <DataItem><DataLabel>Motorista</DataLabel><DataValue>{record.driver}</DataValue></DataItem>
             <DataItem><DataLabel>Litros Diesel</DataLabel><DataValue>{formatDecimal(record.dieselLiters)} L</DataValue></DataItem>
+            <DataItem><DataLabel>Valor Litro Diesel</DataLabel><DataValue>{record.dieselLiters > 0 ? formatCurrency(record.dieselValuePerLiter) : '—'}</DataValue></DataItem>
             <DataItem><DataLabel>Média</DataLabel><DataValue>{record.dieselAverage === null ? '—' : `${formatDecimal(record.dieselAverage)} km/L`}</DataValue></DataItem>
             <DataItem><DataLabel>Valor Diesel</DataLabel><DataValue>{formatCurrency(record.dieselTotalValue)}</DataValue></DataItem>
+            <DataItem><DataLabel>Valor Litro Arla</DataLabel><DataValue>{record.arlaLiters > 0 ? formatCurrency(record.arlaValuePerLiter) : '—'}</DataValue></DataItem>
             <DataItem><DataLabel>Valor Arla</DataLabel><DataValue>{record.arlaTotalValue > 0 ? formatCurrency(record.arlaTotalValue) : '—'}</DataValue></DataItem>
           </DataGrid>
 

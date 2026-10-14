@@ -133,6 +133,10 @@ Route::middleware(['auth:sanctum', 'access.schedule', 'session.expiration'])->gr
         ->middleware('permission:logistics')
         ->group(function (): void {
             Route::get('/options', [LogisticsController::class, 'options']);
+            Route::get('/column-preferences', [LogisticsController::class, 'columnPreferences']);
+            Route::put('/column-preferences', [LogisticsController::class, 'updateColumnPreferences']);
+            Route::get('/form-preferences', [LogisticsController::class, 'formPreferences']);
+            Route::put('/form-preferences', [LogisticsController::class, 'updateFormPreferences']);
             Route::get('/calendar', [LogisticsController::class, 'calendar']);
             Route::post('/catalogs/{catalog}', [LogisticsController::class, 'storeCatalog']);
             Route::get('/', [LogisticsController::class, 'index']);

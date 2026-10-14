@@ -9,6 +9,7 @@ use App\Models\BrazilCity;
 use App\Models\Employee;
 use App\Models\LogisticsCargoType;
 use App\Models\LogisticsContainerType;
+use App\Models\LogisticsColumnPreference;
 use App\Models\LogisticsLocationType;
 use App\Models\LogisticsShipowner;
 use App\Models\LogisticsLoad;
@@ -29,6 +30,361 @@ use Illuminate\Validation\ValidationException;
 
 class LogisticsController extends Controller
 {
+    private const COLUMN_KEYS = [
+        'shipper',
+        'origin',
+        'origin_notes',
+        'destination',
+        'destination_notes',
+        'loading_time',
+        'shipowner',
+        'collection',
+        'delivery',
+        'driver',
+        'fleet',
+        'container_type',
+        'travel_status',
+        'actions',
+        'cargo_number',
+        'load_identifier',
+        'shipment_number',
+        'booking_number',
+        'container_number',
+        'plan',
+        'cargo_type',
+        'created_at',
+        'vessel',
+    ];
+
+    private const DEFAULT_COLUMNS = [
+        'shipper',
+        'origin',
+        'origin_notes',
+        'destination',
+        'destination_notes',
+        'loading_time',
+        'shipowner',
+        'collection',
+        'delivery',
+        'driver',
+        'fleet',
+        'container_type',
+        'travel_status',
+        'actions',
+    ];
+
+    private const FORM_SECTION_FIELDS = [
+        'classification' => [
+            'shipper',
+            'cargo_type',
+            'container_type',
+            'shipowner',
+            'collection_booking_number',
+            'plan',
+            'load_mode',
+            'load_identifier',
+        ],
+        'loading' => [
+            'loading_location',
+            'loading_at',
+            'origin_notes',
+        ],
+        'collection_schedule' => [
+            'collection_scheduled_at',
+        ],
+        'collection' => [
+            'collection_terminal',
+            'collection_at',
+            'collection_location_type',
+        ],
+        'delivery' => [
+            'delivery_city',
+            'delivery_location',
+            'delivery_at',
+            'booking_number',
+            'delivery_location_type',
+            'destination_notes',
+        ],
+        'container' => [
+            'container_number',
+            'container_tare_kg',
+            'container_payload_kg',
+            'shipowner_seal',
+            'vessel',
+            'deadline',
+            'country',
+            'temperature',
+            'sif_seal',
+        ],
+        'fleet' => [
+            'plate_mode',
+            'tractor',
+            'trailer',
+            'driver',
+            'driver_two',
+        ],
+    ];
+
+
+    public function formPreferences(Request $request): JsonResponse
+    {
+        $saved = LogisticsColumnPreference::query()
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        return response()->json([
+            'order' => $this->normalizeFormOrder($saved?->form_order),
+            'sections' => $this->normalizeFormSectionOrder($saved?->form_order),
+            'customized' => is_array($saved?->form_order) && $saved->form_order !== [],
+        ]);
+    }
+
+    public function updateFormPreferences(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'order' => ['required', 'array'],
+            'order.*' => ['required', 'array'],
+            'order.*.*' => ['required', 'string'],
+            'sections' => ['required', 'array'],
+            'sections.*' => ['required', 'string'],
+        ]);
+
+        $order = $validated['order'];
+        $sections = array_values($validated['sections']);
+
+        foreach (self::FORM_SECTION_FIELDS as $section => $requiredFields) {
+            $submitted = $order[$section] ?? null;
+
+            if (! is_array($submitted)) {
+                throw ValidationException::withMessages([
+                    'order' => ["A seção {$section} deve estar presente na configuração do formulário."],
+                ]);
+            }
+
+            $submittedValues = array_values($submitted);
+            if (count($submittedValues) !== count(array_unique($submittedValues))) {
+                throw ValidationException::withMessages([
+                    'order' => ["A seção {$section} possui campos repetidos."],
+                ]);
+            }
+
+            $expected = $requiredFields;
+            $received = $submittedValues;
+            sort($expected);
+            sort($received);
+
+            if ($expected !== $received) {
+                throw ValidationException::withMessages([
+                    'order' => ['A personalização permite apenas reordenar os campos existentes, sem adicionar ou remover campos.'],
+                ]);
+            }
+        }
+
+        $unexpectedSections = array_diff(array_keys($order), array_keys(self::FORM_SECTION_FIELDS));
+        if ($unexpectedSections !== []) {
+            throw ValidationException::withMessages([
+                'order' => ['A configuração contém uma seção inválida.'],
+            ]);
+        }
+
+        if (count($sections) !== count(array_unique($sections))) {
+            throw ValidationException::withMessages([
+                'sections' => ['A ordem dos blocos possui itens repetidos.'],
+            ]);
+        }
+
+        $expectedSections = array_keys(self::FORM_SECTION_FIELDS);
+        $receivedSections = $sections;
+        sort($expectedSections);
+        sort($receivedSections);
+
+        if ($expectedSections !== $receivedSections) {
+            throw ValidationException::withMessages([
+                'sections' => ['A personalização permite apenas reordenar os blocos existentes, sem adicionar ou remover blocos.'],
+            ]);
+        }
+
+        $normalized = $this->normalizeFormOrder(['fields' => $order]);
+        $normalizedSections = $this->normalizeFormSectionOrder(['sections' => $sections]);
+        $preference = LogisticsColumnPreference::query()->firstOrNew([
+            'user_id' => $request->user()->id,
+        ]);
+
+        if (! $preference->exists) {
+            $preference->columns = $this->normalizeColumnPreferences(null);
+        }
+
+        $preference->form_order = [
+            'sections' => $normalizedSections,
+            'fields' => $normalized,
+        ];
+        $preference->save();
+
+        return response()->json([
+            'message' => 'Ordem dos blocos e campos salva com sucesso.',
+            'order' => $normalized,
+            'sections' => $normalizedSections,
+            'customized' => true,
+        ]);
+    }
+
+    /** @param array<string, mixed>|null $saved */
+    private function normalizeFormOrder(?array $saved): array
+    {
+        $normalized = [];
+        $savedFields = is_array($saved['fields'] ?? null) ? $saved['fields'] : ($saved ?? []);
+
+        foreach (self::FORM_SECTION_FIELDS as $section => $defaultFields) {
+            $allowed = array_fill_keys($defaultFields, true);
+            $seen = [];
+            $sectionOrder = [];
+            $storedFields = $savedFields[$section] ?? [];
+
+            if (is_array($storedFields)) {
+                foreach ($storedFields as $field) {
+                    $key = (string) $field;
+                    if (! isset($allowed[$key]) || isset($seen[$key])) {
+                        continue;
+                    }
+
+                    $sectionOrder[] = $key;
+                    $seen[$key] = true;
+                }
+            }
+
+            foreach ($defaultFields as $field) {
+                if (! isset($seen[$field])) {
+                    $sectionOrder[] = $field;
+                }
+            }
+
+            $normalized[$section] = $sectionOrder;
+        }
+
+        return $normalized;
+    }
+
+    /** @param array<string, mixed>|null $saved */
+    private function normalizeFormSectionOrder(?array $saved): array
+    {
+        $defaults = array_keys(self::FORM_SECTION_FIELDS);
+        $allowed = array_fill_keys($defaults, true);
+        $seen = [];
+        $normalized = [];
+        $storedSections = is_array($saved['sections'] ?? null) ? $saved['sections'] : [];
+
+        foreach ($storedSections as $section) {
+            $key = (string) $section;
+            if (! isset($allowed[$key]) || isset($seen[$key])) {
+                continue;
+            }
+
+            $normalized[] = $key;
+            $seen[$key] = true;
+        }
+
+        foreach ($defaults as $section) {
+            if (! isset($seen[$section])) {
+                $normalized[] = $section;
+            }
+        }
+
+        return $normalized;
+    }
+
+    public function columnPreferences(Request $request): JsonResponse
+    {
+        $saved = LogisticsColumnPreference::query()
+            ->where('user_id', $request->user()->id)
+            ->first();
+
+        return response()->json([
+            'columns' => $this->normalizeColumnPreferences($saved?->columns),
+            'customized' => $saved !== null,
+        ]);
+    }
+
+    public function updateColumnPreferences(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'columns' => ['required', 'array', 'min:1', 'max:'.count(self::COLUMN_KEYS)],
+            'columns.*.key' => ['required', 'string', Rule::in(self::COLUMN_KEYS)],
+            'columns.*.visible' => ['required', 'boolean'],
+        ]);
+
+        if (! collect($validated['columns'])->contains(fn (array $column): bool => (bool) $column['visible'])) {
+            throw ValidationException::withMessages([
+                'columns' => ['Selecione ao menos uma coluna para a listagem.'],
+            ]);
+        }
+
+        $seen = [];
+        foreach ($validated['columns'] as $column) {
+            if (isset($seen[$column['key']])) {
+                throw ValidationException::withMessages([
+                    'columns' => ['Cada coluna pode aparecer apenas uma vez na configuração.'],
+                ]);
+            }
+            $seen[$column['key']] = true;
+        }
+
+        $columns = $this->normalizeColumnPreferences($validated['columns']);
+
+        LogisticsColumnPreference::query()->updateOrCreate(
+            ['user_id' => $request->user()->id],
+            ['columns' => $columns],
+        );
+
+        return response()->json([
+            'message' => 'Configuração de colunas salva com sucesso.',
+            'columns' => $columns,
+            'customized' => true,
+        ]);
+    }
+
+    /** @param array<int, mixed>|null $saved */
+    private function normalizeColumnPreferences(?array $saved): array
+    {
+        $normalized = [];
+        $seen = [];
+        $hasSavedConfiguration = is_array($saved) && $saved !== [];
+
+        foreach ($saved ?? [] as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $key = (string) ($item['key'] ?? '');
+            if (! in_array($key, self::COLUMN_KEYS, true) || isset($seen[$key])) {
+                continue;
+            }
+
+            $normalized[] = [
+                'key' => $key,
+                'visible' => (bool) ($item['visible'] ?? false),
+            ];
+            $seen[$key] = true;
+        }
+
+        if ($normalized === []) {
+            foreach (self::DEFAULT_COLUMNS as $key) {
+                $normalized[] = ['key' => $key, 'visible' => true];
+                $seen[$key] = true;
+            }
+        }
+
+        foreach (self::COLUMN_KEYS as $key) {
+            if (! isset($seen[$key])) {
+                $normalized[] = [
+                    'key' => $key,
+                    'visible' => $hasSavedConfiguration ? false : in_array($key, self::DEFAULT_COLUMNS, true),
+                ];
+            }
+        }
+
+        return $normalized;
+    }
+
     public function index(Request $request): JsonResponse
     {
         $query = LogisticsLoad::query()->with($this->relations());

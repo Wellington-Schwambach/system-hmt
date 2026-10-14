@@ -41,10 +41,13 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
               <TH>Placa</TH>
               <TH>Posto</TH>
               <TH>KM</TH>
+              <TH>KM Rodado</TH>
               <TH>Litros Diesel</TH>
+              <TH>Valor Litro Diesel</TH>
               <TH>Média</TH>
               <TH>Valor Diesel</TH>
               <TH>Faturar Diesel</TH>
+              <TH>Valor Litro Arla</TH>
               <TH>Valor Arla</TH>
               <TH>Faturar Arla</TH>
               <TH>Motorista</TH>
@@ -60,7 +63,11 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
                 <TD>{record.plate}</TD>
                 <TD>{record.station}</TD>
                 <NumericCell>{record.km !== null && record.km > 0 ? formatInteger(record.km) : '—'}</NumericCell>
+                <NumericCell title="Distância percorrida desde o abastecimento anterior">
+                  {record.distanceKm !== null && record.distanceKm >= 0 ? `${formatInteger(record.distanceKm)} km` : '—'}
+                </NumericCell>
                 <NumericCell>{formatDecimal(record.dieselLiters)} L</NumericCell>
+                <NumericCell>{record.dieselLiters > 0 ? formatCurrency(record.dieselValuePerLiter) : '—'}</NumericCell>
                 <NumericCell>
                   {record.dieselAverage === null
                     ? '—'
@@ -82,6 +89,9 @@ export function FuelTable({ records, deletingId, invoicingKey, onEdit, onInvoice
                     </InvoiceButton>
                   )}
                 </TD>
+                <NumericCell>
+                  {record.arlaLiters > 0 ? formatCurrency(record.arlaValuePerLiter) : '—'}
+                </NumericCell>
                 <NumericCell>
                   {record.arlaTotalValue > 0 ? formatCurrency(record.arlaTotalValue) : '—'}
                 </NumericCell>
