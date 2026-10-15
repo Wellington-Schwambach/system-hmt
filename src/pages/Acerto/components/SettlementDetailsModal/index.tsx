@@ -158,7 +158,12 @@ export function SettlementDetailsModal({
                       <td>{travel.origin}</td>
                       <td>{travel.destination}</td>
                       <td>{travel.plate}</td>
-                      <td>{formatCurrency(travel.originalNetFreight ?? travel.netFreight)}{(travel.settlementCrewSize ?? 1) > 1 ? ` · Acerto: ${formatCurrency(travel.settlementNetFreight ?? travel.netFreight)}` : ''}</td>
+                      <td>
+                    {formatCurrency(travel.originalNetFreight ?? travel.netFreight)}
+                    {(travel.settlementCrewSize ?? 1) > 1
+                      ? ` · Acerto: ${formatCurrency(travel.settlementNetFreight ?? travel.netFreight)} · ${formatDecimal(travel.settlementSharePercent ?? 50)}%`
+                      : ' · Acerto: 100%'}
+                  </td>
                     </tr>
                   ))}
                 </tbody>

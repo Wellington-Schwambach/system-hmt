@@ -506,6 +506,37 @@ export function useDriverSettlement() {
       ? Number(settlement.driverId)
       : null;
 
+    // Ao editar, recalculamos a composição das viagens com a fonte atual de viagens
+    // e o histórico dos conjuntos. Isso corrige snapshots antigos que foram gravados
+    // com rateio de 50% por causa de um segundo motorista inexistente (id 0).
+    // A própria viagem continua sendo a fonte principal: se ela possui apenas um
+    // motorista, recebe 100%; se possui dois, divide entre eles. O histórico do
+    // conjunto é usado apenas como fallback para viagens antigas sem motoristas.
+    const liveTravels = safeDriver
+      ? filterDriverTravels(
+          loadedData.travels,
+          loadedData.crewEvents,
+          safeDriver,
+          safeStartDate,
+          safeEndDate,
+          driverId,
+        )
+      : [];
+    const snapshotTravelSource = Array.isArray(settlement.travels)
+      ? settlement.travels.filter(Boolean)
+      : [];
+    const recalculatedSnapshotTravels = safeDriver
+      ? filterDriverTravels(
+          snapshotTravelSource,
+          loadedData.crewEvents,
+          safeDriver,
+          safeStartDate,
+          safeEndDate,
+          driverId,
+        )
+      : [];
+    const editingTravels = liveTravels.length > 0 ? liveTravels : recalculatedSnapshotTravels;
+
     setSelectedDriverState(safeDriver);
     setEditingDriverOption(
       driverId !== null && safeDriver
@@ -528,19 +559,13 @@ export function useDriverSettlement() {
         ? settlement.selectedFuelRecordIds.map(Number).filter(Number.isFinite)
         : [],
     );
-    setEditingTravelsSnapshot(
-      Array.isArray(settlement.travels)
-        ? settlement.travels.filter(Boolean).map((travel) => ({ ...travel }))
-        : [],
-    );
-    setEditingVehicleSummariesSnapshot(
-      Array.isArray(settlement.vehicleSummaries)
-        ? settlement.vehicleSummaries.filter(Boolean).map((summary) => ({ ...summary }))
-        : [],
-    );
+    setEditingTravelsSnapshot(editingTravels.map((travel) => ({ ...travel })));
+    // As médias/bonificações dependem da composição e do frete considerado de cada
+    // viagem, então devem ser recalculadas junto com o rateio corrigido.
+    setEditingVehicleSummariesSnapshot(null);
     setEditingSettlementId(String(settlement.id));
     setSavedAt('');
-  }, []);
+  }, [loadedData.crewEvents, loadedData.travels]);
 
   const deleteSettlement = useCallback(async (settlementId: string) => {
     setSaving(true);

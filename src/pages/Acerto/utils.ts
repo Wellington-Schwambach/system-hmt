@@ -279,7 +279,19 @@ interface CrewSegment {
 }
 
 function crewMemberIdentity(member: CrewMember): string {
-  return member.id !== null ? `id:${member.id}` : `name:${normalizeName(member.name)}`;
+  if (member.id !== null && Number.isFinite(member.id) && member.id > 0) {
+    return `id:${member.id}`;
+  }
+
+  const normalizedName = normalizeName(member.name);
+  return normalizedName ? `name:${normalizedName}` : '';
+}
+
+function normalizeOptionalDriverId(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function uniqueCrewMembers(members: CrewMember[]): CrewMember[] {
@@ -525,8 +537,11 @@ function travelCrewMembers(travel: TravelRecord): CrewMember[] {
   const legacyDriver = typeof travel.driver === 'string' ? travel.driver.trim() : '';
   const driverOne = typeof travel.driverOne === 'string' ? travel.driverOne.trim() : '';
   const driverTwo = typeof travel.driverTwo === 'string' ? travel.driverTwo.trim() : '';
-  const driverOneId = Number.isFinite(Number(travel.driverOneId)) ? Number(travel.driverOneId) : null;
-  const driverTwoId = Number.isFinite(Number(travel.driverTwoId)) ? Number(travel.driverTwoId) : null;
+  // `Number(null)` e `Number('')` resultam em 0. Antes isso criava um
+  // motorista fantasma de id 0 e fazia uma viagem individual ser rateada em 50%.
+  // Somente ids reais e positivos podem compor a dupla.
+  const driverOneId = normalizeOptionalDriverId(travel.driverOneId);
+  const driverTwoId = normalizeOptionalDriverId(travel.driverTwoId);
   const members: CrewMember[] = [];
 
   if (driverOneId !== null || driverOne !== '') {

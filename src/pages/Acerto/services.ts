@@ -47,8 +47,8 @@ function buildTravelsRows(settlement: DriverSettlementSnapshot): string {
           <td class="numeric">
             ${escapeHtml(formatCurrency(travel.originalNetFreight ?? travel.netFreight))}
             ${(travel.settlementCrewSize ?? 1) > 1
-              ? `<span class="rateio">No acerto: ${escapeHtml(formatCurrency(travel.settlementNetFreight ?? travel.netFreight))} · 50%</span>`
-              : '<span class="rateio">No acerto: valor integral</span>'}
+              ? `<span class="rateio">No acerto: ${escapeHtml(formatCurrency(travel.settlementNetFreight ?? travel.netFreight))} · ${escapeHtml(formatDecimal(travel.settlementSharePercent ?? 50))}%</span>`
+              : '<span class="rateio">No acerto: valor integral · 100%</span>'}
           </td>
         </tr>`,
     )

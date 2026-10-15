@@ -1,6 +1,6 @@
 import { ArrowRight } from 'lucide-react';
 
-import { formatCurrency, formatDate } from '../../utils';
+import { formatCurrency, formatDate, formatDecimal } from '../../utils';
 import type { TripSettlementTableProps } from './types';
 import {
   Card,
@@ -62,9 +62,13 @@ export function TripSettlementTable({ travels, totalOriginalNetFreight, totalNet
                     <FreightValue>
                       <strong>{formatCurrency(travel.originalNetFreight ?? travel.netFreight)}</strong>
                       {(travel.settlementCrewSize ?? 1) > 1 ? (
-                        <small>No acerto: {formatCurrency(travel.settlementNetFreight ?? travel.netFreight)} · 50%</small>
+                        <small>
+                          No acerto: {formatCurrency(travel.settlementNetFreight ?? travel.netFreight)} · {formatDecimal(
+                            travel.settlementSharePercent ?? 50,
+                          )}%
+                        </small>
                       ) : (
-                        <small>No acerto: valor integral</small>
+                        <small>No acerto: valor integral · 100%</small>
                       )}
                     </FreightValue>
                   </TD>
